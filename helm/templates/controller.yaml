@@ -1,0 +1,28 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kubera-controller
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kubera-controller
+  template:
+    metadata:
+      labels:
+        app: kubera-controller
+    spec:
+      containers:
+        - name: kubera-controller
+          image: kubera-controller:latest # Replace with the actual image
+          imagePullPolicy: Always
+          resources:
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
+            requests:
+              cpu: "250m"
+              memory: "128Mi"
+          ports:
+            - containerPort: 8080 # Replace with the actual port if different

@@ -1,0 +1,18 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: GatewayClass
+metadata:
+  name: kubera
+spec:
+  controllerName: whitefamily.in/kubera
+  parametersRef:
+    kind: ConfigMap
+    name: kubera-gateway-class-config
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kubera-gateway-class-config2
+data:
+  config: |
+    requeueInterval: "10s"

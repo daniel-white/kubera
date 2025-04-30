@@ -1,0 +1,10 @@
+[workspace]
+resolver = "3"
+members = [
+    "controller",
+    "core",
+    "gateway"
+]
+
+[patch.crates-io]
+sfv = { git = "https://github.com/undef1nd/sfv.git", tag = "v0.9.4" }
