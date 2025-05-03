@@ -4,30 +4,26 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-anyhow = "1"
+anyhow = "1.0"
+clap = { version = "4.0", features = ["derive"] }
 futures = "0.3"
+gateway-api = "0.15"
+humantime-serde = "1.0"
+k8s-openapi = { version = "0.24", features = ["v1_32"] }
+kube = { version = "0.99", features = ["runtime", "derive"] }
 kubera_core = { path = "../core" }
-gateway-api = { version = "0.15.0" }
-kube = { version = "0.99.0", features = ["runtime", "derive"] }
-k8s-openapi = { version = "0.24.0", features = ["v1_32"] }
-merge = { version = "0.2" }
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-serde_yaml = "0.9"
-thiserror = { version = "2", features = ["std"] }
-humantime-serde = { version = "1" }
-tokio = { version = "1", features = ["full"] }
-tokio-stream = { version = "0.1" }
-tokio-util = { version = "0.7" }
-
-[build-dependencies]
+log = "0.4"
+schemars = "0.8"
 serde = { version = "1.0", features = ["derive"] }
-kube = { version = "0.99.0", features = ["derive"] }
-gateway-api = { version = "0.15.0" }
-k8s-openapi = { version = "0.24.0", features = ["v1_32"] }
-schemars = { version = "0.8" }
 serde_json = "1.0"
 serde_yaml = "0.9"
+structured-logger = { version = "1" }
+thiserror = "2.0"
+tokio = { version = "1.0", features = ["full"] }
+tokio-stream = "0.1"
+tokio-util = "0.7"
+
+
 
 [[bin]]
 name = "kubera_controller"

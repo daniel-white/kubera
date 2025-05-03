@@ -3,21 +3,22 @@ use kube::CustomResource;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-#[derive(Deserialize, Serialize, Clone, Debug, JsonSchema)]
-pub struct GatewayRefs {
-    #[serde(
-        rename = "gatewayRefs",
-        default,
-        skip_serializing_if = "Option::is_none"
-    )]
-    pub refs: Option<Vec<String>>,
+#[derive(Deserialize, Serialize, Clone, Debug, JsonSchema, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct Ref {
+    pub name: String,
 
-    #[serde(
-        rename = "gatewayRef",
-        default,
-        skip_serializing_if = "Option::is_none"
-    )]
-    pub ref_: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub namespace: Option<String>,
+}
+
+#[derive(Deserialize, Serialize, Clone, Debug, JsonSchema, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub enum GatewayRefs {
+    #[serde(rename = "parentRef")]
+    One(Ref),
+    #[serde(rename = "parentRefs")]
+    Many(Vec<Ref>),
 }
 
 #[derive(CustomResource, Deserialize, Serialize, Clone, Debug, JsonSchema)]
@@ -35,7 +36,7 @@ pub struct GatewayDeploymentSpec {
     pub strategy: Option<DeploymentStrategy>,
 
     #[serde(flatten)]
-    pub gateway_refs: GatewayRefs,
+    pub parent_refs: GatewayRefs,
 }
 
 #[derive(CustomResource, Deserialize, Serialize, Clone, Debug, JsonSchema)]
@@ -50,5 +51,5 @@ pub struct GatewayServiceSpec {
     pub spec: ServiceSpec,
 
     #[serde(flatten)]
-    pub gateway_refs: GatewayRefs,
+    pub parent_refs: GatewayRefs,
 }
