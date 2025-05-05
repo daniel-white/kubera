@@ -6,6 +6,8 @@ edition = "2024"
 [dependencies]
 anyhow = "1.0"
 clap = { version = "4.0", features = ["derive"] }
+derive_builder = "0.20"
+derive-getters = "0.5"
 futures = "0.3"
 gateway-api = "0.15"
 humantime-serde = "1.0"

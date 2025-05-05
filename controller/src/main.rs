@@ -4,8 +4,8 @@ mod controllers;
 use api::write_crds;
 use clap::{Parser, Subcommand};
 use controllers::run_controllers;
-use structured_logger::Builder;
 use structured_logger::async_json::new_writer;
+use structured_logger::Builder;
 
 #[derive(Parser)]
 #[command(name = "kubera-controller")]

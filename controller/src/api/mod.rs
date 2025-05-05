@@ -1,3 +1,4 @@
+pub mod constants;
 pub mod v1alpha1;
 
 use anyhow::{Context, Result};
@@ -7,10 +8,11 @@ use std::{
     fs::{create_dir_all, write},
     path::Path,
 };
-use v1alpha1::{GatewayDeployment, GatewayService};
+
+use v1alpha1::{GatewayClassParameters, GatewayParameters};
 
 pub fn write_crds(output_path: Option<&str>) -> Result<()> {
-    let output = [GatewayDeployment::crd(), GatewayService::crd()]
+    let output = [GatewayClassParameters::crd(), GatewayParameters::crd()]
         .iter()
         .fold(String::new(), |mut output, crd| {
             writeln!(output, "---").unwrap();

@@ -1,5 +1,5 @@
 [package]
-name = "kubera_gateway"
+name = "kubera_proxy"
 version = "0.1.0"
 edition = "2021"
 
@@ -9,5 +9,5 @@ pingora = { version = "0.4" }
 tokio = { version = "1", features = ["full"] }
 
 [[bin]]
-name = "kubera_gateway"
+name = "kubera_proxy"
 path = "src/main.rs"

@@ -3,7 +3,7 @@ resolver = "3"
 members = [
     "controller",
     "core",
-    "gateway"
+    "proxy"
 ]
 
 [patch.crates-io]
