@@ -1,72 +1,121 @@
 use crate::api::constants::{GATEWAY_CLASS_PARAMETERS_CRD_KIND, GROUP};
-use crate::controllers::gateway::watch_gateways;
-use crate::controllers::gateway_class_parameters::watch_gateway_class_parameters;
-use crate::controllers::state::{
-    GatewayClassStateBuilder, RefBuilder, StateEvents,
-};
+use crate::controllers::state::{Ref, RefBuilder};
+use actix::WeakRecipient;
+use actix::fut::wrap_future;
+use actix::prelude::*;
+use derive_builder::Builder;
+use derive_getters::Getters;
 use futures::StreamExt;
 use gateway_api::apis::standard::gatewayclasses::GatewayClass;
-use kube::runtime::reflector::Lookup;
 use kube::{
-    runtime::{controller::Action, watcher::Config, Controller}, Api,
-    Client,
+    Api, Client,
+    runtime::{Controller, controller::Action, watcher::Config},
 };
+use std::sync::RwLock;
 use std::{future::ready, sync::Arc, time::Duration};
 use thiserror::Error;
-use tokio::join;
-use tokio::sync::mpsc::Sender;
-use tokio::sync::watch::channel;
 
-#[derive(Error, Debug)]
-pub enum ControllerError {
-    #[error("Failed to get config map: {0}")]
-    ConfigMapError(#[from] kube::Error),
+#[derive(Builder, Getters, Message, Clone, Debug)]
+#[rtype(result = "()")]
+pub struct GatewayClassParametersRefChange {
+    parameters_ref: Option<Ref>,
 }
 
-pub async fn watch_gateway_class(client: &Client, state_events_tx: Sender<StateEvents>) {
-    let (tx, rx) = channel(None);
+#[derive(Builder, Message, Debug)]
+#[rtype(result = "()")]
+pub struct SubscribeToGatewayClassParametersRefChange {
+    recipient: WeakRecipient<GatewayClassParametersRefChange>,
+}
 
-    let parameters_watch = watch_gateway_class_parameters(&client, state_events_tx.clone(), rx.clone());
-    let gateways_watch = watch_gateways(&client, state_events_tx.clone(), rx.clone());
+pub struct GatewayClassController {
+    client: Client,
+    subscribers: Arc<RwLock<Vec<WeakRecipient<GatewayClassParametersRefChange>>>>,
+}
 
-    let gateway_classes = Api::<GatewayClass>::all(client.clone());
-    let watcher_config = Config::default();
-    let class_watch = Controller::new(gateway_classes, watcher_config)
-        .shutdown_on_signal()
-        .run(
-            async |gateway_class, tx| {
-                let mut state = GatewayClassStateBuilder::default();
+impl GatewayClassController {
+    pub fn new(client: Client) -> Self {
+        GatewayClassController {
+            client,
+            subscribers: Arc::default(),
+        }
+    }
+}
 
-                match gateway_class.name() {
-                    Some(name) => {
-                        state.name(name);
-                    }
-                    None => {
-                        state.name("kubera");
-                    }
-                }
+#[derive(Clone)]
+struct ControllerContext {
+    client: Client,
+    subscribers: Arc<RwLock<Vec<WeakRecipient<GatewayClassParametersRefChange>>>>,
+}
 
-                if let Some(param_ref) = &gateway_class.spec.parameters_ref {
-                    if param_ref.kind == GATEWAY_CLASS_PARAMETERS_CRD_KIND
-                        && param_ref.group == GROUP
-                    {
-                        let parameters_ref = RefBuilder::default()
-                            .name(&param_ref.name)
+#[derive(Error, Debug)]
+enum ControllerError {}
+
+impl Actor for GatewayClassController {
+    type Context = Context<Self>;
+
+    fn started(&mut self, ctx: &mut Context<Self>) {
+        let client = self.client.clone();
+        let subscribers = self.subscribers.clone();
+        ctx.spawn(wrap_future(async move {
+            let gateway_classes = Api::<GatewayClass>::all(client.clone());
+            let watcher_config = Config::default();
+            Controller::new(gateway_classes, watcher_config)
+                .shutdown_on_signal()
+                .run(
+                    async |gateway_class, ctx| {
+                        let parameters_ref = match &gateway_class.spec.parameters_ref {
+                            Some(param_ref)
+                                if param_ref.kind == GATEWAY_CLASS_PARAMETERS_CRD_KIND
+                                    && param_ref.group == GROUP =>
+                            {
+                                Some(
+                                    RefBuilder::default()
+                                        .name(&param_ref.name)
+                                        .namespace(None)
+                                        .build()
+                                        .expect("Failed to build Ref"),
+                                )
+                            }
+                            _ => None,
+                        };
+
+                        let message = GatewayClassParametersRefChangeBuilder::default()
+                            .parameters_ref(parameters_ref)
                             .build()
-                            .expect("Failed to build Ref");
-                        state.parameter_ref(Some(parameters_ref));
-                    }
-                }
+                            .expect("Failed to build GatewayClassParametersRefChange");
 
-                let config = state.build().expect("Failed to build GatewayClassState");
-                let _ = tx.send(Some(config));
+                        let subscribers = ctx.subscribers.read().unwrap();
+                        for subscriber in subscribers.iter().filter_map(|s| s.upgrade()) {
+                            subscriber.do_send(message.clone());
+                        }
 
-                Ok(Action::requeue(Duration::from_secs(60)))
-            },
-            |_: Arc<GatewayClass>, _: &ControllerError, _| Action::requeue(Duration::from_secs(5)),
-            Arc::new(tx),
-        )
-        .for_each(|_| ready(()));
+                        Ok(Action::requeue(Duration::from_secs(60)))
+                    },
+                    |_: Arc<GatewayClass>, _: &ControllerError, _| {
+                        Action::requeue(Duration::from_secs(5))
+                    },
+                    Arc::new(ControllerContext {
+                        client,
+                        subscribers: subscribers.clone(),
+                    }),
+                )
+                .for_each(|_| ready(()))
+                .await;
+        }));
+    }
+}
 
-    join!(parameters_watch, gateways_watch, class_watch);
+impl Supervised for GatewayClassController {}
+
+impl Handler<SubscribeToGatewayClassParametersRefChange> for GatewayClassController {
+    type Result = ();
+
+    fn handle(
+        &mut self,
+        msg: SubscribeToGatewayClassParametersRefChange,
+        ctx: &mut Self::Context,
+    ) -> Self::Result {
+        let mut clients = self.subscribers.write().unwrap();
+        clients.push(msg.recipient)
+    }
 }

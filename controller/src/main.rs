@@ -4,8 +4,8 @@ mod controllers;
 use api::write_crds;
 use clap::{Parser, Subcommand};
 use controllers::run_controllers;
-use structured_logger::async_json::new_writer;
 use structured_logger::Builder;
+use structured_logger::async_json::new_writer;
 
 #[derive(Parser)]
 #[command(name = "kubera-controller")]
@@ -24,17 +24,16 @@ enum Commands {
     },
 }
 
-#[tokio::main]
-async fn main() {
-    Builder::with_level("info")
-        .with_target_writer("*", new_writer(tokio::io::stdout()))
-        .init();
+fn main() {
+    /*    Builder::with_level("info")
+    .with_target_writer("*", new_writer(s()))
+    .init(); */
 
     let cli = Cli::parse();
 
     match cli.command.unwrap_or(Commands::Run) {
         Commands::Run => {
-            run_controllers().await;
+            run_controllers();
         }
         Commands::WriteCrds { output_path } => {
             write_crds(output_path.as_deref()).expect("Failed to write CRDs");

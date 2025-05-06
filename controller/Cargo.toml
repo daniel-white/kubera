@@ -4,8 +4,11 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+actix = { version = "0.13" }
+actix-rt = "2.10"
 anyhow = "1.0"
-clap = { version = "4.0", features = ["derive"] }
+clap = { version = "4", features = ["derive"] }
+cqrs = "0.3"
 derive_builder = "0.20"
 derive-getters = "0.5"
 futures = "0.3"

@@ -1,21 +1,28 @@
-use crate::controllers::gateway_class::ControllerError;
 use crate::controllers::state::{GatewayClassState, StateEvents};
 use futures::StreamExt;
 use gateway_api::apis::standard::gateways::Gateway;
+use kube::runtime::Controller;
 use kube::runtime::controller::Action;
 use kube::runtime::watcher::Config;
-use kube::runtime::Controller;
 use kube::{Api, Client};
 use log::info;
 use std::future::ready;
 use std::sync::Arc;
 use std::time::Duration;
+use thiserror::Error;
 use tokio::select;
 use tokio::signal::ctrl_c;
 use tokio::sync::mpsc::Sender;
 use tokio::sync::watch::Receiver;
 
-pub async fn watch_gateways(client: &Client, state_events_tx: Sender<StateEvents>,  mut rx: Receiver<Option<GatewayClassState>>) {
+#[derive(Error, Debug)]
+enum ControllerError {}
+
+pub async fn watch_gateways(
+    client: &Client,
+    state_events_tx: Sender<StateEvents>,
+    mut rx: Receiver<Option<GatewayClassState>>,
+) {
     loop {
         let gateway_class_state = rx.borrow().clone();
 
@@ -56,7 +63,11 @@ pub async fn watch_gateways(client: &Client, state_events_tx: Sender<StateEvents
     }
 }
 
-async fn watch_gateway_impl(client: &Client, state_events_tx: &Sender<StateEvents>, gateway_class_state: &GatewayClassState) {
+async fn watch_gateway_impl(
+    client: &Client,
+    state_events_tx: &Sender<StateEvents>,
+    gateway_class_state: &GatewayClassState,
+) {
     info!("Watching for gateways {}", gateway_class_state.name());
 
     let gateways = Api::<Gateway>::all(client.clone());

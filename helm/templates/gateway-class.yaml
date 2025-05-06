@@ -5,7 +5,8 @@ metadata:
 spec:
   controllerName: whitefamily.in/kubera
   parametersRef:
-    kind: ConfigMap
+    kind: GatewayClassParameters
+    group: kubera.whitefamily.in
     name: kubera-gateway-class-config
 
 ---

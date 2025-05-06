@@ -1,96 +1,94 @@
 use crate::api::v1alpha1::GatewayClassParameters;
-use crate::controllers::gateway_class::ControllerError;
-use crate::controllers::state::{GatewayClassState, StateEvents};
+use crate::controllers::gateway_class::GatewayClassParametersRefChange;
+use crate::controllers::state::Ref;
+use actix::prelude::*;
+use actix::WeakRecipient;
+use derive_builder::Builder;
 use futures::StreamExt;
 use kube::runtime::controller::Action;
 use kube::runtime::watcher::Config;
 use kube::runtime::Controller;
 use kube::{Api, Client};
-use log::info;
 use std::future::ready;
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 use std::time::Duration;
-use tokio::select;
-use tokio::signal::ctrl_c;
-use tokio::sync::mpsc::Sender;
-use tokio::sync::watch::Receiver;
+use thiserror::Error;
 
-pub async fn watch_gateway_class_parameters(
-    client: &Client,
-    state_events_tx: Sender<StateEvents>,
-    mut rx: Receiver<Option<GatewayClassState>>,
-) {
-    loop {
-        let gateway_class_state = rx.borrow().clone();
+#[derive(Builder, Message, Clone, Debug)]
+#[rtype(result = "()")]
+pub struct GatewayClassParametersChange {}
 
-        if let Some(gateway_class_state) = gateway_class_state.as_ref() {
-            select! {
-                _ = watch_gateway_class_parameters_impl(client, &state_events_tx, gateway_class_state) => {},
-                res = rx.changed() => {
-                    match res {
-                        Ok(_) => {
-                            continue;
-                        }
-                        Err(_) => {
-                            break;
-                        }
-                    }
-                }
-            }
-        } else {
-            select! {
-                res = rx.changed() => {
-                    match res {
-                        Ok(_) => {
-                            continue;
-                        }
-                        Err(_) => {
-                            break;
-                        }
-                    }
-                },
-                _ = ctrl_c() => {
-                    break;
-                },
-                _ = tokio::time::sleep(Duration::from_secs(10)) => {
-                    continue;
-                }
-            }
+#[derive(Message, Debug)]
+#[rtype(result = "()")]
+pub struct SubscribeToGatewayClassParametersChange(pub WeakRecipient<GatewayClassParametersChange>);
+
+pub struct GatewayClassParametersController {
+    client: Client,
+    parameters_ref: Option<Ref>,
+    subscribers: Arc<RwLock<Vec<WeakRecipient<GatewayClassParametersChange>>>>,
+}
+
+impl GatewayClassParametersController {
+    pub fn new(client: Client) -> Self {
+        GatewayClassParametersController {
+            client,
+            parameters_ref: None,
+            subscribers: Arc::default(),
         }
     }
 }
 
-async fn watch_gateway_class_parameters_impl(
-    client: &Client,
-    state_events_tx: &Sender<StateEvents>,
-    gateway_class_state: &GatewayClassState,
-) {
-    match &gateway_class_state.parameter_ref() {
-        Some(parameters_ref) => {
-            info!(
-                "Watching gateway class parameters: {}",
-                parameters_ref.name()
-            );
+#[derive(Clone)]
+struct ControllerContext {
+    client: Client,
+    subscribers: Arc<RwLock<Vec<WeakRecipient<GatewayClassParametersChange>>>>,
+}
 
-            let gateway_class_parameters = Api::<GatewayClassParameters>::all(client.clone());
-            let watcher_config =
-                Config::default().fields(&format!("metadata.name={}", parameters_ref.name()));
+#[derive(Error, Debug)]
+enum ControllerError {}
 
-            Controller::new(gateway_class_parameters, watcher_config)
-                .shutdown_on_signal()
+impl Actor for GatewayClassParametersController {
+    type Context = Context<Self>;
+
+    fn started(&mut self, ctx: &mut Context<Self>) {
+        let client = self.client.clone();
+        let subscribers = self.subscribers.clone();
+        let fut = Box::pin(async move {
+            let parameters = Api::<GatewayClassParameters>::all(client.clone());
+            let watcher_config = Config::default();
+            Controller::new(parameters, watcher_config)
                 .run(
-                    |parameters, _| ready(Ok(Action::requeue(Duration::from_secs(60)))),
-                    |_: Arc<GatewayClassParameters>, _: &ControllerError, _| {
-                        Action::requeue(Duration::from_secs(5))
-                    },
-                    Arc::new(()),
+                    async |parameters, ctx| Ok(Action::requeue(Duration::from_secs(60))),
+                    |_, _: &ControllerError, _| Action::requeue(Duration::from_secs(5)),
+                    Arc::new(ControllerContext {
+                        client,
+                        subscribers: subscribers.clone(),
+                    }),
                 )
                 .for_each(|_| ready(()))
-                .await;
-        }
-        None => {
-            info!("No parameter refs found, skipping watch");
-            return;
-        }
+                .await
+        });
+
+        let actor_fut = fut.into_actor(self);
+
+        ctx.spawn(actor_fut);
+    }
+}
+
+impl Supervised for GatewayClassParametersController {
+    fn restarting(&mut self, ctx: &mut <Self>::Context) {
+        println!("restarting");
+    }
+}
+
+impl Handler<GatewayClassParametersRefChange> for GatewayClassParametersController {
+    type Result = ();
+    fn handle(
+        &mut self,
+        msg: GatewayClassParametersRefChange,
+        ctx: &mut Self::Context,
+    ) -> Self::Result {
+        self.parameters_ref = msg.parameters_ref().clone();
+        ctx.stop()
     }
 }

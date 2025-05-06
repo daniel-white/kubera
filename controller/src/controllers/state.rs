@@ -21,6 +21,13 @@ pub struct GatewayClassState {
     parameter_ref: Option<Ref>,
 }
 
+#[derive(Builder, Getters, Debug, Clone)]
 pub struct State {}
 
-pub enum StateEvents {}
+#[derive(Debug, Clone)]
+pub enum StateEvents {
+    GatewayClassRegistered(GatewayClassState),
+    GatewayClassUnregistered(),
+    GatewayParametersRegistered(GatewayClassState),
+    GatewayParametersUnregistered(),
+}
