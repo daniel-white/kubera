@@ -1,62 +1,62 @@
 use crate::api::constants::{GATEWAY_CLASS_PARAMETERS_CRD_KIND, GROUP};
 use crate::controllers::state::{Ref, RefBuilder};
-use actix::WeakRecipient;
-use actix::fut::wrap_future;
-use actix::prelude::*;
-use derive_builder::Builder;
-use derive_getters::Getters;
 use futures::StreamExt;
 use gateway_api::apis::standard::gatewayclasses::GatewayClass;
 use kube::{
-    Api, Client,
-    runtime::{Controller, controller::Action, watcher::Config},
+    runtime::{controller::Action, watcher::Config, Controller}, Api,
+    Client,
 };
+use ractor::{Actor, ActorProcessingErr, ActorRef};
 use std::sync::RwLock;
 use std::{future::ready, sync::Arc, time::Duration};
 use thiserror::Error;
+use tokio::spawn;
 
-#[derive(Builder, Getters, Message, Clone, Debug)]
-#[rtype(result = "()")]
-pub struct GatewayClassParametersRefChange {
-    parameters_ref: Option<Ref>,
+#[derive(Clone)]
+pub struct GatewayClassControllerState {
+    subscribers: Arc<RwLock<Vec<ActorRef<GatewayClassControllerMessage>>>>,
 }
 
-#[derive(Builder, Message, Debug)]
-#[rtype(result = "()")]
-pub struct SubscribeToGatewayClassParametersRefChange {
-    recipient: WeakRecipient<GatewayClassParametersRefChange>,
+#[derive(Clone)]
+pub enum GatewayClassControllerMessage {
+    ParametersRefChange(Option<Ref>),
+    Subscribe(ActorRef<GatewayClassControllerMessage>),
 }
 
 pub struct GatewayClassController {
     client: Client,
-    subscribers: Arc<RwLock<Vec<WeakRecipient<GatewayClassParametersRefChange>>>>,
 }
 
 impl GatewayClassController {
-    pub fn new(client: Client) -> Self {
-        GatewayClassController {
-            client,
-            subscribers: Arc::default(),
-        }
+    pub fn new(client: &Client) -> Self {
+        Self { client: client.clone() }
     }
 }
 
 #[derive(Clone)]
 struct ControllerContext {
     client: Client,
-    subscribers: Arc<RwLock<Vec<WeakRecipient<GatewayClassParametersRefChange>>>>,
+    subscribers: Arc<RwLock<Vec<ActorRef<GatewayClassControllerMessage>>>>,
 }
 
 #[derive(Error, Debug)]
 enum ControllerError {}
 
 impl Actor for GatewayClassController {
-    type Context = Context<Self>;
+    type State = GatewayClassControllerState;
+    type Msg = GatewayClassControllerMessage;
+    type Arguments = ();
 
-    fn started(&mut self, ctx: &mut Context<Self>) {
+    async fn pre_start(
+        &self,
+        myself: ActorRef<Self::Msg>,
+        args: Self::Arguments,
+    ) -> Result<Self::State, ActorProcessingErr> {
         let client = self.client.clone();
-        let subscribers = self.subscribers.clone();
-        ctx.spawn(wrap_future(async move {
+        let subscribers: Arc<RwLock<Vec<ActorRef<Self::Msg>>>> = Arc::default();
+        let cloned_subscribers = subscribers.clone();
+
+        let result = spawn(async move {
             let gateway_classes = Api::<GatewayClass>::all(client.clone());
             let watcher_config = Config::default();
             Controller::new(gateway_classes, watcher_config)
@@ -71,7 +71,6 @@ impl Actor for GatewayClassController {
                                 Some(
                                     RefBuilder::default()
                                         .name(&param_ref.name)
-                                        .namespace(None)
                                         .build()
                                         .expect("Failed to build Ref"),
                                 )
@@ -79,14 +78,11 @@ impl Actor for GatewayClassController {
                             _ => None,
                         };
 
-                        let message = GatewayClassParametersRefChangeBuilder::default()
-                            .parameters_ref(parameters_ref)
-                            .build()
-                            .expect("Failed to build GatewayClassParametersRefChange");
+                        let message = Self::Msg::ParametersRefChange(parameters_ref);
 
                         let subscribers = ctx.subscribers.read().unwrap();
-                        for subscriber in subscribers.iter().filter_map(|s| s.upgrade()) {
-                            subscriber.do_send(message.clone());
+                        for subscriber in subscribers.iter() {
+                            subscriber.send_message(message.clone()).unwrap();
                         }
 
                         Ok(Action::requeue(Duration::from_secs(60)))
@@ -96,26 +92,33 @@ impl Actor for GatewayClassController {
                     },
                     Arc::new(ControllerContext {
                         client,
-                        subscribers: subscribers.clone(),
+                        subscribers: cloned_subscribers,
                     }),
                 )
                 .for_each(|_| ready(()))
                 .await;
-        }));
+        })
+        .await;
+        
+        Ok(GatewayClassControllerState {
+            subscribers,
+        })
     }
-}
 
-impl Supervised for GatewayClassController {}
-
-impl Handler<SubscribeToGatewayClassParametersRefChange> for GatewayClassController {
-    type Result = ();
-
-    fn handle(
-        &mut self,
-        msg: SubscribeToGatewayClassParametersRefChange,
-        ctx: &mut Self::Context,
-    ) -> Self::Result {
-        let mut clients = self.subscribers.write().unwrap();
-        clients.push(msg.recipient)
+    async fn handle(
+        &self,
+        myself: ActorRef<Self::Msg>,
+        message: Self::Msg,
+        state: &mut Self::State,
+    ) -> Result<(), ActorProcessingErr> {
+        match message {
+            GatewayClassControllerMessage::ParametersRefChange(_) => Ok(()),
+            
+            GatewayClassControllerMessage::Subscribe(actor) => {
+                let mut subscribers = state.subscribers.write().unwrap();
+                subscribers.push(actor);
+                Ok(())
+            }
+        }
     }
 }

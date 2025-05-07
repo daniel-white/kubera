@@ -4,8 +4,8 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-actix = { version = "0.13" }
-actix-rt = "2.10"
+ractor = "0.15"
+ractor-supervisor = "0.1.9"
 anyhow = "1.0"
 clap = { version = "4", features = ["derive"] }
 cqrs = "0.3"
