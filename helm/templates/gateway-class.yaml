@@ -10,10 +10,8 @@ spec:
     name: kubera-gateway-class-config
 
 ---
-apiVersion: v1
-kind: ConfigMap
+apiVersion: kubera.whitefamily.in/v1alpha1
+kind: GatewayClassParameters
 metadata:
-  name: kubera-gateway-class-config2
-data:
-  config: |
-    requeueInterval: "10s"
+  name: kubera-gateway-class-config
+spec: { }

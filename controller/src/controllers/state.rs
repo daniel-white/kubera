@@ -12,22 +12,3 @@ pub struct Ref {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     namespace: Option<String>,
 }
-
-#[derive(Builder, Getters, Debug, Clone)]
-pub struct GatewayClassState {
-    #[builder(setter(into))]
-    name: String,
-    #[builder(default)]
-    parameter_ref: Option<Ref>,
-}
-
-#[derive(Builder, Getters, Debug, Clone)]
-pub struct State {}
-
-#[derive(Debug, Clone)]
-pub enum StateEvents {
-    GatewayClassRegistered(GatewayClassState),
-    GatewayClassUnregistered(),
-    GatewayParametersRegistered(GatewayClassState),
-    GatewayParametersUnregistered(),
-}

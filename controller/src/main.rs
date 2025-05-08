@@ -33,9 +33,7 @@ async fn main() {
     let cli = Cli::parse();
 
     match cli.command.unwrap_or(Commands::Run) {
-        Commands::Run => {
-            run_controllers().await
-        }
+        Commands::Run => run_controllers().await,
         Commands::WriteCrds { output_path } => {
             write_crds(output_path.as_deref()).expect("Failed to write CRDs");
         }
