@@ -4,14 +4,12 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-ractor = "0.15"
-ractor-supervisor = "0.1.9"
 anyhow = "1.0"
 clap = { version = "4", features = ["derive"] }
-cqrs = "0.3"
 derive_builder = "0.20"
 derive-getters = "0.5"
 futures = "0.3"
+futures-signals = "0.3"
 gateway-api = "0.15"
 humantime-serde = "1.0"
 k8s-openapi = { version = "0.24", features = ["v1_32"] }

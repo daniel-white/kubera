@@ -1,94 +1,108 @@
 use crate::api::v1alpha1::GatewayClassParameters;
-use crate::controllers::gateway_class::GatewayClassParametersRefChange;
-use crate::controllers::state::Ref;
-use actix::prelude::*;
-use actix::WeakRecipient;
+use crate::controllers::gateway_class::GatewayClassState;
 use derive_builder::Builder;
+use derive_getters::Getters;
 use futures::StreamExt;
+use futures_signals::signal::{Mutable, MutableSignalCloned, SignalExt};
 use kube::runtime::controller::Action;
 use kube::runtime::watcher::Config;
 use kube::runtime::Controller;
 use kube::{Api, Client};
 use std::future::ready;
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 use std::time::Duration;
 use thiserror::Error;
+use tokio::spawn;
+use tokio::task::JoinHandle;
 
-#[derive(Builder, Message, Clone, Debug)]
-#[rtype(result = "()")]
-pub struct GatewayClassParametersChange {}
+#[derive(Builder, Clone, PartialEq, Getters, Debug)]
+pub struct GatewayClassParametersState {}
 
-#[derive(Message, Debug)]
-#[rtype(result = "()")]
-pub struct SubscribeToGatewayClassParametersChange(pub WeakRecipient<GatewayClassParametersChange>);
-
-pub struct GatewayClassParametersController {
-    client: Client,
-    parameters_ref: Option<Ref>,
-    subscribers: Arc<RwLock<Vec<WeakRecipient<GatewayClassParametersChange>>>>,
-}
-
-impl GatewayClassParametersController {
-    pub fn new(client: Client) -> Self {
-        GatewayClassParametersController {
-            client,
-            parameters_ref: None,
-            subscribers: Arc::default(),
-        }
-    }
-}
-
-#[derive(Clone)]
-struct ControllerContext {
-    client: Client,
-    subscribers: Arc<RwLock<Vec<WeakRecipient<GatewayClassParametersChange>>>>,
-}
+pub type GatewayClassParametersStateSignal =
+    MutableSignalCloned<Option<GatewayClassParametersState>>;
 
 #[derive(Error, Debug)]
 enum ControllerError {}
 
-impl Actor for GatewayClassParametersController {
-    type Context = Context<Self>;
+pub struct GatewayClassParametersController {
+    client: Client,
+    state: Arc<Mutable<Option<GatewayClassParametersState>>>,
+    gateway_class_state: Arc<Mutable<Option<GatewayClassState>>>,
+}
 
-    fn started(&mut self, ctx: &mut Context<Self>) {
+impl GatewayClassParametersController {
+    pub fn new(
+        client: Client,
+        gateway_class_state: Arc<Mutable<Option<GatewayClassState>>>,
+    ) -> Self {
+        GatewayClassParametersController {
+            client,
+            state: Arc::new(Mutable::new(None)),
+            gateway_class_state,
+        }
+    }
+
+    pub fn state(&self) -> Arc<Mutable<Option<GatewayClassParametersState>>> {
+        self.state.clone()
+    }
+
+    pub fn run(&self) -> JoinHandle<()> {
         let client = self.client.clone();
-        let subscribers = self.subscribers.clone();
-        let fut = Box::pin(async move {
-            let parameters = Api::<GatewayClassParameters>::all(client.clone());
-            let watcher_config = Config::default();
-            Controller::new(parameters, watcher_config)
-                .run(
-                    async |parameters, ctx| Ok(Action::requeue(Duration::from_secs(60))),
-                    |_, _: &ControllerError, _| Action::requeue(Duration::from_secs(5)),
-                    Arc::new(ControllerContext {
-                        client,
-                        subscribers: subscribers.clone(),
-                    }),
-                )
-                .for_each(|_| ready(()))
-                .await
-        });
+        let state = self.state.clone();
+        let gateway_class_state = self.gateway_class_state.clone();
 
-        let actor_fut = fut.into_actor(self);
+        spawn(async move {
+            let mut current_task: Option<JoinHandle<()>> = None;
+            let mut gateway_class_state_stream = gateway_class_state.signal_cloned().to_stream();
 
-        ctx.spawn(actor_fut);
-    }
-}
+            loop {
+                let event = gateway_class_state_stream.next().await;
+                if let Some(current_task) = current_task.take() {
+                    current_task.abort();
+                }
 
-impl Supervised for GatewayClassParametersController {
-    fn restarting(&mut self, ctx: &mut <Self>::Context) {
-        println!("restarting");
-    }
-}
+                match event {
+                    None => break,
+                    Some(gateway_class_state) => {
+                        let client = client.clone();
+                        let state = state.clone();
+                        let gateway_class_state = gateway_class_state.clone();
+                        current_task = Some(spawn(async move {
+                            loop {
+                                if let Some(gateway_class_state) = gateway_class_state.as_ref() {
+                                    if let Some(parameters_ref) = gateway_class_state.parameter_ref() {
+                                        let parameters = Api::<GatewayClassParameters>::all(client.clone());
+                                        let watcher_config = Config::default().fields(
+                                            format!("metadata.name={}", parameters_ref.name())
+                                                .as_str()
+                                        );
 
-impl Handler<GatewayClassParametersRefChange> for GatewayClassParametersController {
-    type Result = ();
-    fn handle(
-        &mut self,
-        msg: GatewayClassParametersRefChange,
-        ctx: &mut Self::Context,
-    ) -> Self::Result {
-        self.parameters_ref = msg.parameters_ref().clone();
-        ctx.stop()
+                                        Controller::new(parameters, watcher_config)
+                                            .run(
+                                                async |parameters, state| {
+                                                    state.set_neq(Some(GatewayClassParametersState {}));
+                                                    Ok(Action::requeue(Duration::from_secs(60)))
+                                                },
+                                                |_, _: &ControllerError, _| {
+                                                    state.set_neq(None);
+                                                    Action::requeue(Duration::from_secs(5))
+                                                },
+                                                Arc::new(state.clone()),
+                                            )
+                                            .for_each(|_| ready(()))
+                                            .await
+                                    } else {
+                                        state.set_neq(None);
+                                        tokio::time::sleep(Duration::from_secs(10)).await;
+                                    }
+                                } else {
+                                    state.set_neq(None);
+                                    tokio::time::sleep(Duration::from_secs(10)).await;
+                                }
+                            }
+                        }));
+                    }
+                }
+        }})
     }
 }
