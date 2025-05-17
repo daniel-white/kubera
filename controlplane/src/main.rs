@@ -7,8 +7,8 @@ use clap::{Parser, Subcommand};
 use controllers::run_controllers;
 
 #[derive(Parser)]
-#[command(name = "kubera-controller")]
-#[command(about = "A Kubernetes controller for Kubera", long_about = None)]
+#[command(name = "kubera-controlplane")]
+#[command(about = "A Kubernetes control plane for Kubera", long_about = None)]
 struct Cli {
     #[command(subcommand)]
     command: Option<Commands>,

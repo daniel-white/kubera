@@ -14,7 +14,7 @@ spec:
         app: kubera-controller
     spec:
       containers:
-        - name: kubera-controller
+        - name: kubera-controlplane
           image: kubera-controller:latest # Replace with the actual image
           imagePullPolicy: Always
           resources:

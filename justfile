@@ -13,9 +13,9 @@ set dotenv-load := true
       minikube stop; \
     fi;
 
-@build-controller: minikube-start
+@build-controlplane: minikube-start
     eval $(minikube docker-env) && \
-    docker build -t kubera-controller:latest -f ./controller/Dockerfile .
+    docker build -t kubera-controlplane:latest -f ./controlplane/Dockerfile .
 
 @build-proxy: minikube-start
     eval $(minikube docker-env) && \
@@ -26,4 +26,4 @@ set dotenv-load := true
     mkdir -p helm/crds
     cp -r target/release/crds helm/
 
-@build: build-controller build-proxy build-crds
+@build: build-controlplane build-proxy build-crds
