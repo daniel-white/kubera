@@ -1,31 +1,30 @@
-use std::sync::Arc;
 use tokio::sync::watch::{
     Receiver as WatchReceiver, Sender as WatchSender, channel as watch_channel,
 };
 
 pub fn channel<T>(value: T) -> (Sender<T>, Receiver<T>)
 where
-    T: PartialEq,
+    T: PartialEq + Clone,
 {
-    let (tx, rx) = watch_channel(Arc::new(value));
+    let (tx, rx) = watch_channel(value);
     (Sender { tx }, Receiver { rx })
 }
 
 #[derive(Clone)]
 pub struct Sender<T>
 where
-    T: PartialEq,
+    T: PartialEq + Clone,
 {
-    tx: WatchSender<Arc<T>>,
+    tx: WatchSender<T>,
 }
 
 impl<T> Sender<T>
 where
-    T: PartialEq,
+    T: PartialEq + Clone,
 {
     pub fn replace(&self, value: T) -> () {
-        if **self.tx.borrow() != value {
-            self.tx.send_replace(Arc::new(value));
+        if *self.tx.borrow() != value {
+            self.tx.send_replace(value);
         }
     }
 }
@@ -33,19 +32,21 @@ where
 #[derive(Clone)]
 pub struct Receiver<T>
 where
-    T: PartialEq,
+    T: PartialEq + Clone,
 {
-    rx: WatchReceiver<Arc<T>>,
+    rx: WatchReceiver<T>,
 }
 
 impl<T> Receiver<T>
 where
-    T: PartialEq,
+    T: PartialEq + Clone,
 {
-    pub fn current(&self) -> Arc<T> {
+    pub fn current(&mut self) -> T {
         self.rx.borrow().clone()
     }
-    pub async fn changed(&mut self) {
-        self.rx.changed().await.unwrap();
+
+    pub async fn changed(&mut self) -> Option<()> {
+         self.rx.changed().await.ok()
     }
+    
 }

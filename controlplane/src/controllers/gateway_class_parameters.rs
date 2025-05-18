@@ -1,12 +1,13 @@
 use crate::api::v1alpha1::GatewayClassParameters;
 use crate::controllers::gateway_class::GatewayClassState;
-use crate::sync::state::{Receiver, Sender, channel};
+use crate::sync::state::{channel, Receiver, Sender};
 use derive_builder::Builder;
 use derive_getters::Getters;
 use futures::StreamExt;
-use kube::runtime::Controller;
+use kube::api::ListParams;
 use kube::runtime::controller::Action;
 use kube::runtime::watcher::Config;
+use kube::runtime::Controller;
 use kube::{Api, Client};
 use std::future::ready;
 use std::sync::Arc;
@@ -16,89 +17,99 @@ use tokio::task::JoinHandle;
 use tokio::{select, spawn};
 
 #[derive(Builder, Clone, PartialEq, Getters, Debug)]
-pub struct GatewayClassParametersState {}
+pub struct GatewayClassParametersState {
+    name: String,
+}
 
 #[derive(Error, Debug)]
-enum ControllerError {}
+pub enum ControllerError {
+    #[error("error querying GatewayClassParameters CRD: `{0}`; are the Kubera CRDs installed?")]
+    CRDNotFound(#[source] kube::Error),
+}
 
-pub fn controller(
+struct Context {
+    client: Client,
+    state_tx: Sender<Option<GatewayClassParametersState>>,
+}
+
+async fn reconcile(
+    parameters: Arc<GatewayClassParameters>,
+    ctx: Arc<Context>,
+) -> Result<Action, ControllerError> {
+    ctx.state_tx.replace(Some(GatewayClassParametersState {
+        name: parameters
+            .metadata
+            .resource_version
+            .as_ref()
+            .unwrap()
+            .clone(),
+    }));
+    Ok(Action::requeue(Duration::from_secs(60)))
+}
+
+fn error_policy(
+    _: Arc<GatewayClassParameters>,
+    error: &ControllerError,
+    _: Arc<Context>,
+) -> Action {
+    Action::requeue(Duration::from_secs(5))
+}
+
+pub async fn controller(
     client: &Client,
     gateway_class_state_rx: &Receiver<Option<GatewayClassState>>,
-) -> (
-    JoinHandle<()>,
-    Receiver<Option<GatewayClassParametersState>>,
-) {
+) -> Result<
+    (
+        JoinHandle<()>,
+        Receiver<Option<GatewayClassParametersState>>,
+    ),
+    ControllerError,
+> {
+    let gateway_class_parameters = Api::<GatewayClassParameters>::all(client.clone());
+
+    gateway_class_parameters
+        .list(&ListParams::default().limit(1))
+        .await
+        .map_err(ControllerError::CRDNotFound)?;
+
     let client = client.clone();
     let mut gateway_class_state_rx = gateway_class_state_rx.clone();
     let (state_tx, state_rx) = channel::<Option<GatewayClassParametersState>>(None);
 
-
     let join_handle = spawn(async move {
         loop {
             let gateway_class_state = gateway_class_state_rx.current();
-
-            match gateway_class_state.as_ref() {
-                None => {
-                    gateway_class_state_rx.changed().await;
-                    continue;
-                }
-                Some(gateway_class_state) => match gateway_class_state.parameter_ref() {
-                    None => {
-                        gateway_class_state_rx.changed().await;
-                        continue;
-                    }
-                    Some(parameters_ref) => {
-                        let parameters_api = Api::<GatewayClassParameters>::all(client.clone());
-
-                        if parameters_api
-                            .get_metadata_opt(parameters_ref.name())
-                            .await
-                            .ok()
-                            .flatten()
-                            .is_none()
-                        {
-                            state_tx.replace(None);
-                            select! {
-                                _ = tokio::time::sleep(Duration::from_secs(60)) => {
-                                    continue;
-                                },
-                                _ = gateway_class_state_rx.changed() => {
-                                    continue;
-                                },
+            if let Some(parameters_ref) = gateway_class_state.and_then(|s| s.parameter_ref()) {
+                let watcher_config = Config::default()
+                    .fields(format!("metadata.name={}", parameters_ref.name()).as_str());
+                select! {
+                    _ = Controller::new(gateway_class_parameters.clone(), watcher_config)
+                        .shutdown_on_signal()
+                        .run(
+                            reconcile,
+                            error_policy,
+                            Arc::new(Context {
+                                client: client.clone(),
+                                state_tx: state_tx.clone(),
+                            }),
+                        )
+                        .for_each(|_| ready(())) => {
+                            break;
+                        },
+                    changed_state = gateway_class_state_rx.changed() => {
+                        match changed_state {
+                            Some(_) => {
+                                continue;
+                            }
+                            None => {
+                                break;
                             }
                         }
-
-                        let watcher_config = Config::default()
-                            .fields(format!("metadata.name={}", parameters_ref.name()).as_str());
-
-                        select! {
-                            _ = Controller::new(parameters_api, watcher_config)
-                                .shutdown_on_signal()
-                                .run(
-                                    async |parameters, state_tx| {
-                                        state_tx.replace(Some(GatewayClassParametersState {}));
-                                        Ok(Action::requeue(Duration::from_secs(60)))
-                                    },
-                                    |_, _: &ControllerError, _| {
-                                        state_tx.replace(None);
-                                        Action::requeue(Duration::from_secs(5))
-                                    },
-                                    Arc::new(state_tx.clone()),
-                                )
-                                .for_each(|_| ready(()))
-                                 => {
-                                    // Handle the controlplane's shutdown signal
-                                    break;
-                                },
-                            _ = gateway_class_state_rx.changed() => {
-                                continue;
-                            },
-                        }
-                    }
-                },
+                    },
+                }
             }
         }
     });
 
-    (join_handle, state_rx)
+    Ok((join_handle, state_rx))
 }

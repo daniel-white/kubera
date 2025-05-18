@@ -2,9 +2,10 @@ mod api;
 mod controllers;
 mod sync;
 
+use anyhow::Result;
 use api::write_crds;
 use clap::{Parser, Subcommand};
-use controllers::run_controllers;
+use controllers::run;
 
 #[derive(Parser)]
 #[command(name = "kubera-controlplane")]
@@ -24,7 +25,7 @@ enum Commands {
 }
 
 #[tokio::main]
-async fn main() {
+async fn main() -> Result<()> {
     /*    Builder::with_level("info")
     .with_target_writer("*", new_writer(s()))
     .init(); */
@@ -32,9 +33,7 @@ async fn main() {
     let cli = Cli::parse();
 
     match cli.command.unwrap_or(Commands::Run) {
-        Commands::Run => run_controllers().await,
-        Commands::WriteCrds { output_path } => {
-            write_crds(output_path.as_deref()).expect("Failed to write CRDs");
-        }
+        Commands::Run => run().await,
+        Commands::WriteCrds { output_path } => write_crds(output_path.as_deref()),
     }
 }
