@@ -1,11 +1,11 @@
-use anyhow::Result;
-use kube::Client;
-use tokio::{join, spawn};
-
-//mod gateway;
+mod gateways;
 mod gateway_class;
 mod gateway_class_parameters;
 mod state;
+
+use anyhow::Result;
+use kube::Client;
+use tokio::{join, spawn};
 
 pub async fn run() -> Result<()> {
     let client = Client::try_default().await?;
@@ -14,6 +14,8 @@ pub async fn run() -> Result<()> {
         gateway_class::controller(&client).await?;
     let (gateway_class_parameters_controller, mut gateway_class_parameters_state_rx) =
         gateway_class_parameters::controller(&client, &gateway_class_state_rx).await?;
+    let (gateways_controller, _gateways_state_rx) =
+        gateways::controller(&client, &gateway_class_state_rx).await?;
 
     let x = spawn(async move {
         while let Some(s) = gateway_class_parameters_state_rx.changed().await {
@@ -27,6 +29,7 @@ pub async fn run() -> Result<()> {
     let _ = join!(
         gateway_class_controller,
         gateway_class_parameters_controller,
+        gateways_controller,
         x
     );
 
