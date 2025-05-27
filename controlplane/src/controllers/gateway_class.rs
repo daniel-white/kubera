@@ -1,5 +1,5 @@
 use crate::api::constants::{GATEWAY_CLASS_PARAMETERS_CRD_KIND, GROUP};
-use crate::controllers::state::{Ref, RefBuilder};
+use crate::controllers::Ref;
 use crate::sync::state::{Receiver, Sender, channel};
 use derive_builder::Builder;
 use futures::StreamExt;
@@ -75,24 +75,30 @@ async fn reconcile(
     gateway_class: Arc<GatewayClass>,
     ctx: Arc<Context>,
 ) -> Result<Action, ControllerError> {
-    let parameters_ref = match &gateway_class.spec.parameters_ref {
-        Some(param_ref)
-            if param_ref.kind == GATEWAY_CLASS_PARAMETERS_CRD_KIND && param_ref.group == GROUP =>
-        {
-            RefBuilder::default()
-                .name(&param_ref.name)
-                .namespace(None)
+    let new_state = match gateway_class.metadata.deletion_timestamp {
+        None => {
+            let parameters_ref = match &gateway_class.spec.parameters_ref {
+                Some(param_ref)
+                    if param_ref.kind == GATEWAY_CLASS_PARAMETERS_CRD_KIND
+                        && param_ref.group == GROUP =>
+                {
+                    Ref::new_builder()
+                        .name(&param_ref.name)
+                        .namespace(None)
+                        .build()
+                        .ok()
+                }
+                _ => None,
+            };
+
+            GatewayClassStateBuilder::default()
+                .name(gateway_class.name_any())
+                .parameter_ref(parameters_ref)
                 .build()
                 .ok()
         }
-        _ => None,
+        Some(_) => None,
     };
-
-    let new_state = GatewayClassStateBuilder::default()
-        .name(gateway_class.name_any())
-        .parameter_ref(parameters_ref)
-        .build()
-        .ok();
 
     ctx.state_tx.replace(new_state);
 

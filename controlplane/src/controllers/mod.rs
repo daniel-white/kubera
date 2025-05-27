@@ -1,9 +1,11 @@
-mod gateways;
 mod gateway_class;
 mod gateway_class_parameters;
+mod gateways;
 mod state;
 
 use anyhow::Result;
+use derive_builder::Builder;
+use derive_getters::Getters;
 use kube::Client;
 use tokio::{join, spawn};
 
@@ -34,4 +36,18 @@ pub async fn run() -> Result<()> {
     );
 
     Ok(())
+}
+
+#[derive(Builder, Getters, Clone, Debug, PartialEq, Eq, Hash)]
+#[builder(setter(into))]
+pub struct Ref {
+    name: String,
+
+    namespace: Option<String>,
+}
+
+impl Ref {
+    pub fn new_builder() -> RefBuilder {
+        RefBuilder::default()
+    }
 }

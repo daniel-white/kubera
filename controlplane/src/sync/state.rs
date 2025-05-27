@@ -22,6 +22,10 @@ impl<T> Sender<T>
 where
     T: PartialEq + Clone,
 {
+    pub fn current(&self) -> T {
+        self.tx.borrow().clone()
+    }
+
     pub fn replace(&self, value: T) -> () {
         if *self.tx.borrow() != value {
             self.tx.send_replace(value);
@@ -46,7 +50,6 @@ where
     }
 
     pub async fn changed(&mut self) -> Option<()> {
-         self.rx.changed().await.ok()
+        self.rx.changed().await.ok()
     }
-    
 }

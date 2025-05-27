@@ -1,12 +1,14 @@
+use crate::controllers::Ref;
 use crate::controllers::gateway_class::GatewayClassState;
 use crate::sync::state::Receiver;
 use derive_builder::Builder;
 use futures::StreamExt;
 use gateway_api::apis::standard::gateways::Gateway;
+use kube::runtime::Controller;
 use kube::runtime::controller::Action;
 use kube::runtime::watcher::Config;
-use kube::runtime::Controller;
 use kube::{Api, Client};
+use std::collections::HashMap;
 use std::future::ready;
 use std::sync::Arc;
 use std::time::Duration;
@@ -16,12 +18,12 @@ use tokio::select;
 #[derive(Builder, Default, Clone, PartialEq, Debug)]
 pub struct GatewaysState {
     #[builder(default)]
-    gateways: Vec<()>,
+    gateways: HashMap<Ref, ()>,
 }
 
 impl GatewaysState {
-    pub fn gateways(&self) -> &[()] {
-        &self.gateways
+    pub fn gateways(&self) -> Vec<&()> {
+        self.gateways.values().collect::<Vec<_>>()
     }
 }
 
@@ -33,19 +35,42 @@ pub enum ControllerError {
 
 struct Context {
     client: Client,
+    gateway_class_name: String,
     state_tx: crate::sync::state::Sender<GatewaysState>,
 }
 
 async fn reconcile(gateway: Arc<Gateway>, ctx: Arc<Context>) -> Result<Action, ControllerError> {
-    ctx.state_tx.replace(GatewaysState { gateways: vec![()] });
+    let mut new_state = ctx.state_tx.current();
+
+    let gateway_ref = Ref::new_builder()
+        .name(
+            gateway
+                .metadata
+                .name
+                .clone()
+                .expect("Gateway must have a name"),
+        )
+        .namespace(gateway.metadata.namespace.clone())
+        .build()
+        .expect("Failed to build Ref for Gateway");
+
+    match (
+        &gateway.spec.gateway_class_name == &ctx.gateway_class_name,
+        &gateway.metadata.deletion_timestamp,
+    ) {
+        (true, None) => {
+            new_state.gateways.insert(gateway_ref, ());
+        }
+        _ => {
+            new_state.gateways.remove(&gateway_ref);
+        }
+    }
+
+    ctx.state_tx.replace(new_state);
     Ok(Action::requeue(Duration::from_secs(60)))
 }
 
-fn error_policy(
-    _: Arc<Gateway>,
-    error: &ControllerError,
-    _: Arc<Context>,
-) -> Action {
+fn error_policy(_: Arc<Gateway>, error: &ControllerError, _: Arc<Context>) -> Action {
     Action::requeue(Duration::from_secs(5))
 }
 
@@ -79,6 +104,7 @@ pub async fn controller(
                             error_policy,
                             Arc::new(Context {
                                 client: client.clone(),
+                                gateway_class_name,
                                 state_tx: state_tx.clone(),
                             }),
                         )

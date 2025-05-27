@@ -1,13 +1,13 @@
 use crate::api::v1alpha1::GatewayClassParameters;
 use crate::controllers::gateway_class::GatewayClassState;
-use crate::sync::state::{channel, Receiver, Sender};
+use crate::sync::state::{Receiver, Sender, channel};
 use derive_builder::Builder;
 use derive_getters::Getters;
 use futures::StreamExt;
 use kube::api::ListParams;
+use kube::runtime::Controller;
 use kube::runtime::controller::Action;
 use kube::runtime::watcher::Config;
-use kube::runtime::Controller;
 use kube::{Api, Client};
 use std::future::ready;
 use std::sync::Arc;
@@ -36,14 +36,20 @@ async fn reconcile(
     parameters: Arc<GatewayClassParameters>,
     ctx: Arc<Context>,
 ) -> Result<Action, ControllerError> {
-    ctx.state_tx.replace(Some(GatewayClassParametersState {
-        name: parameters
-            .metadata
-            .resource_version
-            .as_ref()
-            .unwrap()
-            .clone(),
-    }));
+    let new_state = match parameters.metadata.deletion_timestamp {
+        None => None,
+        Some(_) => Some(GatewayClassParametersState {
+            name: parameters
+                .metadata
+                .resource_version
+                .as_ref()
+                .unwrap()
+                .clone(),
+        }),
+    };
+
+    ctx.state_tx.replace(new_state);
+
     Ok(Action::requeue(Duration::from_secs(60)))
 }
 
