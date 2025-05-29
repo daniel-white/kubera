@@ -23,7 +23,7 @@ pub enum GatewayRefs {
     Many(Vec<Ref>),
 }
 
-#[derive(Deserialize, Serialize, Clone, Debug, JsonSchema)]
+#[derive(Deserialize, Serialize, Clone, Debug, JsonSchema, PartialEq)]
 pub struct CommonGatewayParameters {}
 
 #[derive(CustomResource, Deserialize, Serialize, Clone, Debug, JsonSchema)]
@@ -37,7 +37,7 @@ pub struct GatewayClassConfigurationSpec {
     pub common: CommonGatewayParameters,
 }
 
-#[derive(CustomResource, Deserialize, Serialize, Clone, Debug, JsonSchema)]
+#[derive(CustomResource, Deserialize, Serialize, Clone, Debug, JsonSchema, PartialEq)]
 #[kube(
     kind = "GatewayParameters",
     group = "kubera.whitefamily.in",
@@ -55,7 +55,7 @@ pub struct GatewayParametersSpec {
     pub proxy: Option<GatewayProxyConfiguration>,
 }
 
-#[derive(Deserialize, Serialize, Clone, Debug, JsonSchema)]
+#[derive(Deserialize, Serialize, Clone, Debug, JsonSchema, PartialEq)]
 pub struct GatewayProxyConfiguration {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub deployment: Option<GatewayDeployment>,
@@ -64,7 +64,7 @@ pub struct GatewayProxyConfiguration {
     pub service: Option<ServiceSpec>,
 }
 
-#[derive(Deserialize, Serialize, Clone, Debug, JsonSchema)]
+#[derive(Deserialize, Serialize, Clone, Debug, JsonSchema, PartialEq)]
 pub struct GatewayDeployment {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub replicas: Option<i32>,
@@ -73,7 +73,7 @@ pub struct GatewayDeployment {
     pub strategy: Option<DeploymentStrategy>,
 }
 
-#[derive(Deserialize, Serialize, Clone, Debug, JsonSchema)]
+#[derive(Deserialize, Serialize, Clone, Debug, JsonSchema, PartialEq)]
 pub struct GatewayServiceSpec {
     #[serde(flatten)]
     pub spec: ServiceSpec,

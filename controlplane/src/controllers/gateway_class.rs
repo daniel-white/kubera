@@ -1,35 +1,28 @@
-use crate::api::constants::{GATEWAY_CLASS_PARAMETERS_CRD_KIND, GROUP};
+use crate::constants::{GATEWAY_CLASS_PARAMETERS_CRD_KIND, GROUP};
 use crate::controllers::Ref;
-use crate::sync::state::{Receiver, Sender, channel};
+use crate::sync::state::{channel, Receiver, Sender};
 use derive_builder::Builder;
 use futures::StreamExt;
 use gateway_api::apis::standard::gatewayclasses::GatewayClass;
+use getset::Getters;
 use kube::api::ListParams;
 use kube::{
-    Api, Client, ResourceExt,
-    runtime::{Controller, controller::Action, watcher::Config},
+    runtime::{controller::Action, watcher::Config, Controller}, Api, Client,
+    ResourceExt,
 };
 use std::{future::ready, sync::Arc, time::Duration};
 use thiserror::Error;
 use tokio::spawn;
 use tokio::task::JoinHandle;
 
-#[derive(Builder, Clone, PartialEq, Debug)]
+#[derive(Builder, Getters, Clone, PartialEq, Debug)]
 pub struct GatewayClassState {
     #[builder(setter(into))]
+    #[getset(get = "pub")]
     name: String,
     #[builder(default)]
+    #[getset(get = "pub")]
     parameter_ref: Option<Ref>,
-}
-
-impl GatewayClassState {
-    pub fn name(&self) -> &str {
-        &self.name
-    }
-
-    pub fn parameter_ref(&self) -> Option<Ref> {
-        self.parameter_ref.clone()
-    }
 }
 
 #[derive(Error, Debug)]

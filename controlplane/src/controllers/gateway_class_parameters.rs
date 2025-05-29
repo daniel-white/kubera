@@ -1,13 +1,13 @@
 use crate::api::v1alpha1::GatewayClassParameters;
 use crate::controllers::gateway_class::GatewayClassState;
-use crate::sync::state::{Receiver, Sender, channel};
+use crate::sync::state::{channel, Receiver, Sender};
 use derive_builder::Builder;
-use derive_getters::Getters;
 use futures::StreamExt;
+use getset::Getters;
 use kube::api::ListParams;
-use kube::runtime::Controller;
 use kube::runtime::controller::Action;
 use kube::runtime::watcher::Config;
+use kube::runtime::Controller;
 use kube::{Api, Client};
 use std::future::ready;
 use std::sync::Arc;
@@ -16,8 +16,9 @@ use thiserror::Error;
 use tokio::task::JoinHandle;
 use tokio::{select, spawn};
 
-#[derive(Builder, Clone, PartialEq, Getters, Debug)]
+#[derive(Builder, Getters, Clone, PartialEq, Debug)]
 pub struct GatewayClassParametersState {
+    #[getset(get = "pub")]
     name: String,
 }
 
@@ -85,7 +86,9 @@ pub async fn controller(
     let join_handle = spawn(async move {
         loop {
             let gateway_class_state = gateway_class_state_rx.current();
-            if let Some(parameters_ref) = gateway_class_state.and_then(|s| s.parameter_ref()) {
+            if let Some(parameters_ref) =
+                gateway_class_state.and_then(|s| s.parameter_ref().clone())
+            {
                 let watcher_config = Config::default()
                     .fields(format!("metadata.name={}", parameters_ref.name()).as_str());
                 select! {
