@@ -1,14 +1,14 @@
 use crate::constants::{GATEWAY_CLASS_PARAMETERS_CRD_KIND, GROUP};
 use crate::controllers::Ref;
-use crate::sync::state::{channel, Receiver, Sender};
+use crate::sync::state::{Receiver, Sender, channel};
 use derive_builder::Builder;
 use futures::StreamExt;
 use gateway_api::apis::standard::gatewayclasses::GatewayClass;
 use getset::Getters;
 use kube::api::ListParams;
 use kube::{
-    runtime::{controller::Action, watcher::Config, Controller}, Api, Client,
-    ResourceExt,
+    Api, Client, ResourceExt,
+    runtime::{Controller, controller::Action, watcher::Config},
 };
 use std::{future::ready, sync::Arc, time::Duration};
 use thiserror::Error;
@@ -70,7 +70,7 @@ async fn reconcile(
 ) -> Result<Action, ControllerError> {
     let new_state = match gateway_class.metadata.deletion_timestamp {
         None => {
-            let parameters_ref = match &gateway_class.spec.parameters_ref {
+            let parameter_ref = match &gateway_class.spec.parameters_ref {
                 Some(param_ref)
                     if param_ref.kind == GATEWAY_CLASS_PARAMETERS_CRD_KIND
                         && param_ref.group == GROUP =>
@@ -86,7 +86,7 @@ async fn reconcile(
 
             GatewayClassStateBuilder::default()
                 .name(gateway_class.name_any())
-                .parameter_ref(parameters_ref)
+                .parameter_ref(parameter_ref)
                 .build()
                 .ok()
         }

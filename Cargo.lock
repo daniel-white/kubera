@@ -1357,6 +1357,7 @@ dependencies = [
  "kube",
  "kubera_core",
  "log",
+ "romap",
  "schemars",
  "serde",
  "serde_json",
@@ -1974,6 +1975,15 @@ dependencies = [
  "libc",
  "untrusted",
  "windows-sys 0.52.0",
+]
+
+[[package]]
+name = "romap"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9acb522582b7ba1ed9d580dc731e7f8fa99615bfca896e53bd10d852102d63ff"
+dependencies = [
+ "either",
 ]
 
 [[package]]

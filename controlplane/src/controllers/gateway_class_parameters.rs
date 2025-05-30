@@ -1,13 +1,13 @@
 use crate::api::v1alpha1::GatewayClassParameters;
 use crate::controllers::gateway_class::GatewayClassState;
-use crate::sync::state::{channel, Receiver, Sender};
+use crate::sync::state::{Receiver, Sender, channel};
 use derive_builder::Builder;
 use futures::StreamExt;
 use getset::Getters;
 use kube::api::ListParams;
+use kube::runtime::Controller;
 use kube::runtime::controller::Action;
 use kube::runtime::watcher::Config;
-use kube::runtime::Controller;
 use kube::{Api, Client};
 use std::future::ready;
 use std::sync::Arc;

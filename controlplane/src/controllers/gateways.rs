@@ -1,13 +1,16 @@
+use crate::constants::{GATEWAY_CLASS_PARAMETERS_CRD_KIND, GATEWAY_PARAMETERS_CRD_KIND, GROUP};
 use crate::controllers::Ref;
 use crate::controllers::gateway_class::GatewayClassState;
 use crate::sync::state::Receiver;
 use derive_builder::Builder;
 use futures::StreamExt;
-use gateway_api::apis::standard::gateways::Gateway;
+use gateway_api::apis::standard::gateways::Gateway as GatewayCrd;
+use getset::Getters;
 use kube::runtime::Controller;
 use kube::runtime::controller::Action;
 use kube::runtime::watcher::Config;
 use kube::{Api, Client};
+use romap::RoMap;
 use std::collections::HashMap;
 use std::future::ready;
 use std::sync::Arc;
@@ -18,12 +21,25 @@ use tokio::select;
 #[derive(Builder, Default, Clone, PartialEq, Debug)]
 pub struct GatewaysState {
     #[builder(default)]
-    gateways: HashMap<Ref, ()>,
+    gateways: HashMap<Ref, Gateway>,
+}
+
+#[derive(Builder, Getters, Clone, PartialEq, Debug)]
+pub struct Gateway {
+    #[builder(default)]
+    #[getset(get = "pub")]
+    parameter_ref: Option<Ref>,
+}
+
+impl Gateway {
+    pub fn new_builder() -> GatewayBuilder {
+        GatewayBuilder::default()
+    }
 }
 
 impl GatewaysState {
-    pub fn gateways(&self) -> Vec<&()> {
-        self.gateways.values().collect::<Vec<_>>()
+    pub fn gateways(&self) -> impl RoMap<Ref, Gateway> {
+        &self.gateways
     }
 }
 
@@ -39,7 +55,7 @@ struct Context {
     state_tx: crate::sync::state::Sender<GatewaysState>,
 }
 
-async fn reconcile(gateway: Arc<Gateway>, ctx: Arc<Context>) -> Result<Action, ControllerError> {
+async fn reconcile(gateway: Arc<GatewayCrd>, ctx: Arc<Context>) -> Result<Action, ControllerError> {
     let mut new_state = ctx.state_tx.current();
 
     let gateway_ref = Ref::new_builder()
@@ -59,7 +75,30 @@ async fn reconcile(gateway: Arc<Gateway>, ctx: Arc<Context>) -> Result<Action, C
         &gateway.metadata.deletion_timestamp,
     ) {
         (true, None) => {
-            new_state.gateways.insert(gateway_ref, ());
+            let parameter_ref = match gateway
+                .spec
+                .infrastructure
+                .as_ref()
+                .and_then(|infra| infra.parameters_ref.as_ref())
+            {
+                Some(param_ref)
+                    if param_ref.kind == GATEWAY_PARAMETERS_CRD_KIND
+                        && param_ref.group == GROUP =>
+                {
+                    Ref::new_builder()
+                        .name(&param_ref.name)
+                        .namespace(None)
+                        .build()
+                        .ok()
+                }
+                _ => None,
+            };
+
+            let gateway_state = Gateway::new_builder()
+                .parameter_ref(parameter_ref)
+                .build()
+                .expect("Failed to build GatewayState");
+            new_state.gateways.insert(gateway_ref, gateway_state);
         }
         _ => {
             new_state.gateways.remove(&gateway_ref);
@@ -70,7 +109,7 @@ async fn reconcile(gateway: Arc<Gateway>, ctx: Arc<Context>) -> Result<Action, C
     Ok(Action::requeue(Duration::from_secs(60)))
 }
 
-fn error_policy(_: Arc<Gateway>, error: &ControllerError, _: Arc<Context>) -> Action {
+fn error_policy(_: Arc<GatewayCrd>, error: &ControllerError, _: Arc<Context>) -> Action {
     Action::requeue(Duration::from_secs(5))
 }
 
@@ -78,7 +117,7 @@ pub async fn controller(
     client: &Client,
     gateway_class_state_rx: &Receiver<Option<GatewayClassState>>,
 ) -> Result<(tokio::task::JoinHandle<()>, Receiver<GatewaysState>), ControllerError> {
-    let gateways = Api::<Gateway>::all(client.clone());
+    let gateways = Api::<GatewayCrd>::all(client.clone());
 
     gateways
         .list(&kube::api::ListParams::default().limit(1))

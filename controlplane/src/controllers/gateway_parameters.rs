@@ -3,6 +3,7 @@ use crate::controllers::Ref;
 use crate::sync::state::Receiver;
 use derive_builder::Builder;
 use futures::StreamExt;
+use getset::Getters;
 use kube::runtime::Controller;
 use kube::runtime::controller::Action;
 use kube::runtime::watcher::Config;
@@ -11,7 +12,6 @@ use std::collections::HashMap;
 use std::future::ready;
 use std::sync::Arc;
 use std::time::Duration;
-use getset::Getters;
 use thiserror::Error;
 
 #[derive(Builder, Getters, Default, Clone, PartialEq, Debug)]
