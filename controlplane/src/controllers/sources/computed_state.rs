@@ -1,25 +1,24 @@
-use crate::controllers::sources::config_maps::ConfigMapsState;
-use crate::controllers::sources::deployments::DeploymentsState;
-use crate::controllers::sources::gateway_class::GatewayClassState;
-use crate::controllers::sources::gateway_class_parameters::GatewayClassParametersState;
-use crate::controllers::sources::gateway_parameters::GatewayParametersState;
-use crate::controllers::sources::gateways::GatewaysState;
-use crate::controllers::sources::services::ServicesState;
+use crate::api::v1alpha1::{GatewayClassParameters, GatewayParameters};
+use crate::controllers::sources::controller::{ResourceState, Resources};
 use crate::sync::state::Receiver;
 use derive_builder::Builder;
+use gateway_api::apis::standard::gatewayclasses::GatewayClass;
+use gateway_api::apis::standard::gateways::Gateway;
+use k8s_openapi::api::apps::v1::Deployment;
+use k8s_openapi::api::core::v1::{ConfigMap, Service};
 use thiserror::Error;
 use tokio::signal;
 use tokio::task::JoinSet;
 
 #[derive(Builder)]
 pub struct StateSources {
-    gateway_class: Receiver<Option<GatewayClassState>>,
-    gateway_class_parameters: Receiver<Option<GatewayClassParametersState>>,
-    gateways: Receiver<GatewaysState>,
-    gateway_parameters: Receiver<GatewayParametersState>,
-    config_maps: Receiver<ConfigMapsState>,
-    deployments: Receiver<DeploymentsState>,
-    services: Receiver<ServicesState>,
+    gateway_classes: Receiver<Resources<GatewayClass>>,
+    gateway_class_parameters: Receiver<Resources<GatewayClassParameters>>,
+    gateways: Receiver<Resources<Gateway>>,
+    gateway_parameters: Receiver<Resources<GatewayParameters>>,
+    config_maps: Receiver<Resources<ConfigMap>>,
+    deployments: Receiver<Resources<Deployment>>,
+    services: Receiver<Resources<Service>>,
 }
 
 impl StateSources {
@@ -43,7 +42,7 @@ pub async fn spawn_controller(
     join_set.spawn(async move {
         loop {
             tokio::select! {
-                _ = receivers.gateway_class.changed() => {
+                _ = receivers.gateway_classes.changed() => {
                     continue;
                 },
                 _ = receivers.gateway_class_parameters.changed() => {

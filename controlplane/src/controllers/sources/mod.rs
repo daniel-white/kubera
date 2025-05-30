@@ -1,42 +1,47 @@
 mod computed_state;
-mod config_maps;
-mod deployments;
-mod gateway_class;
-mod gateway_class_parameters;
-mod gateway_parameters;
-mod gateways;
-mod services;
-
-use crate::sync::state::Receiver;
+mod controller;
+use crate::api::v1alpha1::{GatewayClassParameters, GatewayParameters};
+use crate::constants::MANAGED_BY_LABEL_QUERY;
+use crate::spawn_controller;
 use anyhow::Result;
+use gateway_api::apis::standard::gatewayclasses::GatewayClass;
+use gateway_api::apis::standard::gateways::Gateway;
+use k8s_openapi::api::apps::v1::Deployment;
+use k8s_openapi::api::core::v1::{ConfigMap, Service};
+use kube::runtime::watcher::Config;
 use kube::Client;
 use tokio::task::JoinSet;
 
-pub async fn spawn_sources(
-    join_set: &mut JoinSet<()>,
-    client: &Client,
-) -> Result<Receiver<Option<()>>> {
-    let gateway_class_state = gateway_class::spawn_controller(join_set, client).await?;
-    let gateway_class_parameters_state =
-        gateway_class_parameters::spawn_controller(join_set, client, &gateway_class_state).await?;
-    let gateways_state = gateways::spawn_controller(join_set, client, &gateway_class_state).await?;
-    let gateway_parameters_state = gateway_parameters::spawn_controller(join_set, client).await?;
-    let config_maps_state = config_maps::spawn_controller(join_set, client).await?;
-    let deployments_state = deployments::spawn_controller(join_set, client).await?;
-    let services_state = services::spawn_controller(join_set, client).await?;
+pub async fn spawn_sources(join_set: &mut JoinSet<()>, client: &Client) -> Result<()> {
+    let managed_by_selector = Config::default().labels(MANAGED_BY_LABEL_QUERY);
 
     let state_sources = computed_state::StateSources::new_builder()
-        .gateway_class(gateway_class_state)
-        .gateway_class_parameters(gateway_class_parameters_state)
-        .gateways(gateways_state)
-        .gateway_parameters(gateway_parameters_state)
-        .config_maps(config_maps_state)
-        .deployments(deployments_state)
-        .services(services_state)
+        .gateway_classes(spawn_controller!(GatewayClass, join_set, client))
+        .gateway_class_parameters(spawn_controller!(GatewayClassParameters, join_set, client))
+        .gateways(spawn_controller!(Gateway, join_set, client))
+        .gateway_parameters(spawn_controller!(GatewayParameters, join_set, client))
+        .config_maps(spawn_controller!(
+            ConfigMap,
+            join_set,
+            client,
+            managed_by_selector.clone()
+        ))
+        .deployments(spawn_controller!(
+            Deployment,
+            join_set,
+            client,
+            managed_by_selector.clone()
+        ))
+        .services(spawn_controller!(
+            Service,
+            join_set,
+            client,
+            managed_by_selector.clone()
+        ))
         .build()
         .expect("Failed to build StateSources");
 
     let computed_state = computed_state::spawn_controller(join_set, state_sources).await?;
 
-    Ok(computed_state)
+    Ok(())
 }

@@ -23,6 +23,8 @@ thiserror = "2"
 tokio = { version = "1", features = ["full"] }
 getset = "0.1"
 romap = "0.4.0"
+flexi_logger = "0.30.2"
+tracing = { version = "0.1.41", features = ["log"] }
 
 [[bin]]
 name = "kubera_controlplane"

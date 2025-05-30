@@ -4,7 +4,7 @@ use kube::CustomResource;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-#[derive(Builder, Deserialize, Serialize, Clone, Debug, JsonSchema, PartialEq)]
+#[derive(Default, Builder, Deserialize, Serialize, Clone, Debug, JsonSchema, PartialEq)]
 #[serde(rename_all = "camelCase")]
 #[builder(setter(into))]
 pub struct Ref {
@@ -14,36 +14,42 @@ pub struct Ref {
     pub namespace: Option<String>,
 }
 
-#[derive(Deserialize, Serialize, Clone, Debug, JsonSchema, PartialEq)]
+#[derive(Default, Deserialize, Serialize, Clone, Debug, JsonSchema, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub enum GatewayRefs {
+    #[default]
+    None,
     #[serde(rename = "parentRef")]
     One(Ref),
     #[serde(rename = "parentRefs")]
     Many(Vec<Ref>),
 }
 
-#[derive(Deserialize, Serialize, Clone, Debug, JsonSchema, PartialEq)]
+#[derive(Default, Deserialize, Serialize, Clone, Debug, JsonSchema, PartialEq)]
 pub struct CommonGatewayParameters {}
 
-#[derive(CustomResource, Deserialize, Serialize, Clone, Debug, JsonSchema)]
+#[derive(Default, CustomResource, Deserialize, Serialize, Clone, Debug, JsonSchema, PartialEq)]
 #[kube(
     kind = "GatewayClassParameters",
     group = "kubera.whitefamily.in",
     version = "v1alpha1"
 )]
+#[kube(derive = "Default")]
+#[kube(derive = "PartialEq")]
 pub struct GatewayClassConfigurationSpec {
     #[serde(flatten)]
     pub common: CommonGatewayParameters,
 }
 
-#[derive(CustomResource, Deserialize, Serialize, Clone, Debug, JsonSchema, PartialEq)]
+#[derive(Default, CustomResource, Deserialize, Serialize, Clone, Debug, JsonSchema, PartialEq)]
 #[kube(
     kind = "GatewayParameters",
     group = "kubera.whitefamily.in",
     version = "v1alpha1",
     namespaced
 )]
+#[kube(derive = "Default")]
+#[kube(derive = "PartialEq")]
 pub struct GatewayParametersSpec {
     #[serde(flatten)]
     pub common: Option<CommonGatewayParameters>,

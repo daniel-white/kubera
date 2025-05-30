@@ -27,9 +27,7 @@ enum Commands {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    /*    Builder::with_level("info")
-    .with_target_writer("*", new_writer(s()))
-    .init(); */
+    flexi_logger::Logger::try_with_env_or_str("debug")?.start()?;
 
     let cli = Cli::parse();
 
