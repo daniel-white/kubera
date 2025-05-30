@@ -1,8 +1,7 @@
 use crate::controllers::Ref;
 use getset::Getters;
-use std::collections::HashMap;
+use std::collections::{BTreeMap};
 use std::fmt::Debug;
-use thiserror::Error;
 
 #[derive(Clone, PartialEq, Debug)]
 pub enum ResourceState<K> {
@@ -13,17 +12,14 @@ pub enum ResourceState<K> {
 #[derive(Getters, Default, Clone, PartialEq, Debug)]
 pub struct Resources<K> {
     #[getset(get = "pub")]
-    resources: HashMap<Ref, ResourceState<K>>,
+    resources: BTreeMap<Ref, ResourceState<K>>,
 }
 
 impl<K> Resources<K> {
-    pub fn insert(&mut self, key: Ref, value: ResourceState<K>) {
+    pub fn set(&mut self, key: Ref, value: ResourceState<K>) {
         self.resources.insert(key, value);
     }
 }
-
-#[derive(Error, Debug)]
-pub enum ControllerError {}
 
 #[macro_export]
 macro_rules! spawn_controller {
@@ -32,27 +28,30 @@ macro_rules! spawn_controller {
     };
     ($resource:ty, $join_set:ident, $client:ident, $config:expr) => {{
         use crate::controllers::Ref;
-        use crate::controllers::sources::controller::{ControllerError, ResourceState, Resources};
+        use crate::controllers::source_controller::{ResourceState, Resources};
         use crate::sync::state::{Sender, channel};
         use futures::StreamExt;
         use kube::Api;
         use kube::runtime::Controller;
         use kube::runtime::controller::Action;
-        use log::debug;
         use std::future::ready;
         use std::sync::Arc;
         use std::time::Duration;
+        use std::fmt::Debug;
+        use thiserror::Error;
 
         struct ControllerContext {
-            client: Client,
             tx: Sender<Resources<$resource>>,
         }
 
         impl ControllerContext {
-            fn new(client: Client, tx: Sender<Resources<$resource>>) -> Self {
-                Self { client, tx }
+            fn new(tx: Sender<Resources<$resource>>) -> Self {
+                Self { tx }
             }
         }
+        
+        #[derive(Error, Debug)]
+        enum ControllerError {}
 
         async fn reconcile(
             resource: Arc<$resource>,
@@ -73,7 +72,7 @@ macro_rules! spawn_controller {
                 _ => ResourceState::Deleted(resource.as_ref().clone()),
             };
 
-            new_resources.insert(resource_ref, resource_state);
+            new_resources.set(resource_ref, resource_state);
 
             ctx.tx.replace(new_resources);
             Ok(Action::requeue(Duration::from_secs(60)))
@@ -88,17 +87,17 @@ macro_rules! spawn_controller {
         }
 
         let client = $client.clone();
-        let resources = Api::<$resource>::all($client.clone());
         let config = $config.clone();
         let (tx, rx) = channel::<Resources<$resource>>(Resources::default());
 
         $join_set.spawn(async move {
+            let resources = Api::<$resource>::all(client);
             Controller::new(resources, config)
                 .shutdown_on_signal()
                 .run(
                     reconcile,
                     error_policy,
-                    Arc::new(ControllerContext::new(client, tx)),
+                    Arc::new(ControllerContext::new(tx)),
                 )
                 .filter_map(|x| async move { Some(x) })
                 .for_each(|_| ready(()))

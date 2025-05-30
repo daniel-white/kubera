@@ -1,17 +1,18 @@
 use crate::api::v1alpha1::{GatewayClassParameters, GatewayParameters};
-use crate::controllers::sources::controller::{ResourceState, Resources};
+use crate::controllers::source_controller::{ResourceState, Resources};
 use crate::sync::state::Receiver;
 use derive_builder::Builder;
 use gateway_api::apis::standard::gatewayclasses::GatewayClass;
 use gateway_api::apis::standard::gateways::Gateway;
 use k8s_openapi::api::apps::v1::Deployment;
 use k8s_openapi::api::core::v1::{ConfigMap, Service};
+use log::debug;
 use thiserror::Error;
 use tokio::signal;
 use tokio::task::JoinSet;
 
 #[derive(Builder)]
-pub struct StateSources {
+pub struct Sources {
     gateway_classes: Receiver<Resources<GatewayClass>>,
     gateway_class_parameters: Receiver<Resources<GatewayClassParameters>>,
     gateways: Receiver<Resources<Gateway>>,
@@ -21,9 +22,9 @@ pub struct StateSources {
     services: Receiver<Resources<Service>>,
 }
 
-impl StateSources {
-    pub fn new_builder() -> StateSourcesBuilder {
-        StateSourcesBuilder::default()
+impl Sources {
+    pub fn new_builder() -> SourcesBuilder {
+        SourcesBuilder::default()
     }
 }
 
@@ -35,32 +36,36 @@ pub enum ControllerError {
 
 pub async fn spawn_controller(
     join_set: &mut JoinSet<()>,
-    mut receivers: StateSources,
+    mut sources: Sources,
 ) -> Result<Receiver<Option<()>>, ControllerError> {
     let (state_tx, state_rx) = crate::sync::state::channel::<Option<()>>(None);
 
     join_set.spawn(async move {
         loop {
             tokio::select! {
-                _ = receivers.gateway_classes.changed() => {
+                _ = sources.gateway_classes.changed() => {
+                    debug!("GatewayClasses changed");
                     continue;
                 },
-                _ = receivers.gateway_class_parameters.changed() => {
+                _ = sources.gateway_class_parameters.changed() => {
+                    debug!("GatewayClassParameters changed");
                     continue;
                 },
-                _ = receivers.gateways.changed() => {
+                _ = sources.gateways.changed() => {
+                    debug!("Gateways changed");
                     continue;
                 },
-                _ = receivers.gateway_parameters.changed() => {
+                _ = sources.gateway_parameters.changed() => {
                     continue;
                 },
-                _ = receivers.config_maps.changed() => {
+                _ = sources.config_maps.changed() => {
                     continue;
                 },
-                _ = receivers.deployments.changed() => {
+                _ = sources.deployments.changed() => {
                     continue;
                 },
-                _ = receivers.services.changed() => {
+                _ = sources.services.changed() => {
+                    debug!("Services changed");
                     continue;
                 },
                 _ = signal::ctrl_c() => {
