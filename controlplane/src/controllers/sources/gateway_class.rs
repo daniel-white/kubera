@@ -13,7 +13,7 @@ use kube::{
 use std::{future::ready, sync::Arc, time::Duration};
 use thiserror::Error;
 use tokio::spawn;
-use tokio::task::JoinHandle;
+use tokio::task::{JoinHandle, JoinSet};
 
 #[derive(Builder, Getters, Clone, PartialEq, Debug)]
 pub struct GatewayClassState {
@@ -36,9 +36,10 @@ struct Context {
     state_tx: Sender<Option<GatewayClassState>>,
 }
 
-pub async fn controller(
+pub async fn spawn_controller(
+    join_set: &mut JoinSet<()>,
     client: &Client,
-) -> Result<(JoinHandle<()>, Receiver<Option<GatewayClassState>>), ControllerError> {
+) -> Result<Receiver<Option<GatewayClassState>>, ControllerError> {
     let gateway_class = Api::<GatewayClass>::all(client.clone());
     gateway_class
         .list(&ListParams::default().limit(1))
@@ -48,7 +49,7 @@ pub async fn controller(
     let client = client.clone();
     let (state_tx, state_rx) = channel::<Option<GatewayClassState>>(None);
 
-    let join_handle = spawn(async move {
+    join_set.spawn(async move {
         Controller::new(gateway_class, Config::default().any_semantic())
             .shutdown_on_signal()
             .run(
@@ -61,7 +62,7 @@ pub async fn controller(
             .await;
     });
 
-    Ok((join_handle, state_rx))
+    Ok(state_rx)
 }
 
 async fn reconcile(

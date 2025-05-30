@@ -1,6 +1,6 @@
-use crate::constants::{GATEWAY_CLASS_PARAMETERS_CRD_KIND, GATEWAY_PARAMETERS_CRD_KIND, GROUP};
+use crate::constants::{GATEWAY_PARAMETERS_CRD_KIND, GROUP};
 use crate::controllers::Ref;
-use crate::controllers::gateway_class::GatewayClassState;
+use crate::controllers::sources::gateway_class::GatewayClassState;
 use crate::sync::state::Receiver;
 use derive_builder::Builder;
 use futures::StreamExt;
@@ -17,6 +17,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use thiserror::Error;
 use tokio::select;
+use tokio::task::JoinSet;
 
 #[derive(Builder, Default, Clone, PartialEq, Debug)]
 pub struct GatewaysState {
@@ -113,10 +114,11 @@ fn error_policy(_: Arc<GatewayCrd>, error: &ControllerError, _: Arc<Context>) ->
     Action::requeue(Duration::from_secs(5))
 }
 
-pub async fn controller(
+pub async fn spawn_controller(
+    join_set: &mut JoinSet<()>,
     client: &Client,
     gateway_class_state_rx: &Receiver<Option<GatewayClassState>>,
-) -> Result<(tokio::task::JoinHandle<()>, Receiver<GatewaysState>), ControllerError> {
+) -> Result<Receiver<GatewaysState>, ControllerError> {
     let gateways = Api::<GatewayCrd>::all(client.clone());
 
     gateways
@@ -129,7 +131,7 @@ pub async fn controller(
     let (state_tx, state_rx) =
         crate::sync::state::channel::<GatewaysState>(GatewaysState::default());
 
-    let join_handle = tokio::spawn(async move {
+    join_set.spawn(async move {
         loop {
             let gateway_class_state = gateway_class_state_rx.current();
             if let Some(gateway_class_name) = gateway_class_state.map(|s| s.name().to_string()) {
@@ -165,5 +167,5 @@ pub async fn controller(
         }
     });
 
-    Ok((join_handle, state_rx))
+    Ok(state_rx)
 }

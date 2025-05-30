@@ -14,6 +14,7 @@ use std::future::ready;
 use std::sync::Arc;
 use std::time::Duration;
 use thiserror::Error;
+use tokio::task::JoinSet;
 
 #[derive(Builder, Getters, Default, Clone, PartialEq, Debug)]
 pub struct DeploymentsState {
@@ -65,16 +66,17 @@ fn error_policy(_: Arc<Deployment>, error: &ControllerError, _: Arc<Context>) ->
     Action::requeue(Duration::from_secs(5))
 }
 
-pub async fn controller(
+pub async fn spawn_controller(
+    join_set: &mut JoinSet<()>,
     client: &Client,
-) -> Result<(tokio::task::JoinHandle<()>, Receiver<DeploymentsState>), ControllerError> {
+) -> Result<Receiver<DeploymentsState>, ControllerError> {
     let deployments = Api::<Deployment>::all(client.clone());
 
     let client = client.clone();
     let (state_tx, state_rx) =
         crate::sync::state::channel::<DeploymentsState>(DeploymentsState::default());
 
-    let join_handle = tokio::spawn(async move {
+    join_set.spawn(async move {
         Controller::new(
             deployments.clone(),
             Config::default().labels(MANAGED_BY_LABEL_QUERY),
@@ -93,5 +95,5 @@ pub async fn controller(
         .await;
     });
 
-    Ok((join_handle, state_rx))
+    Ok(state_rx)
 }

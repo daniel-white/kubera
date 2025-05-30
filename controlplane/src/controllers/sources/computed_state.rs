@@ -1,17 +1,17 @@
-use crate::controllers::deployments::DeploymentsState;
-use crate::controllers::gateway_class::GatewayClassState;
-use crate::controllers::gateway_class_parameters::GatewayClassParametersState;
-use crate::controllers::gateway_parameters::GatewayParametersState;
-use crate::controllers::gateways::GatewaysState;
-use crate::controllers::services::ServicesState;
+use crate::controllers::sources::deployments::DeploymentsState;
+use crate::controllers::sources::gateway_class::GatewayClassState;
+use crate::controllers::sources::gateway_class_parameters::GatewayClassParametersState;
+use crate::controllers::sources::gateway_parameters::GatewayParametersState;
+use crate::controllers::sources::gateways::GatewaysState;
+use crate::controllers::sources::services::ServicesState;
 use crate::sync::state::Receiver;
 use derive_builder::Builder;
 use thiserror::Error;
 use tokio::signal;
-use tokio::task::JoinHandle;
+use tokio::task::{JoinHandle, JoinSet};
 
 #[derive(Builder)]
-pub struct ComputedStateSourceStates {
+pub struct StateSources {
     gateway_class: Receiver<Option<GatewayClassState>>,
     gateway_class_parameters: Receiver<Option<GatewayClassParametersState>>,
     gateways: Receiver<GatewaysState>,
@@ -20,9 +20,9 @@ pub struct ComputedStateSourceStates {
     services: Receiver<ServicesState>,
 }
 
-impl ComputedStateSourceStates {
-    pub fn new_builder() -> ComputedStateSourceStatesBuilder {
-        ComputedStateSourceStatesBuilder::default()
+impl StateSources {
+    pub fn new_builder() -> StateSourcesBuilder {
+        StateSourcesBuilder::default()
     }
 }
 
@@ -32,12 +32,13 @@ pub enum ControllerError {
     QueryError,
 }
 
-pub async fn controller(
-    mut receivers: ComputedStateSourceStates,
-) -> Result<(JoinHandle<()>, Receiver<Option<()>>), ControllerError> {
+pub async fn spawn_controller(
+    join_set: &mut JoinSet<()>,
+    mut receivers: StateSources,
+) -> Result<Receiver<Option<()>>, ControllerError> {
     let (state_tx, state_rx) = crate::sync::state::channel::<Option<()>>(None);
 
-    let join_handle = tokio::spawn(async move {
+    join_set.spawn(async move {
         loop {
             tokio::select! {
                 _ = receivers.gateway_class.changed() => {
@@ -66,5 +67,5 @@ pub async fn controller(
         }
     });
 
-    Ok((join_handle, state_rx))
+    Ok(state_rx)
 }

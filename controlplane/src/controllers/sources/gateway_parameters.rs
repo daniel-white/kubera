@@ -13,6 +13,7 @@ use std::future::ready;
 use std::sync::Arc;
 use std::time::Duration;
 use thiserror::Error;
+use tokio::task::JoinSet;
 
 #[derive(Builder, Getters, Default, Clone, PartialEq, Debug)]
 pub struct GatewayParametersState {
@@ -67,15 +68,10 @@ fn error_policy(_: Arc<GatewayParameters>, error: &ControllerError, _: Arc<Conte
     Action::requeue(Duration::from_secs(5))
 }
 
-pub async fn controller(
+pub async fn spawn_controller(
+    join_set: &mut JoinSet<()>,
     client: &Client,
-) -> Result<
-    (
-        tokio::task::JoinHandle<()>,
-        Receiver<GatewayParametersState>,
-    ),
-    ControllerError,
-> {
+) -> Result<Receiver<GatewayParametersState>, ControllerError> {
     let parameters = Api::<GatewayParameters>::all(client.clone());
 
     parameters
@@ -87,7 +83,7 @@ pub async fn controller(
     let (state_tx, state_rx) =
         crate::sync::state::channel::<GatewayParametersState>(GatewayParametersState::default());
 
-    let join_handle = tokio::spawn(async move {
+    join_set.spawn(async move {
         Controller::new(parameters.clone(), Config::default())
             .shutdown_on_signal()
             .run(
@@ -103,5 +99,5 @@ pub async fn controller(
             .await;
     });
 
-    Ok((join_handle, state_rx))
+    Ok(state_rx)
 }
