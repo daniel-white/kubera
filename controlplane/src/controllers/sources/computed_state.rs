@@ -1,3 +1,4 @@
+use crate::controllers::sources::config_maps::ConfigMapsState;
 use crate::controllers::sources::deployments::DeploymentsState;
 use crate::controllers::sources::gateway_class::GatewayClassState;
 use crate::controllers::sources::gateway_class_parameters::GatewayClassParametersState;
@@ -8,7 +9,7 @@ use crate::sync::state::Receiver;
 use derive_builder::Builder;
 use thiserror::Error;
 use tokio::signal;
-use tokio::task::{JoinHandle, JoinSet};
+use tokio::task::JoinSet;
 
 #[derive(Builder)]
 pub struct StateSources {
@@ -16,6 +17,7 @@ pub struct StateSources {
     gateway_class_parameters: Receiver<Option<GatewayClassParametersState>>,
     gateways: Receiver<GatewaysState>,
     gateway_parameters: Receiver<GatewayParametersState>,
+    config_maps: Receiver<ConfigMapsState>,
     deployments: Receiver<DeploymentsState>,
     services: Receiver<ServicesState>,
 }
@@ -51,6 +53,9 @@ pub async fn spawn_controller(
                     continue;
                 },
                 _ = receivers.gateway_parameters.changed() => {
+                    continue;
+                },
+                _ = receivers.config_maps.changed() => {
                     continue;
                 },
                 _ = receivers.deployments.changed() => {

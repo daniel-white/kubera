@@ -1,4 +1,5 @@
 mod computed_state;
+mod config_maps;
 mod deployments;
 mod gateway_class;
 mod gateway_class_parameters;
@@ -20,6 +21,7 @@ pub async fn spawn_sources(
         gateway_class_parameters::spawn_controller(join_set, client, &gateway_class_state).await?;
     let gateways_state = gateways::spawn_controller(join_set, client, &gateway_class_state).await?;
     let gateway_parameters_state = gateway_parameters::spawn_controller(join_set, client).await?;
+    let config_maps_state = config_maps::spawn_controller(join_set, client).await?;
     let deployments_state = deployments::spawn_controller(join_set, client).await?;
     let services_state = services::spawn_controller(join_set, client).await?;
 
@@ -28,9 +30,12 @@ pub async fn spawn_sources(
         .gateway_class_parameters(gateway_class_parameters_state)
         .gateways(gateways_state)
         .gateway_parameters(gateway_parameters_state)
+        .config_maps(config_maps_state)
         .deployments(deployments_state)
         .services(services_state)
-        .build()?;
+        .build()
+        .expect("Failed to build StateSources");
+
     let computed_state = computed_state::spawn_controller(join_set, state_sources).await?;
 
     Ok(computed_state)
