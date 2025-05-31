@@ -1,11 +1,17 @@
-use crate::controllers::desired_resources_controller::{ControllerError, DesiredResources};
+use crate::controllers::desired_resources_controller::{
+    ControllerError, DesiredResource, DesiredResources,
+};
+use crate::select_continue;
 use crate::sync::state::Receiver;
+use gateway_api::apis::standard::gatewayclasses::{GatewayClass, GatewayClassStatus};
 use k8s_openapi::api::apps::v1::Deployment;
 use k8s_openapi::api::core::v1::{ConfigMap, Service};
+use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
+use kube::api::{DeleteParams, PatchParams, PostParams};
 use kube::Api;
 use kube::Client;
-use log::info;
-use tokio::signal;
+use log::{info, warn};
+use serde_json::json;
 use tokio::task::JoinSet;
 
 pub async fn spawn_controller(
@@ -17,25 +23,79 @@ pub async fn spawn_controller(
     join_set.spawn(async move {
         loop {
             if let Some(desired_resources) = desired_resources.current() {
-                for namespaced_resources in desired_resources.namespaced() {
-                    info!(
-                        "Processing resources in namespace: {}",
-                        namespaced_resources.namespace()
-                    );
+                let gateway_classes = Api::<GatewayClass>::all(client.clone());
 
-                    let config_maps = Api::<ConfigMap>::namespaced(
-                        client.clone(),
-                        namespaced_resources.namespace(),
-                    );
-                    let deployments = Api::<Deployment>::namespaced(
-                        client.clone(),
-                        namespaced_resources.namespace(),
-                    );
-                    let services = Api::<Service>::namespaced(
-                        client.clone(),
-                        namespaced_resources.namespace(),
-                    );
+                for (ref_, gateway_class) in desired_resources.gateway_classes() {
+                    let _ = gateway_classes
+                        .replace_status(
+                            ref_.name(),
+                            &PostParams::default(),
+                            serde_json::to_string(gateway_class).unwrap().into_bytes(),
+                        )
+                        .await
+                        .inspect_err(|e| {
+                            warn!("Failed to update GatewayClass status for {:?}: {}", ref_, e);
+                        });
                 }
+
+                // for namespaced_resources in desired_resources.namespaced() {
+                //     info!(
+                //         "Processing resources in namespace: {}",
+                //         namespaced_resources.namespace()
+                //     );
+                //
+                //     let config_maps = Api::<ConfigMap>::namespaced(
+                //         client.clone(),
+                //         namespaced_resources.namespace(),
+                //     );
+                //     let deployments = Api::<Deployment>::namespaced(
+                //         client.clone(),
+                //         namespaced_resources.namespace(),
+                //     );
+                //     let services = Api::<Service>::namespaced(
+                //         client.clone(),
+                //         namespaced_resources.namespace(),
+                //     );
+                //
+                //     for config_map in namespaced_resources.config_maps() {
+                //         match config_map {
+                //             DesiredResource::Create(cm) => {
+                //                 if let Err(e) = config_maps.create(&PostParams::default(), cm).await
+                //                 {
+                //                     warn!(
+                //                         "Failed to create ConfigMap in namespace {}: {}",
+                //                         namespaced_resources.namespace(),
+                //                         e
+                //                     );
+                //                 }
+                //             }
+                //             DesiredResource::Delete(key) => {
+                //                 if let Err(e) = config_maps
+                //                     .delete(&key.name, &DeleteParams::default())
+                //                     .await
+                //                 {
+                //                     warn!(
+                //                         "Failed to delete ConfigMap in namespace {}: {}",
+                //                         namespaced_resources.namespace(),
+                //                         e
+                //                     );
+                //                 }
+                //             }
+                //             DesiredResource::Patch(name, patch) => {
+                //                 if let Err(e) = config_maps
+                //                     .patch(name, &PatchParams::default(), patch)
+                //                     .await
+                //                 {
+                //                     warn!(
+                //                         "Failed to patch ConfigMap in namespace {}: {}",
+                //                         namespaced_resources.namespace(),
+                //                         e
+                //                     );
+                //                 }
+                //             }
+                //         }
+                //     }
+                // }
             }
             // for namespaced_resources in desired_resources.current()..iter() {
             //     let namespace = &namespaced_resources.namespace;
@@ -73,15 +133,7 @@ pub async fn spawn_controller(
             //         }
             //     }
             // }
-            tokio::select! {
-                _ = desired_resources.changed() => {
-                    continue;
-                },
-                _ = signal::ctrl_c() => {
-                    // Handle graceful shutdown
-                    break;
-                },
-            }
+            select_continue!(desired_resources.changed())
         }
     });
 

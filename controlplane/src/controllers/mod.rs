@@ -12,8 +12,8 @@ use gateway_api::apis::standard::gateways::Gateway;
 use getset::Getters;
 use k8s_openapi::api::apps::v1::Deployment;
 use k8s_openapi::api::core::v1::{ConfigMap, Namespace, Service};
-use kube::runtime::watcher::Config;
 use kube::Client;
+use kube::runtime::watcher::Config;
 use tokio::task::JoinSet;
 
 pub async fn run() -> Result<()> {
@@ -22,7 +22,7 @@ pub async fn run() -> Result<()> {
 
     let managed_by_selector = Config::default().labels(MANAGED_BY_LABEL_QUERY);
 
-    let sources = desired_resources_controller::SourceResourcesRecievers::new_builder()
+    let sources = desired_resources_controller::SourceResourcesReceivers::new_builder()
         .gateway_classes(spawn_controller!(GatewayClass, join_set, client))
         .gateway_class_parameters(spawn_controller!(GatewayClassParameters, join_set, client))
         .gateways(spawn_controller!(Gateway, join_set, client))
