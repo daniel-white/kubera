@@ -3,7 +3,7 @@ kind: GatewayClass
 metadata:
   name: kubera
 spec:
-  controllerName: whitefamily.in/kubera
+  controllerName: kubera.whitefamily.in/controlplane
   parametersRef:
     kind: GatewayClassParameters
     group: kubera.whitefamily.in

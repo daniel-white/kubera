@@ -1,6 +1,6 @@
 use anyhow::Result;
 use tokio::sync::watch::{
-    channel as watch_channel, Receiver as WatchReceiver, Sender as WatchSender,
+    Receiver as WatchReceiver, Sender as WatchSender, channel as watch_channel,
 };
 
 #[derive(Debug, Clone)]
