@@ -1,6 +1,10 @@
+use anyhow::Result;
 use tokio::sync::watch::{
-    Receiver as WatchReceiver, Sender as WatchSender, channel as watch_channel,
+    channel as watch_channel, Receiver as WatchReceiver, Sender as WatchSender,
 };
+
+#[derive(Debug, Clone)]
+pub struct RecvError;
 
 pub fn channel<T>(value: T) -> (Sender<T>, Receiver<T>)
 where
@@ -49,7 +53,7 @@ where
         self.rx.borrow().clone()
     }
 
-    pub async fn changed(&mut self) -> Option<()> {
-        self.rx.changed().await.ok()
+    pub async fn changed(&mut self) -> Result<(), RecvError> {
+        self.rx.changed().await.map_err(|_| RecvError)
     }
 }

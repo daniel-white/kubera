@@ -1,6 +1,7 @@
 mod api;
 mod constants;
 mod controllers;
+pub mod macros;
 mod sync;
 
 use anyhow::Result;
