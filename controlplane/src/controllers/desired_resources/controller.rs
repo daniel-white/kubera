@@ -19,10 +19,10 @@ use k8s_openapi::chrono::{DateTime, Utc};
 use kube::api::Patch;
 use serde::Serialize;
 use std::collections::HashMap;
-use std::hash::Hash;
 use std::time::SystemTime;
 use thiserror::Error;
 use tokio::task::JoinSet;
+use crate::controllers::desired_resources::processors;
 
 #[derive(Builder)]
 pub struct SourceResourcesReceivers {
@@ -101,28 +101,11 @@ pub async fn spawn_controller(
                 .current()
                 .resources()
                 .into_iter()
-                .filter_map(|(ref_, state)| match state {
+                .map(|(ref_, state)| match state {
                     Active(gateway_class)
                         if gateway_class.spec.controller_name == GATEWAY_CLASS_CONTROLLER_NAME =>
                     {
-                        let parameters = gateway_class
-                            .spec
-                            .parameters_ref
-                            .iter()
-                            .filter(|ref_| {
-                                ref_.group == GROUP && ref_.kind == GATEWAY_PARAMETERS_CRD_KIND
-                            })
-                            .map(|ref_| {
-                                Ref::new_builder()
-                                    .namespace(ref_.namespace.clone())
-                                    .name(ref_.name.clone())
-                                    .build()
-                                    .expect("Failed to build Ref")
-                            })
-                            .filter_map(|ref_| gateway_class_parameters.get(&ref_).cloned())
-                            .next();
-
-                        Some((ref_.clone(), gateway_class.clone(), parameters))
+                        let process_result = processors::gateway_class::process(gateway_class, gateway_class_parameters);
                     }
                     _ => None,
                 })
