@@ -3,7 +3,7 @@ resolver = "3"
 members = [
     "controlplane",
     "core",
-    "proxy"
+    "gateway"
 ]
 
 [patch.crates-io]

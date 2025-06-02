@@ -9,7 +9,7 @@ clap = { version = "4", features = ["derive"] }
 derive_builder = "0.20"
 futures = "0.3"
 gateway-api = "0.15"
-humantime-serde = "1.0"
+humantime-serde = "1"
 k8s-openapi = { version = "0.24", features = ["v1_32"] }
 kube = { version = "0.99", features = ["runtime", "derive"] }
 kubera_core = { path = "../core" }
@@ -22,9 +22,9 @@ structured-logger = { version = "1" }
 thiserror = "2"
 tokio = { version = "1", features = ["full"] }
 getset = "0.1"
-romap = "0.4.0"
+romap = "0.4"
 flexi_logger = "0.30.2"
-tracing = { version = "0.1.41", features = ["log"] }
+tracing = { version = "0.1", features = ["log"] }
 
 [[bin]]
 name = "kubera_controlplane"

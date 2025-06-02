@@ -1,28 +1,23 @@
 use crate::api::v1alpha1::{GatewayClassParameters, GatewayParameters};
 use crate::constants::{
-    GATEWAY_CLASS_CONTROLLER_NAME, GATEWAY_PARAMETERS_CRD_KIND, GROUP, MANAGED_BY_LABEL,
+    MANAGED_BY_LABEL,
     MANAGED_BY_VALUE,
 };
-use crate::controllers::source_controller::SourceResourceState::Active;
 use crate::controllers::source_controller::SourceResources;
 use crate::controllers::Ref;
 use crate::select_continue;
 use crate::sync::state::{channel, Receiver};
 use derive_builder::Builder;
-use gateway_api::apis::standard::gatewayclasses::{GatewayClass, GatewayClassStatus};
+use gateway_api::apis::standard::gatewayclasses::GatewayClass;
 use gateway_api::apis::standard::gateways::{Gateway, GatewayStatus};
 use getset::Getters;
 use k8s_openapi::api::apps::v1::Deployment;
 use k8s_openapi::api::core::v1::{ConfigMap, Namespace, Service};
-use k8s_openapi::apimachinery::pkg::apis::meta::v1::{Condition, Time};
-use k8s_openapi::chrono::{DateTime, Utc};
 use kube::api::Patch;
 use serde::Serialize;
 use std::collections::HashMap;
-use std::time::SystemTime;
 use thiserror::Error;
 use tokio::task::JoinSet;
-use crate::controllers::desired_resources::processors;
 
 #[derive(Builder)]
 pub struct SourceResourcesReceivers {
@@ -94,44 +89,44 @@ pub async fn spawn_controller(
 
     join_set.spawn(async move {
         loop {
-            let gateway_class_parameters = sources.gateway_class_parameters.current();
-            let gateway_class_parameters = gateway_class_parameters.resources();
-            let gateway_classes: Vec<_> = sources
-                .gateway_classes
-                .current()
-                .resources()
-                .into_iter()
-                .map(|(ref_, state)| match state {
-                    Active(gateway_class)
-                        if gateway_class.spec.controller_name == GATEWAY_CLASS_CONTROLLER_NAME =>
-                    {
-                        let process_result = processors::gateway_class::process(gateway_class, gateway_class_parameters);
-                    }
-                    _ => None,
-                })
-                .collect();
-
-            let gateway_classes: HashMap<Ref, GatewayClass> = gateway_classes
-                .iter()
-                .map(|(ref_, gateway_class, parameters)| {
-                    let mut gateway_class = gateway_class.clone();
-                    gateway_class.status = Some(GatewayClassStatus {
-                        conditions: Some(vec![Condition {
-                            type_: "Accepted".to_string(),
-                            status: "True".to_string(),
-                            last_transition_time: Time(DateTime::<Utc>::from(SystemTime::now())),
-                            message: "Hello, World!".to_string(),
-                            reason: "ExampleReason".to_string(),
-                            observed_generation: None,
-                        }]),
-                    });
-                    (ref_.clone(), gateway_class)
-                })
-                .collect();
+            // let gateway_class_parameters = sources.gateway_class_parameters.current();
+            // let gateway_class_parameters = gateway_class_parameters.resources();
+            // let gateway_classes: Vec<_> = sources
+            //     .gateway_classes
+            //     .current()
+            //     .resources()
+            //     .into_iter()
+            //     .map(|(ref_, state)| match state {
+            //         Active(gateway_class)
+            //             if gateway_class.spec.controller_name == GATEWAY_CLASS_CONTROLLER_NAME =>
+            //         {
+            //             let process_result = processors::gateway_class::process(gateway_class, gateway_class_parameters);
+            //         }
+            //         _ => None,
+            //     })
+            //     .collect();
+            //
+            // let gateway_classes: HashMap<Ref, GatewayClass> = gateway_classes
+            //     .iter()
+            //     .map(|(ref_, gateway_class, parameters)| {
+            //         let mut gateway_class = gateway_class.clone();
+            //         gateway_class.status = Some(GatewayClassStatus {
+            //             conditions: Some(vec![Condition {
+            //                 type_: "Accepted".to_string(),
+            //                 status: "True".to_string(),
+            //                 last_transition_time: Time(DateTime::<Utc>::from(SystemTime::now())),
+            //                 message: "Hello, World!".to_string(),
+            //                 reason: "ExampleReason".to_string(),
+            //                 observed_generation: None,
+            //             }]),
+            //         });
+            //         (ref_.clone(), gateway_class)
+            //     })
+            //     .collect();
 
             let desired_resources = DesiredResources::new_builder()
                 .gateways(Default::default())
-                .gateway_classes(gateway_classes)
+                .gateway_classes(Default::default())
                 .build()
                 .expect("Failed to build resources");
 

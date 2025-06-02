@@ -9,7 +9,6 @@ use serde::{Deserialize, Serialize};
 #[builder(setter(into))]
 pub struct Ref {
     pub name: String,
-
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub namespace: Option<String>,
 }
@@ -26,7 +25,10 @@ pub enum GatewayRefs {
 }
 
 #[derive(Default, Deserialize, Serialize, Clone, Debug, JsonSchema, PartialEq)]
-pub struct CommonGatewayParameters {}
+pub struct CommonGatewayParameterSpec {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub deployment: Option<GatewayDeployment>,
+}
 
 #[derive(Default, CustomResource, Deserialize, Serialize, Clone, Debug, JsonSchema, PartialEq)]
 #[kube(
@@ -36,9 +38,9 @@ pub struct CommonGatewayParameters {}
 )]
 #[kube(derive = "Default")]
 #[kube(derive = "PartialEq")]
-pub struct GatewayClassConfigurationSpec {
+pub struct GatewayClassParametersSpec {
     #[serde(flatten)]
-    pub common: CommonGatewayParameters,
+    pub common: CommonGatewayParameterSpec,
 }
 
 #[derive(Default, CustomResource, Deserialize, Serialize, Clone, Debug, JsonSchema, PartialEq)]
@@ -52,20 +54,7 @@ pub struct GatewayClassConfigurationSpec {
 #[kube(derive = "PartialEq")]
 pub struct GatewayParametersSpec {
     #[serde(flatten)]
-    pub common: Option<CommonGatewayParameters>,
-
-    #[serde(flatten)]
-    pub parent_refs: GatewayRefs,
-
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub proxy: Option<GatewayProxyConfiguration>,
-}
-
-#[derive(Deserialize, Serialize, Clone, Debug, JsonSchema, PartialEq)]
-pub struct GatewayProxyConfiguration {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub deployment: Option<GatewayDeployment>,
-
+    pub common: Option<CommonGatewayParameterSpec>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub service: Option<ServiceSpec>,
 }
@@ -74,7 +63,6 @@ pub struct GatewayProxyConfiguration {
 pub struct GatewayDeployment {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub replicas: Option<i32>,
-
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub strategy: Option<DeploymentStrategy>,
 }
