@@ -4,7 +4,7 @@ use std::fs::File;
 use std::io::Write;
 use std::path::Path;
 
-include!("src/config.rs");
+include!("src/config/types.rs");
 
 fn main() {
     // Generate schemas

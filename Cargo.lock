@@ -1504,6 +1504,7 @@ dependencies = [
 name = "kubera_core"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "derive_builder",
  "getset",
  "schemars",
@@ -1512,6 +1513,7 @@ dependencies = [
  "serde_valid",
  "serde_yaml 0.9.34+deprecated",
  "strum 0.27.1",
+ "tokio",
 ]
 
 [[package]]

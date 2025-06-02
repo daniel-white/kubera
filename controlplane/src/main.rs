@@ -1,8 +1,6 @@
 mod api;
 mod constants;
 mod controllers;
-pub mod macros;
-mod sync;
 
 use anyhow::Result;
 use api::write_crds;

@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+anyhow = "1"
 serde = { version = "1", features = ["derive"] }
 schemars = { version = "0.8" }
 serde_json = "1"
@@ -12,6 +13,7 @@ getset = "0.1"
 derive_builder = "0.20"
 serde_valid = { version = "1", features = ["yaml"] }
 strum = { version = "0.27", features = ["derive"] }
+tokio = { version = "1", features = ["full"] }
 
 [build-dependencies]
 serde = { version = "1", features = ["derive"] }
@@ -22,6 +24,7 @@ getset = "0.1"
 derive_builder = "0.20"
 serde_valid = { version = "1", features = ["yaml"] }
 strum = { version = "0.27", features = ["derive"] }
+
 [lib]
 name = "kubera_core"
 path = "src/lib.rs"

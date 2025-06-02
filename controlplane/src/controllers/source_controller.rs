@@ -29,11 +29,11 @@ macro_rules! spawn_controller {
     ($resource:ty, $join_set:ident, $client:ident, $config:expr) => {{
         use crate::controllers::Ref;
         use crate::controllers::source_controller::{SourceResourceState, SourceResources};
-        use crate::sync::state::{Sender, channel};
         use futures::StreamExt;
         use kube::Api;
         use kube::runtime::Controller;
         use kube::runtime::controller::Action;
+        use kubera_core::sync::signal::{Sender, channel};
         use std::fmt::Debug;
         use std::future::ready;
         use std::sync::Arc;
