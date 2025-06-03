@@ -5,6 +5,12 @@ use serde::{Deserialize, Serialize};
 use serde_valid::Validate;
 use strum::EnumString;
 
+#[derive(Validate, Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, EnumString)]
+#[serde(rename_all = "lowercase")]
+pub enum GatewayConfigurationVersion {
+    V1Alpha1,
+}
+
 #[derive(
     Default, Validate, Getters, Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema,
 )]
@@ -99,6 +105,8 @@ impl BackendPort {
 )]
 pub struct GatewayConfiguration {
     #[getset(get = "pub")]
+    version: GatewayConfigurationVersion,
+    #[getset(get = "pub")]
     #[validate(max_items = 64)]
     hosts: Vec<Host>,
 }
@@ -106,9 +114,11 @@ pub struct GatewayConfiguration {
 #[derive(
     Validate, Builder, Getters, Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema,
 )]
+#[serde(rename_all = "camelCase")]
 pub struct Host {
     #[getset(get = "pub")]
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[validate(max_items = 16)]
     hostnames: Vec<Hostname>,
 
     #[getset(get = "pub")]
@@ -153,6 +163,7 @@ pub struct HttpRouteName(
 #[derive(
     Validate, Builder, Getters, Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema,
 )]
+#[serde(rename_all = "camelCase")]
 pub struct HttpRouteMatch {
     #[getset(get = "pub")]
     #[serde(default)]
