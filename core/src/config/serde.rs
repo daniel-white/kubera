@@ -1,6 +1,6 @@
 use crate::config::types::GatewayConfiguration;
-use serde_valid::validation::{Error, Errors};
 use serde_valid::Validate;
+use serde_valid::validation::{Error, Errors};
 use std::io::{Read, Write};
 use thiserror::Error;
 
@@ -54,8 +54,9 @@ mod tests {
 version: v1alpha1
 hosts:
   - hostnames:
-      - "example.com"
-      - "api.example.com"
+      - value: ".example.com"
+        type: Suffix
+      - value: "api.example.com"
     httpRoutes:
       - name: "get-users-route"
         matches:
@@ -101,7 +102,7 @@ hosts:
             port: 8081
 
   - hostnames:
-      - "admin.example.com"
+      - value: "admin.example.com"
     httpRoutes:
       - name: "admin-dashboard"
         matches:
@@ -118,8 +119,11 @@ hosts:
         "#
         .as_bytes();
 
-        let config = read_configuration(yaml).unwrap();
-        assert_eq!(*config.version(), GatewayConfigurationVersion::V1Alpha1);
+        let config = read_configuration(yaml);
+        assert_eq!(
+            *config.unwrap().version(),
+            GatewayConfigurationVersion::V1Alpha1
+        );
     }
 
     // #[test]

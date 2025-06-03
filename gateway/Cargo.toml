@@ -11,6 +11,12 @@ tokio = { version = "1", features = ["full"] }
 anyhow = "1"
 clap = { version = "4", features = ["derive"] }
 thiserror = "2"
+http = "1"
+http-constant = "1"
+unicase = "2"
+regex = { version = "1", features = ["perf", "unicode"] }
+url = "2"
+getset = "0.1"
 
 [[bin]]
 name = "kubera_gateway"

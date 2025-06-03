@@ -1,12 +1,13 @@
+mod desired_resources;
 mod resulting_resources_controller;
 mod source_controller;
-mod desired_resources;
 
 use crate::api::v1alpha1::{GatewayClassParameters, GatewayParameters};
 use crate::constants::MANAGED_BY_LABEL_QUERY;
 use crate::spawn_controller;
 use anyhow::Result;
 use derive_builder::Builder;
+use desired_resources::controller as desired_resources_controller;
 use gateway_api::apis::standard::gatewayclasses::GatewayClass;
 use gateway_api::apis::standard::gateways::Gateway;
 use getset::Getters;
@@ -15,7 +16,6 @@ use k8s_openapi::api::core::v1::{ConfigMap, Namespace, Service};
 use kube::Client;
 use kube::runtime::watcher::Config;
 use tokio::task::JoinSet;
-use desired_resources::controller as desired_resources_controller;
 
 pub async fn run() -> Result<()> {
     let mut join_set = JoinSet::new();

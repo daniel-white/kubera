@@ -119,7 +119,7 @@ pub struct Host {
     #[getset(get = "pub")]
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     #[validate(max_items = 16)]
-    hostnames: Vec<Hostname>,
+    hostnames: Vec<HostnameMatch>,
 
     #[getset(get = "pub")]
     #[validate(max_items = 64)]
@@ -130,11 +130,35 @@ pub struct Host {
 pub struct Hostname(
     #[validate(min_length = 1)]
     #[validate(max_length = 253)]
-    #[validate(
-        pattern = "^(\\*\\.)?[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$"
-    )]
+    #[validate(pattern = "^\\.?[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$")]
     String,
 );
+
+#[derive(
+    Validate, Builder, Getters, Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema,
+)]
+pub struct HostnameMatch {
+    #[getset(get = "pub")]
+    #[serde(default, skip_serializing_if = "HostnameMatchType::is_default")]
+    #[validate]
+    match_type: HostnameMatchType,
+
+    #[getset(get = "pub")]
+    value: Hostname,
+}
+
+#[derive(Validate, Default, Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub enum HostnameMatchType {
+    #[default]
+    Exact,
+    Suffix,
+}
+
+impl HostnameMatchType {
+    pub fn is_default(&self) -> bool {
+        *self == HostnameMatchType::Exact
+    }
+}
 
 #[derive(
     Validate, Builder, Getters, Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema,

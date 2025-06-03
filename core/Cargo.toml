@@ -15,6 +15,8 @@ serde_valid = { version = "1", features = ["yaml"] }
 strum = { version = "0.27", features = ["derive"] }
 tokio = { version = "1", features = ["full"] }
 thiserror = "2"
+http = "1"
+http-serde = "2"
 
 [build-dependencies]
 serde = { version = "1", features = ["derive"] }
@@ -25,6 +27,9 @@ getset = "0.1"
 derive_builder = "0.20"
 serde_valid = { version = "1", features = ["yaml"] }
 strum = { version = "0.27", features = ["derive"] }
+http = "1"
+http-serde = "2"
+
 
 [lib]
 name = "kubera_core"
