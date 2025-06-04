@@ -1,0 +1,42 @@
+use crate::sync::signal::{Receiver, Sender, channel};
+use anyhow::Result;
+use notify::{Event, EventHandler, RecursiveMode, Watcher};
+use std::sync::atomic::{AtomicU64, Ordering};
+
+struct SignalEventHandler {
+    tx: Sender<u64>,
+    generation: AtomicU64,
+}
+
+impl SignalEventHandler {
+    pub fn new(tx: Sender<u64>) -> Self {
+        Self {
+            tx,
+            generation: AtomicU64::new(0),
+        }
+    }
+
+    fn increment_generation(&self) -> u64 {
+        self.generation.fetch_add(1, Ordering::Relaxed) + 1
+    }
+}
+
+impl EventHandler for SignalEventHandler {
+    fn handle_event(&mut self, event: notify::Result<Event>) {
+        if let Ok(event) = event {
+            if event.kind.is_modify() || event.kind.is_create() {
+                let generation = self.increment_generation();
+                self.tx.replace(generation);
+            }
+        }
+    }
+}
+
+pub fn spawn_file_watcher<P: AsRef<std::path::Path>>(p: P) -> Result<Receiver<u64>> {
+    let (tx, rx) = channel(0);
+
+    let mut watcher = notify::recommended_watcher(SignalEventHandler::new(tx))?;
+    watcher.watch(p.as_ref(), RecursiveMode::NonRecursive)?;
+
+    Ok(rx)
+}

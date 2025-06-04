@@ -60,9 +60,10 @@ hosts:
     httpRoutes:
       - name: "get-users-route"
         matches:
-          - method: GET
-            path:
-              type: PathPrefix
+          - methods:
+            - GET
+            paths:
+            - type: Prefix
               value: "/users"
             headers:
               - name: "X-Requested-With"
@@ -86,9 +87,10 @@ hosts:
             port: 8080
       - name: "post-users-route"
         matches:
-          - method: POST
-            path:
-              type: Exact
+          - methods:
+            - POST
+            paths:
+            - type: Exact
               value: "/users/create"
             headers:
               - name: "Content-Type"
@@ -106,9 +108,10 @@ hosts:
     httpRoutes:
       - name: "admin-dashboard"
         matches:
-          - method: GET
-            path:
-              type: Exact
+          - methods:
+            - GET
+            paths:
+            - type: Exact
               value: "/dashboard"
         backends:
           - name: "admin-ui"

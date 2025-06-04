@@ -280,12 +280,12 @@ impl RouteMatcherBuilder {
 
 impl Matcher<Parts> for RouteMatcher {
     fn matches(&self, part: &Parts) -> bool {
-        if !self.methods.is_empty() &&  self.methods.iter().all(|m| !m.matches(&part.method)) {
+        if !self.methods.is_empty() && self.methods.iter().all(|m| !m.matches(&part.method)) {
             return false;
         }
 
         let path = part.uri.path();
-        if !self.paths.is_empty() &&  self.paths.iter().all(|p| !p.matches(&path)) {
+        if !self.paths.is_empty() && self.paths.iter().all(|p| !p.matches(&path)) {
             return false;
         }
 

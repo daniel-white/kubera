@@ -1,6 +1,6 @@
 use derive_builder::Builder;
 use getset::Getters;
-use http::{HeaderName, HeaderValue, Method};
+use http::{HeaderName, Method};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_valid::Validate;
@@ -141,8 +141,11 @@ pub struct Hostname(
 )]
 pub struct HostnameMatch {
     #[getset(get = "pub")]
-    #[serde(default, skip_serializing_if = "HostnameMatchType::is_default")]
-    #[validate]
+    #[serde(
+        default,
+        rename = "type",
+        skip_serializing_if = "HostnameMatchType::is_default"
+    )]
     match_type: HostnameMatchType,
 
     #[getset(get = "pub")]
@@ -192,8 +195,9 @@ pub struct HttpRouteName(
 #[serde(rename_all = "camelCase")]
 pub struct HttpRouteMatch {
     #[getset(get = "pub")]
-    #[serde(default)]
-    path: HttpPathMatch,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[validate(max_items = 16)]
+    paths: Vec<HttpPathMatch>,
 
     #[getset(get = "pub")]
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -206,7 +210,9 @@ pub struct HttpRouteMatch {
     query_params: Vec<HttpQueryParamMatch>,
 
     #[getset(get = "pub")]
-    method: HttpMethodMatch,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[validate(max_items = 16)]
+    methods: Vec<HttpMethodMatch>,
 }
 
 #[derive(
@@ -243,7 +249,7 @@ pub struct HttpPathMatch {
         rename = "type",
         skip_serializing_if = "HttpPathMatchType::is_default"
     )]
-    type_: HttpPathMatchType,
+    match_type: HttpPathMatchType,
 
     #[getset(get = "pub")]
     #[validate(max_length = 1024)]
@@ -253,7 +259,7 @@ pub struct HttpPathMatch {
 impl Default for HttpPathMatch {
     fn default() -> Self {
         HttpPathMatch {
-            type_: HttpPathMatchType::PathPrefix,
+            match_type: HttpPathMatchType::Prefix,
             value: "/".to_string(),
         }
     }
@@ -263,13 +269,13 @@ impl Default for HttpPathMatch {
 pub enum HttpPathMatchType {
     Exact,
     #[default]
-    PathPrefix,
+    Prefix,
     RegularExpression,
 }
 
 impl HttpPathMatchType {
     fn is_default(&self) -> bool {
-        *self == HttpPathMatchType::PathPrefix
+        *self == HttpPathMatchType::Prefix
     }
 }
 
@@ -283,7 +289,7 @@ pub struct HttpHeaderMatch {
         rename = "type",
         skip_serializing_if = "HttpHeaderMatchType::is_default"
     )]
-    type_: HttpHeaderMatchType,
+    match_type: HttpHeaderMatchType,
 
     #[getset(get = "pub")]
     name: HttpHeaderName,
@@ -331,7 +337,7 @@ pub struct HttpQueryParamMatch {
         rename = "type",
         skip_serializing_if = "HttpQueryParamNameMatchType::is_default"
     )]
-    type_: HttpQueryParamNameMatchType,
+    match_type: HttpQueryParamNameMatchType,
 
     #[getset(get = "pub")]
     name: HttpQueryParamName,
@@ -360,6 +366,7 @@ pub struct HttpQueryParamName(
     #[validate(min_length = 1)]
     #[validate(max_length = 256)]
     #[validate(pattern = "^[a-zA-Z0-9!#$%&'*+.^_`|~-]+$")]
+    #[getset(get = "pub")]
     String,
 );
 

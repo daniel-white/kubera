@@ -1643,6 +1643,7 @@ dependencies = [
  "getset",
  "http",
  "http-serde",
+ "notify",
  "schemars",
  "serde",
  "serde_json",

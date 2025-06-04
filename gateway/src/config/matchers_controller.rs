@@ -2,13 +2,14 @@ use crate::http::route_matcher::RouteMatcher;
 use derive_builder::Builder;
 use http::HeaderValue;
 use kubera_core::config::types::{
-    GatewayConfiguration, HostnameMatchType, HttpHeaderMatchType,
+    GatewayConfiguration, HostnameMatchType, HttpHeaderMatchType, HttpPathMatchType
+    , HttpQueryParamNameMatchType,
 };
 use kubera_core::select_continue;
 use kubera_core::sync::signal::{channel, Receiver};
 use thiserror::Error;
 
-#[derive(Default, Builder, Clone, PartialEq)]
+#[derive(Default, Builder, Debug, Clone, PartialEq)]
 pub struct Matchers {
     matchers: Vec<RouteMatcher>,
 }
@@ -44,13 +45,44 @@ pub async fn spawn_controller(
                             }
                         }
 
-                        for path in route.paths() {
-                            builder.with_path(path.value().get().clone());
-                        }
-
                         for item in route.matches() {
+                            for method in item.methods() {
+                                builder.with_method(method.clone().into());
+                            }
+
+                            for path in item.paths() {
+                                match path.match_type() {
+                                    HttpPathMatchType::Exact => {
+                                        builder.with_path(path.value().clone());
+                                    }
+                                    HttpPathMatchType::Prefix => {
+                                        builder.with_path_prefix(path.value().clone());
+                                    }
+                                    HttpPathMatchType::RegularExpression => {
+                                        builder.with_path_matching(path.value().clone());
+                                    }
+                                }
+                            }
+
+                            for query_param in item.query_params() {
+                                match query_param.match_type() {
+                                    HttpQueryParamNameMatchType::Exact => {
+                                        builder.with_query_param(
+                                            query_param.name().get().clone(),
+                                            query_param.value().clone(),
+                                        );
+                                    }
+                                    HttpQueryParamNameMatchType::RegularExpression => {
+                                        builder.with_query_param_matching(
+                                            query_param.name().get().clone(),
+                                            query_param.value().clone(),
+                                        );
+                                    }
+                                }
+                            }
+
                             for header in item.headers() {
-                                match header.type_() {
+                                match header.match_type() {
                                     HttpHeaderMatchType::Exact => {
                                         builder.with_header(
                                             header.name().into(),
@@ -66,8 +98,6 @@ pub async fn spawn_controller(
                                     }
                                 }
                             }
-
-                            builder.with_method(item.method().clone().into());
                         }
 
                         matchers.push(builder.build());
@@ -77,7 +107,7 @@ pub async fn spawn_controller(
                 tx.replace(Matchers { matchers });
             }
 
-            select_continue!(gateway_configuration.changed(),)
+            select_continue!(gateway_configuration.changed())
         }
     });
 
