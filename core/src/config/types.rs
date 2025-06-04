@@ -1,5 +1,6 @@
 use derive_builder::Builder;
 use getset::Getters;
+use http::{HeaderName, HeaderValue, Method};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_valid::Validate;
@@ -131,6 +132,7 @@ pub struct Hostname(
     #[validate(min_length = 1)]
     #[validate(max_length = 253)]
     #[validate(pattern = "^\\.?[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$")]
+    #[getset(get = "pub")]
     String,
 );
 
@@ -204,7 +206,6 @@ pub struct HttpRouteMatch {
     query_params: Vec<HttpQueryParamMatch>,
 
     #[getset(get = "pub")]
-    #[serde(skip_serializing_if = "HttpMethodMatch::is_default")]
     method: HttpMethodMatch,
 }
 
@@ -306,13 +307,19 @@ impl HttpHeaderMatchType {
     }
 }
 
-#[derive(Validate, Getters, Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Validate, Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct HttpHeaderName(
     #[validate(min_length = 1)]
     #[validate(max_length = 256)]
     #[validate(pattern = "^[a-zA-Z0-9!#$%&'*+.^_`|~-]+$")]
     String,
 );
+
+impl From<&HttpHeaderName> for HeaderName {
+    fn from(name: &HttpHeaderName) -> Self {
+        Self::from_bytes(name.0.as_bytes()).expect("Invalid header name")
+    }
+}
 
 #[derive(
     Validate, Builder, Getters, Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema,
@@ -356,14 +363,9 @@ pub struct HttpQueryParamName(
     String,
 );
 
-#[derive(
-    Validate, Default, Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, EnumString,
-)]
+#[derive(Validate, Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, EnumString)]
 #[serde(rename_all = "UPPERCASE")]
 pub enum HttpMethodMatch {
-    #[default]
-    #[serde(skip)]
-    NotSpecified,
     #[strum(serialize = "GET")]
     Get,
     #[strum(serialize = "POST")]
@@ -384,8 +386,18 @@ pub enum HttpMethodMatch {
     Connect,
 }
 
-impl HttpMethodMatch {
-    pub fn is_default(&self) -> bool {
-        *self == HttpMethodMatch::NotSpecified
+impl Into<Method> for HttpMethodMatch {
+    fn into(self) -> Method {
+        match self {
+            HttpMethodMatch::Get => Method::GET,
+            HttpMethodMatch::Post => Method::POST,
+            HttpMethodMatch::Put => Method::PUT,
+            HttpMethodMatch::Patch => Method::PATCH,
+            HttpMethodMatch::Delete => Method::DELETE,
+            HttpMethodMatch::Head => Method::HEAD,
+            HttpMethodMatch::Options => Method::OPTIONS,
+            HttpMethodMatch::Trace => Method::TRACE,
+            HttpMethodMatch::Connect => Method::CONNECT,
+        }
     }
 }

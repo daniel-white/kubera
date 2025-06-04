@@ -1659,11 +1659,13 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "clap 4.5.39",
+ "derive_builder",
  "getset",
  "http",
  "http-constant",
  "kubera_core",
  "notify",
+ "once_cell",
  "pingora",
  "regex",
  "thiserror 2.0.12",
