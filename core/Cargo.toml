@@ -4,32 +4,34 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-anyhow = "1"
-serde = { version = "1", features = ["derive"] }
-schemars = { version = "0.8" }
-serde_json = "1"
-serde_yaml = "0.9"
-getset = "0.1"
-derive_builder = "0.20"
-serde_valid = { version = "1", features = ["yaml"] }
-strum = { version = "0.27", features = ["derive"] }
-tokio = { version = "1", features = ["full"] }
-thiserror = "2"
-http = "1"
-http-serde = "2"
+anyhow = { workspace = true }
+derive_builder = { workspace = true }
+flexi_logger = { workspace = true }
+getset = { workspace = true }
+http = { workspace = true }
+http-serde = { workspace = true }
 notify = "8"
+schemars = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+serde_valid = { version = "1", features = ["yaml"] }
+serde_yaml = { workspace = true }
+strum = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
 
 [build-dependencies]
-serde = { version = "1", features = ["derive"] }
-schemars = { version = "0.8" }
-serde_json = "1.0"
-serde_yaml = "0.9"
-getset = "0.1"
-derive_builder = "0.20"
+derive_builder = { workspace = true }
+getset = { workspace = true }
+http = { workspace = true }
+http-serde = { workspace = true }
+schemars = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
 serde_valid = { version = "1", features = ["yaml"] }
-strum = { version = "0.27", features = ["derive"] }
-http = "1"
-http-serde = "2"
+serde_yaml = { workspace = true }
+strum = { workspace = true }
 
 
 [lib]

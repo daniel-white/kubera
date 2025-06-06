@@ -1,7 +1,8 @@
 use anyhow::Result;
 use tokio::sync::watch::{
-    Receiver as WatchReceiver, Sender as WatchSender, channel as watch_channel,
+    channel as watch_channel, Receiver as WatchReceiver, Sender as WatchSender,
 };
+use tracing::trace;
 
 #[derive(Debug, Clone)]
 pub struct RecvError;
@@ -32,6 +33,7 @@ where
 
     pub fn replace(&self, value: T) -> () {
         if *self.tx.borrow() != value {
+            trace!("Replacing value in signal");
             self.tx.send_replace(value);
         }
     }
@@ -54,6 +56,9 @@ where
     }
 
     pub async fn changed(&mut self) -> Result<(), RecvError> {
-        self.rx.changed().await.map_err(|_| RecvError)
+        self.rx.changed().await.map_err(|_| {
+            trace!("Sender dropped");
+            RecvError
+        })
     }
 }

@@ -6,5 +6,23 @@ members = [
     "gateway"
 ]
 
-[patch.crates-io]
-sfv = { git = "https://github.com/undef1nd/sfv.git", tag = "v0.9.4" }
+[workspace.dependencies]
+anyhow = "1"
+async-trait = "0.1"
+clap = { version = "4", features = ["derive"] }
+derive_builder = "0.20"
+flexi_logger = "0.30.2"
+getset = "0.1"
+http = "1"
+http-constant = "1"
+http-serde = "2"
+regex = { version = "1", features = ["perf", "unicode"] }
+schemars = "0.8"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+serde_yaml = "0.9"
+strum = { version = "0.27", features = ["derive"] }
+thiserror = "2"
+tokio = { version = "1", features = ["full"] }
+tracing = { version = "0.1", features = ["log"] }
+unicase = "2"

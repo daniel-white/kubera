@@ -3,6 +3,7 @@ use getset::Getters;
 use std::collections::BTreeMap;
 use std::fmt::Debug;
 
+
 #[derive(Clone, PartialEq, Debug)]
 pub enum SourceResourceState<K> {
     Active(K),
@@ -24,6 +25,7 @@ impl<K> SourceResources<K> {
 #[macro_export]
 macro_rules! spawn_controller {
     ($resource:ty, $join_set:ident, $client:ident) => {
+        
         spawn_controller!($resource, $join_set, $client, Config::default())
     };
     ($resource:ty, $join_set:ident, $client:ident, $config:expr) => {{
@@ -39,6 +41,7 @@ macro_rules! spawn_controller {
         use std::sync::Arc;
         use std::time::Duration;
         use thiserror::Error;
+        use tracing::debug;
 
         struct ControllerContext {
             tx: Sender<SourceResources<$resource>>,
@@ -89,6 +92,8 @@ macro_rules! spawn_controller {
         let client = $client.clone();
         let config = $config.clone();
         let (tx, rx) = channel::<SourceResources<$resource>>(SourceResources::default());
+        
+        debug!("Spawning controller for resource: {}", stringify!($resource));
 
         $join_set.spawn(async move {
             let resources = Api::<$resource>::all(client);

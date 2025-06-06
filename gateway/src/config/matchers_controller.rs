@@ -1,13 +1,14 @@
 use crate::http::route_matcher::RouteMatcher;
 use derive_builder::Builder;
 use http::HeaderValue;
-use kubera_core::config::types::{
-    GatewayConfiguration, HostnameMatchType, HttpHeaderMatchType, HttpPathMatchType
-    , HttpQueryParamNameMatchType,
+use kubera_core::config::gateway::types::{
+    GatewayConfiguration, HostnameMatchType, HttpHeaderMatchType, HttpPathMatchType,
+    HttpQueryParamNameMatchType,
 };
 use kubera_core::select_continue;
 use kubera_core::sync::signal::{channel, Receiver};
 use thiserror::Error;
+use tracing::{debug, span, trace, Level};
 
 #[derive(Default, Builder, Debug, Clone, PartialEq)]
 pub struct Matchers {
@@ -29,8 +30,13 @@ pub async fn spawn_controller(
     tokio::spawn(async move {
         loop {
             if let Some(config) = gateway_configuration.current() {
+                let span = span!(Level::DEBUG, "matchers");
+                let _enter = span.enter();
+                debug!("Received new gateway configuration");
+
                 let mut matchers = vec![];
                 for host in config.hosts() {
+                    trace!("Begin processing host");
                     for route in host.http_routes() {
                         let mut builder = RouteMatcher::new_builder();
 

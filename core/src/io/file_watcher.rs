@@ -1,7 +1,8 @@
-use crate::sync::signal::{Receiver, Sender, channel};
+use crate::sync::signal::{channel, Receiver, Sender};
 use anyhow::Result;
 use notify::{Event, EventHandler, RecursiveMode, Watcher};
 use std::sync::atomic::{AtomicU64, Ordering};
+use tracing::{debug, info};
 
 struct SignalEventHandler {
     tx: Sender<u64>,
@@ -24,6 +25,7 @@ impl SignalEventHandler {
 impl EventHandler for SignalEventHandler {
     fn handle_event(&mut self, event: notify::Result<Event>) {
         if let Ok(event) = event {
+            debug!("File watcher event: {:?}", event);
             if event.kind.is_modify() || event.kind.is_create() {
                 let generation = self.increment_generation();
                 self.tx.replace(generation);
@@ -37,6 +39,9 @@ pub fn spawn_file_watcher<P: AsRef<std::path::Path>>(p: P) -> Result<Receiver<u6
 
     let mut watcher = notify::recommended_watcher(SignalEventHandler::new(tx))?;
     watcher.watch(p.as_ref(), RecursiveMode::NonRecursive)?;
+    Box::leak(Box::new(watcher));
+    
+    info!("Started file watcher for: {:?}", p.as_ref());
 
     Ok(rx)
 }

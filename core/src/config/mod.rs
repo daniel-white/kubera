@@ -1,2 +1,2 @@
-pub mod serde;
-pub mod types;
+pub mod gateway;
+pub mod logging;

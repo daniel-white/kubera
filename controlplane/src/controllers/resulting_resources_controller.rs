@@ -4,14 +4,14 @@ use crate::controllers::desired_resources_controller::{
 use gateway_api::apis::standard::gatewayclasses::{GatewayClass, GatewayClassStatus};
 use k8s_openapi::api::apps::v1::Deployment;
 use k8s_openapi::api::core::v1::{ConfigMap, Service};
+use kube::api::{DeleteParams, Patch, PatchParams, PostParams};
 use kube::Api;
 use kube::Client;
-use kube::api::{DeleteParams, Patch, PatchParams, PostParams};
 use kubera_core::select_continue;
 use kubera_core::sync::signal::Receiver;
-use log::{info, warn};
 use serde_json::json;
 use tokio::task::JoinSet;
+use tracing::{info, warn};
 
 pub async fn spawn_controller(
     join_set: &mut JoinSet<()>,

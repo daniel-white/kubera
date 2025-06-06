@@ -1,6 +1,7 @@
 //use pingora::gateway::{Proxy, ProxyConfig};
 //use tokio::runtime::Runtime;
 
+use kubera_core::config::logging::init_logging;
 use kubera_core::select_continue;
 use std::time::Duration;
 use tokio::time::sleep;
@@ -12,6 +13,8 @@ mod util;
 
 #[tokio::main]
 async fn main() {
+    init_logging();
+
     let config = config::config_watcher_controller::spawn_controller("gateway.yaml")
         .expect("Failed to spawn controller");
     let matchers = config::matchers_controller::spawn_controller(config)

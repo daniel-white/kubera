@@ -6,6 +6,7 @@ use anyhow::Result;
 use api::write_crds;
 use clap::{Parser, Subcommand};
 use controllers::run;
+use kubera_core::config::logging::init_logging;
 
 #[derive(Parser)]
 #[command(name = "kubera-controlplane")]
@@ -26,7 +27,7 @@ enum Commands {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    flexi_logger::Logger::try_with_env_or_str("debug")?.start()?;
+    init_logging();
 
     let cli = Cli::parse();
 

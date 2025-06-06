@@ -4,6 +4,7 @@ use derive_builder::Builder;
 use http::request::Parts;
 use http::{HeaderName, HeaderValue, Method};
 use unicase::UniCase;
+use tracing::{instrument, trace};
 
 pub trait Matcher<T> {
     fn matches(&self, part: &T) -> bool;
@@ -210,12 +211,14 @@ impl RouteMatcherBuilder {
     }
 
     pub fn with_hostname(&mut self, hostname: String) -> &mut Self {
+        trace!("Adding exact hostname matcher: {:?}", hostname);
         self.hostnames
             .push(HostnameMatcher::Exact(CaseInsensitiveString::new(hostname)));
         self
     }
 
     pub fn with_hostname_suffix(&mut self, hostname: String) -> &mut Self {
+        trace!("Adding suffix hostname matcher: {:?}", hostname);
         self.hostnames
             .push(HostnameMatcher::Suffix(CaseInsensitiveString::new(
                 hostname,
@@ -224,6 +227,7 @@ impl RouteMatcherBuilder {
     }
 
     pub fn with_header(&mut self, name: HeaderName, value: HeaderValue) -> &mut Self {
+        trace!("Adding exact header matcher: {:?}: {:?}", name, value);
         let header_matcher = HeaderMatcher {
             name: HeaderNameMatcher::new(name),
             value: HeaderValueMatcher::Exact(value),
@@ -233,6 +237,7 @@ impl RouteMatcherBuilder {
     }
 
     pub fn with_header_matching(&mut self, name: HeaderName, pattern: String) -> &mut Self {
+        trace!("Adding regex header matcher: {:?}: {:?}", name, pattern);
         let header_matcher = HeaderMatcher {
             name: HeaderNameMatcher::new(name),
             value: HeaderValueMatcher::RegularExpression(pattern),
@@ -242,26 +247,31 @@ impl RouteMatcherBuilder {
     }
 
     pub fn with_method(&mut self, method: Method) -> &mut Self {
+        trace!("Adding method matcher: {:?}", method);
         self.methods.push(MethodMatcher(method));
         self
     }
 
     pub fn with_path(&mut self, path: String) -> &mut Self {
+        trace!("Adding exact path matcher: {:?}", path);
         self.paths.push(PathMatcher::Exact(path));
         self
     }
 
     pub fn with_path_prefix(&mut self, prefix: String) -> &mut Self {
+        trace!("Adding prefix path matcher: {:?}", prefix);
         self.paths.push(PathMatcher::Prefix(prefix));
         self
     }
 
     pub fn with_path_matching(&mut self, pattern: String) -> &mut Self {
+        trace!("Adding regex path matcher: {:?}", pattern);
         self.paths.push(PathMatcher::RegularExpression(pattern));
         self
     }
 
     pub fn with_query_param(&mut self, name: String, value: String) -> &mut Self {
+        trace!("Adding exact query param matcher: {:?}={:?}", name, value);
         self.query_params.push(QueryParamMatcher {
             name: QueryParamNameMatcher(name),
             value: QueryParamValueMatcher::Exact(value),
@@ -270,6 +280,7 @@ impl RouteMatcherBuilder {
     }
 
     pub fn with_query_param_matching(&mut self, name: String, pattern: String) -> &mut Self {
+        trace!("Adding regex query param matcher: {:?}={:?}", name, pattern);
         self.query_params.push(QueryParamMatcher {
             name: QueryParamNameMatcher(name),
             value: QueryParamValueMatcher::RegularExpression(pattern),
@@ -279,6 +290,7 @@ impl RouteMatcherBuilder {
 }
 
 impl Matcher<Parts> for RouteMatcher {
+    #[instrument(skip(self, part), level = "trace")]
     fn matches(&self, part: &Parts) -> bool {
         if !self.methods.is_empty() && self.methods.iter().all(|m| !m.matches(&part.method)) {
             return false;

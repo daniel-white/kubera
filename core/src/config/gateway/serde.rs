@@ -1,8 +1,10 @@
-use crate::config::types::GatewayConfiguration;
-use serde_valid::Validate;
+use crate::config::gateway::types::GatewayConfiguration;
 use serde_valid::validation::{Error, Errors};
+use serde_valid::Validate;
+use std::fmt::Debug;
 use std::io::{Read, Write};
 use thiserror::Error;
+use tracing::{debug, instrument, span, warn};
 
 #[derive(Debug, Error)]
 pub enum ReadError {
@@ -13,12 +15,16 @@ pub enum ReadError {
     InvalidConfiguration(#[from] Errors<Error>),
 }
 
+#[instrument(skip(reader))]
 pub fn read_configuration(reader: impl Read) -> Result<GatewayConfiguration, ReadError> {
-    let configuration =
-        serde_yaml::from_reader::<_, GatewayConfiguration>(reader).map_err(|_| ReadError::Error)?;
+    let configuration = serde_yaml::from_reader::<_, GatewayConfiguration>(reader)
+        .inspect_err(|e| warn!("Failed to parse configuration: {}", e))
+        .map_err(|_| ReadError::Error)?;
 
     configuration
         .validate()
+        .inspect(|_| debug!("Read configuration is valid"))
+        .inspect_err(|e| warn!("Invalid read configuration: {}", e))
         .map(|_| configuration)
         .map_err(ReadError::InvalidConfiguration)
 }
@@ -32,6 +38,7 @@ pub enum WriteError {
     InvalidConfiguration(#[from] Errors<Error>),
 }
 
+#[instrument(skip(config, writer))]
 pub fn write_configuration(
     config: &GatewayConfiguration,
     writer: impl Write,
@@ -46,7 +53,7 @@ pub fn write_configuration(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::types::GatewayConfigurationVersion;
+    use crate::config::gateway::types::GatewayConfigurationVersion;
 
     #[test]
     fn test_read_configuration() {

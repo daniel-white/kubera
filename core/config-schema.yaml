@@ -1,0 +1,180 @@
+$schema: http://json-schema.org/draft-07/schema#
+title: GatewayConfiguration
+type: object
+required:
+- hosts
+- version
+properties:
+  hosts:
+    type: array
+    items:
+      $ref: '#/definitions/Host'
+  version:
+    $ref: '#/definitions/GatewayConfigurationVersion'
+definitions:
+  BackendGroupName:
+    type: string
+  BackendKindName:
+    type: string
+  BackendNamespace:
+    type: string
+  BackendObjectName:
+    type: string
+  BackendPort:
+    anyOf:
+    - $ref: '#/definitions/Port'
+  GatewayConfigurationVersion:
+    type: string
+    enum:
+    - v1alpha1
+  Host:
+    type: object
+    required:
+    - httpRoutes
+    properties:
+      hostnames:
+        type: array
+        items:
+          $ref: '#/definitions/HostnameMatch'
+      httpRoutes:
+        type: array
+        items:
+          $ref: '#/definitions/HttpRoute'
+  Hostname:
+    type: string
+  HostnameMatch:
+    type: object
+    required:
+    - value
+    properties:
+      type:
+        $ref: '#/definitions/HostnameMatchType'
+      value:
+        $ref: '#/definitions/Hostname'
+  HostnameMatchType:
+    type: string
+    enum:
+    - Exact
+    - Suffix
+  HttpBackendRef:
+    type: object
+    required:
+    - name
+    properties:
+      group:
+        $ref: '#/definitions/BackendGroupName'
+      kind:
+        $ref: '#/definitions/BackendKindName'
+      name:
+        $ref: '#/definitions/BackendObjectName'
+      namespace:
+        $ref: '#/definitions/BackendNamespace'
+      port:
+        $ref: '#/definitions/BackendPort'
+  HttpHeaderMatch:
+    type: object
+    required:
+    - name
+    - value
+    properties:
+      name:
+        $ref: '#/definitions/HttpHeaderName'
+      type:
+        $ref: '#/definitions/HttpHeaderMatchType'
+      value:
+        type: string
+  HttpHeaderMatchType:
+    type: string
+    enum:
+    - Exact
+    - RegularExpression
+  HttpHeaderName:
+    type: string
+  HttpMethodMatch:
+    type: string
+    enum:
+    - GET
+    - POST
+    - PUT
+    - PATCH
+    - DELETE
+    - HEAD
+    - OPTIONS
+    - TRACE
+    - CONNECT
+  HttpPathMatch:
+    type: object
+    required:
+    - value
+    properties:
+      type:
+        $ref: '#/definitions/HttpPathMatchType'
+      value:
+        type: string
+  HttpPathMatchType:
+    type: string
+    enum:
+    - Exact
+    - Prefix
+    - RegularExpression
+  HttpQueryParamMatch:
+    type: object
+    required:
+    - name
+    - value
+    properties:
+      name:
+        $ref: '#/definitions/HttpQueryParamName'
+      type:
+        $ref: '#/definitions/HttpQueryParamNameMatchType'
+      value:
+        type: string
+  HttpQueryParamName:
+    type: string
+  HttpQueryParamNameMatchType:
+    type: string
+    enum:
+    - Exact
+    - RegularExpression
+  HttpRoute:
+    type: object
+    required:
+    - backends
+    - matches
+    - name
+    properties:
+      backends:
+        type: array
+        items:
+          $ref: '#/definitions/HttpBackendRef'
+      matches:
+        type: array
+        items:
+          $ref: '#/definitions/HttpRouteMatch'
+      name:
+        $ref: '#/definitions/HttpRouteName'
+  HttpRouteMatch:
+    type: object
+    properties:
+      headers:
+        type: array
+        items:
+          $ref: '#/definitions/HttpHeaderMatch'
+      methods:
+        type: array
+        items:
+          $ref: '#/definitions/HttpMethodMatch'
+      paths:
+        type: array
+        items:
+          $ref: '#/definitions/HttpPathMatch'
+      queryParams:
+        type: array
+        items:
+          $ref: '#/definitions/HttpQueryParamMatch'
+  HttpRouteName:
+    type: string
+  Port:
+    type: integer
+    format: uint16
+    minimum: 0.0
