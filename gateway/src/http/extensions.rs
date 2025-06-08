@@ -1,18 +1,21 @@
 use getset::Getters;
 use http::request::Parts;
-use std::borrow::Cow;
+use http::Uri;
 
-#[derive(Debug, Getters, Clone)]
-pub struct QueryParamsExtension<'a> {
+#[derive(Debug, Getters, Default, Clone)]
+pub struct QueryParamsExtension {
     #[getset(get = "pub")]
-    query_params: Vec<(Cow<'a, str>, Cow<'a, str>)>,
+    query_params: Vec<(String, String)>,
 }
-impl<'a> QueryParamsExtension<'a> {
-    pub fn from_request(request: &'a Parts) -> Option<Self> {
-        request
-            .uri
+impl QueryParamsExtension {
+    pub fn from_uri(uri: &Uri) -> QueryParamsExtension {
+         uri
             .query()
-            .map(|qs| url::form_urlencoded::parse(qs.as_bytes()).collect())
-            .map(|query_params: Vec<(Cow<str>, Cow<str>)>| QueryParamsExtension { query_params })
+            .map(|qs| Self {
+                query_params: url::form_urlencoded::parse(qs.as_bytes())
+                    .map(|(k, v)| (k.to_string(), v.to_string()))
+                    .collect(),
+            })
+            .unwrap_or_default()
     }
 }

@@ -51,7 +51,7 @@ impl<T> Receiver<T>
 where
     T: PartialEq + Clone,
 {
-    pub fn current(&mut self) -> T {
+    pub fn current(&self) -> T {
         self.rx.borrow().clone()
     }
 

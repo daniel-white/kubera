@@ -3,7 +3,6 @@ use getset::Getters;
 use std::collections::BTreeMap;
 use std::fmt::Debug;
 
-
 #[derive(Clone, PartialEq, Debug)]
 pub enum SourceResourceState<K> {
     Active(K),
@@ -41,7 +40,7 @@ macro_rules! spawn_controller {
         use std::sync::Arc;
         use std::time::Duration;
         use thiserror::Error;
-        use tracing::debug;
+        use tracing::{debug, info};
 
         struct ControllerContext {
             tx: Sender<SourceResources<$resource>>,
@@ -71,13 +70,19 @@ macro_rules! spawn_controller {
                 .expect("Failed to build Ref");
 
             let resource_state = match &metadata.deletion_timestamp {
-                None => SourceResourceState::Active(resource.as_ref().clone()),
-                _ => SourceResourceState::Deleted(resource.as_ref().clone()),
+                None => {
+                    info!("Resource {:?} is active", resource_ref);
+                    SourceResourceState::Active(resource.as_ref().clone())
+                }
+                _ => {
+                    info!("Resource {:?} is deleted", resource_ref);
+                    SourceResourceState::Deleted(resource.as_ref().clone())
+                }
             };
 
             new_resources.set(resource_ref, resource_state);
-
             ctx.tx.replace(new_resources);
+            
             Ok(Action::requeue(Duration::from_secs(60)))
         }
 

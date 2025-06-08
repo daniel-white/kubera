@@ -1,5 +1,6 @@
 use crate::http::route_matcher::RouteMatcher;
 use derive_builder::Builder;
+use getset::Getters;
 use http::HeaderValue;
 use kubera_core::config::gateway::types::{
     GatewayConfiguration, HostnameMatchType, HttpHeaderMatchType, HttpPathMatchType,
@@ -10,8 +11,9 @@ use kubera_core::sync::signal::{channel, Receiver};
 use thiserror::Error;
 use tracing::{debug, span, trace, Level};
 
-#[derive(Default, Builder, Debug, Clone, PartialEq)]
+#[derive(Default, Builder, Getters, Debug, Clone, PartialEq)]
 pub struct Matchers {
+    #[getset(get = "pub")]
     matchers: Vec<RouteMatcher>,
 }
 

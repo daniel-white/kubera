@@ -1,11 +1,9 @@
-//use pingora::gateway::{Proxy, ProxyConfig};
-//use tokio::runtime::Runtime;
-
+use crate::http::gateway::Gateway;
 use kubera_core::config::logging::init_logging;
-use kubera_core::select_continue;
-use std::time::Duration;
-use tokio::time::sleep;
-use tokio::{join, spawn};
+use pingora::prelude::*;
+use pingora::server::Server;
+use tokio::join;
+use tokio::task::spawn_blocking;
 
 mod config;
 mod http;
@@ -21,17 +19,13 @@ async fn main() {
         .await
         .expect("Failed to spawn matchers controller");
 
-    let x = spawn(async move {
-        let mut matchers = matchers.clone();
-        sleep(Duration::from_secs(1)).await; // Wait for initial configuration
-        loop {
-            // Here you would typically use the matchers to configure your HTTP server
-            // For example, you could print them or use them to set up routes
-            println!("Current matchers: {:?}", matchers.current());
+    join!(spawn_blocking(move || {
+        let mut server = Server::new(None).unwrap();
+        server.bootstrap();
+        let mut service = http_proxy_service(&server.configuration, Gateway::new(matchers));
+        service.add_tcp("0.0.0.0:8080");
 
-            select_continue!(matchers.changed());
-        }
-    });
-
-    join!(x);
+        server.add_service(service);
+        server.run_forever();
+    }));
 }
