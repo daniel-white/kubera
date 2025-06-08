@@ -39,7 +39,7 @@ where
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Receiver<T>
 where
     T: PartialEq + Clone,
