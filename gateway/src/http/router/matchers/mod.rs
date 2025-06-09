@@ -49,7 +49,7 @@ pub enum MatchResult {
 }
 
 impl RouteMatcher {
-    pub fn builder() -> RouteMatcherBuilder {
+    pub fn new_builder() -> RouteMatcherBuilder {
         RouteMatcherBuilder::default()
     }
 

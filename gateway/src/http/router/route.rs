@@ -6,7 +6,7 @@ use std::net::SocketAddr;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum TransportSecurity {
-    NoTls,
+    None,
     Tls,
 }
 

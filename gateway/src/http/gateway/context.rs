@@ -1,42 +1,40 @@
-use crate::config::routes_controller::Routes;
-use crate::http::router::{MatchResult, Route};
+use crate::http::router::{Route, Router};
 use http::request::Parts;
 use kubera_core::sync::signal::Receiver;
 use std::sync::OnceLock;
 
 #[derive(Debug)]
 pub struct Context {
-    routes: Receiver<Routes>,
-    route: OnceLock<Option<Route>>,
+    router: Receiver<Option<Router>>,
+    route: OnceLock<FindRouteResult>,
 }
 
 unsafe impl Send for Context {}
 
 unsafe impl Sync for Context {}
 
+#[derive(Debug, Clone, PartialEq)]
+pub enum FindRouteResult {
+    Found(Route),
+    NotFound,
+    MissingConfiguration,
+}
+
 impl Context {
-    pub fn new(routes: Receiver<Routes>) -> Self {
+    pub fn new(router: Receiver<Option<Router>>) -> Self {
         Self {
-            routes,
+            router,
             route: OnceLock::new(),
         }
     }
 
-    pub fn route(&self, parts: &Parts) -> Option<&Route> {
-        self.route
-            .get_or_init(|| {
-                let routes = self.routes.current();
-                let routes = routes.get();
-                routes
-                    .iter()
-                    .filter_map(|r| match r.matches(parts) {
-                        MatchResult::Matched(score) => Some((r, score)),
-                        MatchResult::NotMatched => None,
-                    })
-                    .min_by(|(_, lhs), (_, rhs)| lhs.cmp(rhs))
-                    .map(|(r, _)| r)
-                    .cloned()
-            })
-            .as_ref()
+    pub fn find_route(&self, parts: &Parts) -> &FindRouteResult {
+        self.route.get_or_init(|| match self.router.current() {
+            None => FindRouteResult::MissingConfiguration,
+            Some(router) => match router.match_route(parts) {
+                Some(route) => FindRouteResult::Found(route.clone()),
+                None => FindRouteResult::NotFound,
+            },
+        })
     }
 }
