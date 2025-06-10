@@ -1,9 +1,9 @@
-use crate::http::router::{Route, RouteMatcher, Router, RouterBuilder};
+use crate::http::router::{Route, RouteMatcher, Router, RouterBuilder, Upstream};
 use http::{HeaderName, HeaderValue, Method};
 
 use kubera_core::config::gateway::types::{
-    GatewayConfiguration, HostnameMatchType, HttpHeaderMatchType, HttpHeaderName,
-    HttpPathMatchType, HttpQueryParamMatchType,
+    BackendGroupName, BackendKindName, GatewayConfiguration, HostnameMatchType,
+    HttpHeaderMatchType, HttpHeaderName, HttpPathMatchType, HttpQueryParamMatchType,
 };
 use kubera_core::select_continue;
 use kubera_core::sync::signal::{channel, Receiver};
@@ -27,14 +27,14 @@ pub async fn spawn_controller(
                 let mut router_builder = Router::new_builder();
                 for host in gateway_config.hosts().iter() {
                     for route in host.http_routes().iter() {
-                        router_builder.route(|b| {
+                        router_builder.route(|matcher_builder, upstreams_builder| {
                             for hostname in host.hostnames().iter() {
                                 match hostname.match_type() {
                                     HostnameMatchType::Exact => {
-                                        b.with_host(hostname.value().get());
+                                        matcher_builder.with_host(hostname.value().get());
                                     }
                                     HostnameMatchType::Suffix => {
-                                        b.with_host_suffix(hostname.value().get());
+                                        matcher_builder.with_host_suffix(hostname.value().get());
                                     }
                                 }
                             }
@@ -42,27 +42,29 @@ pub async fn spawn_controller(
                             for item in route.matches().iter() {
                                 for path in item.paths().iter() {
                                     match path.match_type() {
-                                        HttpPathMatchType::Exact => b.with_exact_path(path.value()),
+                                        HttpPathMatchType::Exact => {
+                                            matcher_builder.with_exact_path(path.value())
+                                        }
                                         HttpPathMatchType::Prefix => {
-                                            b.with_path_prefix(path.value())
+                                            matcher_builder.with_path_prefix(path.value())
                                         }
                                         HttpPathMatchType::RegularExpression => {
-                                            b.with_path_matching(path.value())
+                                            matcher_builder.with_path_matching(path.value())
                                         }
                                     };
                                 }
 
                                 for method in item.methods().iter() {
-                                    b.with_method(method.clone().into());
+                                    matcher_builder.with_method(method.clone().into());
                                 }
 
                                 for header in item.headers().iter() {
                                     match header.match_type() {
-                                        HttpHeaderMatchType::Exact => b.with_header(
+                                        HttpHeaderMatchType::Exact => matcher_builder.with_header(
                                             HeaderName::try_from(header.name()).unwrap(),
                                             HeaderValue::try_from(header.value()).unwrap(),
                                         ),
-                                        HttpHeaderMatchType::RegularExpression => b
+                                        HttpHeaderMatchType::RegularExpression => matcher_builder
                                             .with_header_matching(
                                                 HeaderName::try_from(header.name()).unwrap(),
                                                 header.value(),
@@ -72,16 +74,36 @@ pub async fn spawn_controller(
 
                                 for query_param in item.query_params().iter() {
                                     match query_param.match_type() {
-                                        HttpQueryParamMatchType::Exact => b.with_query_param(
-                                            query_param.name().get(),
-                                            query_param.value(),
-                                        ),
-                                        HttpQueryParamMatchType::RegularExpression => b
-                                            .with_query_param_matching(
+                                        HttpQueryParamMatchType::Exact => matcher_builder
+                                            .with_query_param(
                                                 query_param.name().get(),
                                                 query_param.value(),
                                             ),
+                                        HttpQueryParamMatchType::RegularExpression => {
+                                            matcher_builder.with_query_param_matching(
+                                                query_param.name().get(),
+                                                query_param.value(),
+                                            )
+                                        }
                                     };
+                                }
+                            }
+
+                            for backend in route.backends() {
+                                let upstream = match (backend.group(), backend.kind()) {
+                                    (_, _) => Upstream::new_builder()
+                                        .kubernetes_service(
+                                            backend.namespace().get().clone(),
+                                            backend.name().get().clone(),
+                                            80,
+                                        )
+                                        .build()
+                                        .ok(),
+                                    _ => None,
+                                };
+
+                                if let Some(upstream) = upstream {
+                                    upstreams_builder.add_upstream(upstream);
                                 }
                             }
                         });

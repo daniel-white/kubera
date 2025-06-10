@@ -1,5 +1,6 @@
 mod matchers;
 mod route;
+mod upstreams;
 
 use crate::http::router::matchers::RouteMatcherBuilder;
 use derive_builder::Builder;
@@ -8,6 +9,8 @@ pub use matchers::{MatchResult, RouteMatcher};
 pub use route::Route;
 use tracing::field::debug;
 use tracing::{debug, error};
+pub use upstreams::Upstream;
+use upstreams::UpstreamsBuilder;
 
 #[derive(Debug, Builder, Clone, Default, PartialEq)]
 pub struct Router {
@@ -17,14 +20,18 @@ pub struct Router {
 impl RouterBuilder {
     pub fn route<F>(&mut self, factory: F) -> &mut Self
     where
-        F: FnOnce(&mut RouteMatcherBuilder),
+        F: FnOnce(&mut RouteMatcherBuilder, &mut UpstreamsBuilder),
     {
-        let mut matcher_builder = RouteMatcher::new_builder();
-        factory(&mut matcher_builder);
-        let matcher = matcher_builder.build();
-
         let mut route_builder = Route::new_builder();
-        route_builder.upstreams(vec![]).matcher(matcher);
+        let mut matcher_builder = RouteMatcher::new_builder();
+        let mut upstreams_builder = UpstreamsBuilder::new();
+
+        factory(&mut matcher_builder, &mut upstreams_builder);
+
+        let matcher = matcher_builder.build();
+        let upstreams = upstreams_builder.build();
+        route_builder.matcher(matcher);
+        route_builder.upstreams(upstreams);
 
         match route_builder.build() {
             Ok(route) => {

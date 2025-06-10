@@ -30,6 +30,7 @@ impl ProxyHttp for Proxy {
     ) -> Result<Box<HttpPeer>> {
         match _ctx.find_route(session.req_header()) {
             context::FindRouteResult::Found(route) => {
+                warn!("Found route: {:?}", route.upstreams());
                 Err(Error::explain(HTTPStatus(400), "Not implemented")) // TODO implement route to upstream
             }
             context::FindRouteResult::NotFound => {

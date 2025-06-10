@@ -1,13 +1,13 @@
-use crate::http::proxy::GatewayBuilder;
+mod config;
+mod http;
+mod util;
+
+use crate::http::proxy::ProxyBuilder;
 use kubera_core::config::logging::init_logging;
 use pingora::prelude::*;
 use pingora::server::Server;
 use tokio::join;
 use tokio::task::spawn_blocking;
-
-mod config;
-mod http;
-mod util;
 
 #[tokio::main]
 async fn main() {
@@ -22,11 +22,11 @@ async fn main() {
     join!(spawn_blocking(move || {
         let mut server = Server::new(None).unwrap();
         server.bootstrap();
-        let gateway = GatewayBuilder::default()
+        let proxy = ProxyBuilder::default()
             .router(router)
             .build()
             .expect("Failed to build proxy");
-        let mut service = http_proxy_service(&server.configuration, gateway);
+        let mut service = http_proxy_service(&server.configuration, proxy);
         service.add_tcp("0.0.0.0:8080");
 
         server.add_service(service);

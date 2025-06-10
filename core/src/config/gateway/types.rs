@@ -58,6 +58,7 @@ impl Default for BackendKindName {
 pub struct BackendObjectName(
     #[validate(min_length = 1)]
     #[validate(max_length = 253)]
+    #[getset(get = "pub")]
     String,
 );
 
@@ -68,6 +69,7 @@ pub struct BackendNamespace(
     #[validate(min_length = 1)]
     #[validate(max_length = 253)]
     #[validate(pattern = "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$")]
+    #[getset(get = "pub")]
     String,
 );
 
@@ -83,6 +85,7 @@ impl BackendNamespace {
 pub struct Port(
     #[validate(minimum = 1)]
     #[validate(maximum = 65535)]
+    #[getset(get = "pub")]
     u16,
 );
 
