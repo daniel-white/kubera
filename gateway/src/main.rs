@@ -1,4 +1,4 @@
-use crate::http::gateway::{Gateway, GatewayBuilder};
+use crate::http::proxy::GatewayBuilder;
 use kubera_core::config::logging::init_logging;
 use pingora::prelude::*;
 use pingora::server::Server;
@@ -25,7 +25,7 @@ async fn main() {
         let gateway = GatewayBuilder::default()
             .router(router)
             .build()
-            .expect("Failed to build gateway");
+            .expect("Failed to build proxy");
         let mut service = http_proxy_service(&server.configuration, gateway);
         service.add_tcp("0.0.0.0:8080");
 

@@ -8,16 +8,15 @@ use http::HeaderValue;
 use kubera_core::sync::signal::Receiver;
 use pingora::http::ResponseHeader;
 use pingora::prelude::*;
-use std::ops::DerefMut;
-use tracing::{Instrument, warn};
+use tracing::warn;
 
 #[derive(Debug, Builder)]
-pub struct Gateway {
+pub struct Proxy {
     router: Receiver<Option<Router>>,
 }
 
 #[async_trait]
-impl ProxyHttp for Gateway {
+impl ProxyHttp for Proxy {
     type CTX = Context;
 
     fn new_ctx(&self) -> Self::CTX {

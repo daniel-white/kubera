@@ -1,2 +1,2 @@
-pub mod gateway;
+pub mod proxy;
 pub mod router;
