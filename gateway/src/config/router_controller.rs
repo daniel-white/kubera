@@ -1,6 +1,7 @@
-use crate::http::router::{Router, Upstream};
+use crate::http::router::{Router, TransportSecurity, Upstream};
 use http::{HeaderName, HeaderValue};
 
+use kubera_core::config::gateway::types::HttpMethodMatch::Trace;
 use kubera_core::config::gateway::types::{
     GatewayConfiguration, HostnameMatchType, HttpHeaderMatchType, HttpPathMatchType,
     HttpQueryParamMatchType,
@@ -8,6 +9,7 @@ use kubera_core::config::gateway::types::{
 use kubera_core::select_continue;
 use kubera_core::sync::signal::{channel, Receiver};
 use thiserror::Error;
+use tracing::debug;
 
 #[derive(Debug, Error)]
 pub enum ControllerError {}
@@ -87,6 +89,7 @@ pub async fn spawn_controller(
                             }
 
                             for backend in route.backends() {
+                                debug!("Adding backend: {:?}", backend);
                                 let upstream = match (
                                     backend.group().get().as_str(),
                                     backend.kind().get().as_str(),
@@ -97,7 +100,9 @@ pub async fn spawn_controller(
                                             backend.name().get().clone(),
                                             80,
                                         )
+                                        .transport_security(TransportSecurity::None)
                                         .build()
+                                        .inspect_err(|e| debug!("Failed to build upstream: {}", e))
                                         .ok(),
                                     _ => None,
                                 };

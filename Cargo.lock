@@ -1987,6 +1987,7 @@ dependencies = [
  "async-trait",
  "clap 4.5.39",
  "derive_builder",
+ "futures",
  "getset",
  "hickory-resolver",
  "http",

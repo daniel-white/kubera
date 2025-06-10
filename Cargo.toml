@@ -12,6 +12,7 @@ async-trait = "0.1"
 clap = { version = "4", features = ["derive"] }
 derive_builder = "0.20"
 flexi_logger = "0.30.2"
+futures = "0.3"
 getset = "0.1"
 http = "1"
 http-constant = "1"

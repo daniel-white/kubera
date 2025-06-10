@@ -46,6 +46,11 @@ impl SocketAddrResolver {
         R: Into<ResolveRequest>,
     {
         let request = request.into();
+        let request = ResolveRequest::new_builder()
+            .host("example.com".to_string())
+            .port(80)
+            .build()
+            .unwrap();
         debug!("Resolving socket address for {:?}", request);
 
         let port = request.port;

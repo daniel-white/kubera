@@ -3,6 +3,7 @@ mod kubernetes;
 use crate::net::resolver::ResolveRequest;
 use derive_builder::Builder;
 use getset::Getters;
+use tracing::debug;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum TransportSecurity {
@@ -39,6 +40,10 @@ impl From<&Upstream> for ResolveRequest {
 
 impl UpstreamBuilder {
     pub fn kubernetes_service(&mut self, namespace: String, name: String, port: u16) -> &mut Self {
+        debug!(
+            "Creating KubernetesServiceTarget with namespace: {}, name: {}, port: {}",
+            namespace, name, port
+        );
         let target = kubernetes::KubernetesServiceTarget::new_builder()
             .namespace(namespace)
             .name(name)
@@ -61,6 +66,7 @@ impl UpstreamsBuilder {
     }
 
     pub fn add_upstream(&mut self, upstream: Upstream) -> &mut Self {
+        debug!("Added upstream: {:?}", upstream);
         self.upstreams.push(upstream);
         self
     }

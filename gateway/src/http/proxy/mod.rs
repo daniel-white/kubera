@@ -5,6 +5,7 @@ use crate::net::resolver::SocketAddrResolver;
 use async_trait::async_trait;
 use context::Context;
 use derive_builder::Builder;
+use futures::future;
 use http::HeaderValue;
 use kubera_core::sync::signal::Receiver;
 use pingora::http::ResponseHeader;
@@ -33,14 +34,22 @@ impl ProxyHttp for Proxy {
         match _ctx.find_route(session.req_header()) {
             context::FindRouteResult::Found(route) => {
                 let upstreams = route.upstreams();
-                let resolved = upstreams.iter().map(|u| self.addr_resolver.resolve(u));
+                future::join_all(
+                    upstreams
+                        .iter()
+                        .map(async |u| self.addr_resolver.resolve(u).await),
+                )
+                .await;
 
-                warn!("Found route: {:?}", resolved);
                 Err(Error::explain(HTTPStatus(400), "Not implemented")) // TODO implement route to upstream
             }
             context::FindRouteResult::NotFound => {
                 Err(Error::explain(HTTPStatus(404), "No matching route found"))
             }
+            context::FindRouteResult::NoUpstreams => Err(Error::explain(
+                HTTPStatus(503),
+                "No upstreams configured for this route",
+            )),
             context::FindRouteResult::MissingConfiguration => {
                 Err(Error::explain(HTTPStatus(503), "Missing configuration"))
             }

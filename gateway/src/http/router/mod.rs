@@ -8,8 +8,8 @@ use http::request::Parts;
 pub use matchers::{MatchResult, RouteMatcher};
 pub use route::Route;
 use tracing::{debug, error};
-pub use upstreams::Upstream;
 use upstreams::UpstreamsBuilder;
+pub use upstreams::{TransportSecurity, Upstream};
 
 #[derive(Debug, Builder, Clone, Default, PartialEq)]
 pub struct Router {
@@ -35,6 +35,7 @@ impl RouterBuilder {
         match route_builder.build() {
             Ok(route) => {
                 let routes = self.routes.get_or_insert_default();
+                debug!("Building new route: {:?}", route);
                 routes.push(route);
                 debug!("Added new route, total routes: {}", routes.len());
             }
