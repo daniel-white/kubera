@@ -5,6 +5,7 @@ use super::path::PathMatcher;
 use super::query_params::QueryParamsMatcher;
 use std::cell::Cell;
 use std::cmp::Ordering;
+use tracing::instrument;
 
 #[derive(Default, Clone, PartialEq, Eq, Debug)]
 pub struct Score {
@@ -22,6 +23,11 @@ impl PartialOrd for Score {
 }
 
 impl Ord for Score {
+    #[instrument(
+        skip(self, other),
+        level = "debug",
+        name = "Score::cmp"
+    )]
     fn cmp(&self, other: &Self) -> Ordering {
         if self == other {
             return Ordering::Equal;

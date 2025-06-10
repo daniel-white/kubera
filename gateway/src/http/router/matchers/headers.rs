@@ -1,8 +1,9 @@
-use super::Matcher;
 use super::score::Score;
+use super::Matcher;
 use crate::util::get_regex;
 use getset::Getters;
 use http::{HeaderMap, HeaderName, HeaderValue};
+use tracing::{debug, instrument};
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct HeaderNameMatcher(HeaderName);
@@ -41,20 +42,26 @@ pub struct HeaderMatcher {
 }
 
 impl HeaderMatcher {
-    pub fn new(name: &HeaderName, value: &HeaderValue) -> Self {
+    pub fn new(name: HeaderName, value: HeaderValue) -> Self {
         Self {
-            name_matcher: HeaderNameMatcher(name.clone()),
-            value_matcher: HeaderValueMatcher::Exact(value.clone()),
+            name_matcher: HeaderNameMatcher(name),
+            value_matcher: HeaderValueMatcher::Exact(value),
         }
     }
 
-    pub fn new_matching(name: &HeaderName, pattern: &str) -> Self {
+    pub fn new_matching(name: HeaderName, pattern: &str) -> Self {
         Self {
-            name_matcher: HeaderNameMatcher(name.clone()),
+            name_matcher: HeaderNameMatcher(name),
             value_matcher: HeaderValueMatcher::RegularExpression(pattern.to_string()),
         }
     }
 
+    #[instrument(
+        skip(self, name, value),
+        level = "debug",
+        name = "HeaderMatcher::matches"
+        fields(matcher = ?self)
+    )]
     fn matches(&self, (name, value): &(&HeaderName, &HeaderValue)) -> bool {
         self.name_matcher.matches(name) && self.value_matcher.matches(value)
     }
@@ -66,6 +73,11 @@ pub struct HeadersMatcher {
 }
 
 impl Matcher<HeaderMap> for HeadersMatcher {
+    #[instrument(
+        skip(self, score, headers),
+        level = "debug",
+        name = "HeadersMatcher::matches"
+    )]
     fn matches(&self, score: &Score, headers: &HeaderMap) -> bool {
         let is_match = self
             .matchers
@@ -73,6 +85,7 @@ impl Matcher<HeaderMap> for HeadersMatcher {
             .all(|matcher| headers.iter().any(|header| matcher.matches(&header)));
         if is_match {
             score.score_headers(self);
+            debug!("Headers matched");
         }
         is_match
     }

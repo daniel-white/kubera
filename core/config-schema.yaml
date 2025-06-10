@@ -126,16 +126,16 @@ definitions:
       name:
         $ref: '#/definitions/HttpQueryParamName'
       type:
-        $ref: '#/definitions/HttpQueryParamNameMatchType'
+        $ref: '#/definitions/HttpQueryParamMatchType'
       value:
         type: string
-  HttpQueryParamName:
-    type: string
-  HttpQueryParamNameMatchType:
+  HttpQueryParamMatchType:
     type: string
     enum:
     - Exact
     - RegularExpression
+  HttpQueryParamName:
+    type: string
   HttpRoute:
     type: object
     required:

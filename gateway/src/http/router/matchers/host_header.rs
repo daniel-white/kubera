@@ -2,6 +2,7 @@ use super::CaseInsensitiveString;
 use super::Matcher;
 use crate::http::router::matchers::score::Score;
 use http::{HeaderMap, HeaderValue};
+use tracing::{debug, instrument};
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum HostHeaderValueMatcher {
@@ -10,6 +11,12 @@ pub enum HostHeaderValueMatcher {
 }
 
 impl HostHeaderValueMatcher {
+    #[instrument(
+        skip(self, host_header_value),
+        level = "debug",
+        name = "HostHeaderValueMatcher::matches"
+        fields(matcher = ?self)
+    )]
     fn matches(&self, host_header_value: &HeaderValue) -> bool {
         match host_header_value.to_str().map(CaseInsensitiveString::from) {
             Ok(host) => match self {
@@ -27,6 +34,11 @@ pub struct HostHeaderMatcher {
 }
 
 impl Matcher<HeaderMap> for HostHeaderMatcher {
+    #[instrument(
+        skip(self, score, headers),
+        level = "debug",
+        name = "HostHeaderMatcher::matches"
+    )]
     fn matches(&self, score: &Score, headers: &HeaderMap) -> bool {
         let is_match = match headers.get(http_constant::HOST) {
             Some(host_header_value) => self
@@ -37,6 +49,7 @@ impl Matcher<HeaderMap> for HostHeaderMatcher {
         };
 
         if is_match {
+            debug!("Host header matched");
             score.score_host_header(self);
         }
 

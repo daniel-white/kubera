@@ -3,6 +3,7 @@ use derive_builder::Builder;
 use getset::Getters;
 use http::request::Parts;
 use std::net::SocketAddr;
+use tracing::{Instrument, instrument};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum TransportSecurity {
@@ -36,6 +37,7 @@ impl Route {
         RouteBuilder::default()
     }
 
+    #[instrument(skip(self, parts), level = "debug", name = "Route::matches")]
     pub fn matches(&self, parts: &Parts) -> MatchResult {
         self.matcher.matches(parts)
     }

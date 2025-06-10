@@ -335,9 +335,9 @@ pub struct HttpQueryParamMatch {
     #[serde(
         default,
         rename = "type",
-        skip_serializing_if = "HttpQueryParamNameMatchType::is_default"
+        skip_serializing_if = "HttpQueryParamMatchType::is_default"
     )]
-    match_type: HttpQueryParamNameMatchType,
+    match_type: HttpQueryParamMatchType,
 
     #[getset(get = "pub")]
     name: HttpQueryParamName,
@@ -349,15 +349,15 @@ pub struct HttpQueryParamMatch {
 }
 
 #[derive(Default, Validate, Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-pub enum HttpQueryParamNameMatchType {
+pub enum HttpQueryParamMatchType {
     #[default]
     Exact,
     RegularExpression,
 }
 
-impl HttpQueryParamNameMatchType {
+impl HttpQueryParamMatchType {
     fn is_default(&self) -> bool {
-        *self == HttpQueryParamNameMatchType::Exact
+        *self == HttpQueryParamMatchType::Exact
     }
 }
 

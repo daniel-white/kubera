@@ -5,9 +5,9 @@ mod path;
 mod query_params;
 mod score;
 
-use crate::http::router::matchers::MatchResult::{Matched, NotMatched};
 use crate::http::router::matchers::headers::HeaderMatcher;
 use crate::http::router::matchers::query_params::QueryParamMatcher;
+use crate::http::router::matchers::MatchResult::{Matched, NotMatched};
 use headers::HeadersMatcher;
 use host_header::{HostHeaderMatcher, HostHeaderValueMatcher};
 use http::request::Parts;
@@ -17,6 +17,7 @@ use path::PathMatcher;
 use query_params::QueryParamsMatcher;
 use score::Score;
 use std::borrow::Cow;
+use tracing::{debug, instrument, trace};
 use unicase::UniCase;
 
 pub(self) type CaseInsensitiveString = UniCase<String>;
@@ -53,40 +54,51 @@ impl RouteMatcher {
         RouteMatcherBuilder::default()
     }
 
+    #[instrument(skip(self, parts), level = "trace", name = "RouteMatcher::matches")]
     pub fn matches(&self, parts: &Parts) -> MatchResult {
         let score = Score::default();
 
         if let Some(host_header_matcher) = &self.host_header {
+            trace!("Testing host header for match");
             if !host_header_matcher.matches(&score, &parts.headers) {
-                return NotMatched;
-            }
-        }
-
-        if let Some(path_matcher) = &self.path {
-            if !path_matcher.matches(&score, &parts.uri.path()) {
+                debug!("Host header did not match");
                 return NotMatched;
             }
         }
 
         if let Some(method_matcher) = &self.method {
+            trace!("Testing method for match");
             if !method_matcher.matches(&score, &parts.method) {
+                debug!("Method did not match");
+                return NotMatched;
+            }
+        }
+
+        if let Some(path_matcher) = &self.path {
+            trace!("Testing path for match");
+            if !path_matcher.matches(&score, &parts.uri.path()) {
+                debug!("Path did not match");
                 return NotMatched;
             }
         }
 
         if let Some(headers_matcher) = &self.headers {
+            trace!("Testing headers for match");
             if !headers_matcher.matches(&score, &parts.headers) {
+                debug!("Headers did not match");
                 return NotMatched;
             }
         }
 
         if let Some(query_params_matcher) = &self.query_params {
+            trace!("Testing query parameters for match");
             let query_params: Vec<(Cow<str>, Cow<str>)> = parts
                 .uri
                 .query()
                 .map(|query| url::form_urlencoded::parse(query.as_bytes()).collect())
                 .unwrap_or_else(Vec::new);
             if !query_params_matcher.matches(&score, &query_params) {
+                debug!("Query parameters did not match");
                 return NotMatched;
             }
         }
@@ -146,7 +158,7 @@ impl RouteMatcherBuilder {
         self
     }
 
-    pub fn with_header(&mut self, name: &HeaderName, value: &HeaderValue) -> &mut Self {
+    pub fn with_header(&mut self, name: HeaderName, value: HeaderValue) -> &mut Self {
         self.headers
             .get_or_insert_default()
             .matchers
@@ -154,7 +166,7 @@ impl RouteMatcherBuilder {
         self
     }
 
-    pub fn with_header_matching(&mut self, name: &HeaderName, pattern: &str) -> &mut Self {
+    pub fn with_header_matching(&mut self, name: HeaderName, pattern: &str) -> &mut Self {
         self.headers
             .get_or_insert_default()
             .matchers

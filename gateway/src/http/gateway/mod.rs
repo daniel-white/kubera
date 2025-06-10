@@ -4,11 +4,12 @@ use crate::http::router::Router;
 use async_trait::async_trait;
 use context::Context;
 use derive_builder::Builder;
-use http::request::Parts;
+use http::HeaderValue;
 use kubera_core::sync::signal::Receiver;
+use pingora::http::ResponseHeader;
 use pingora::prelude::*;
 use std::ops::DerefMut;
-use tracing::Instrument;
+use tracing::{Instrument, warn};
 
 #[derive(Debug, Builder)]
 pub struct Gateway {
@@ -39,5 +40,22 @@ impl ProxyHttp for Gateway {
                 Err(Error::explain(HTTPStatus(503), "Missing configuration"))
             }
         }
+    }
+
+    async fn response_filter(
+        &self,
+        _session: &mut Session,
+        _upstream_response: &mut ResponseHeader,
+        _ctx: &mut Self::CTX,
+    ) -> Result<()>
+    where
+        Self::CTX: Send + Sync,
+    {
+        warn!("Response filter is not implemented yet");
+        _upstream_response.insert_header(
+            http_constant::SERVER,
+            HeaderValue::from_str("Kubera Gateway").unwrap(),
+        );
+        Ok(())
     }
 }
