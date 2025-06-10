@@ -4,7 +4,7 @@ use serde_valid::Validate;
 use std::fmt::Debug;
 use std::io::{Read, Write};
 use thiserror::Error;
-use tracing::{debug, instrument, span, warn};
+use tracing::{debug, instrument, warn};
 
 #[derive(Debug, Error)]
 pub enum ReadError {

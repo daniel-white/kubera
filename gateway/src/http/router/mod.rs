@@ -7,7 +7,6 @@ use derive_builder::Builder;
 use http::request::Parts;
 pub use matchers::{MatchResult, RouteMatcher};
 pub use route::Route;
-use tracing::field::debug;
 use tracing::{debug, error};
 pub use upstreams::Upstream;
 use upstreams::UpstreamsBuilder;

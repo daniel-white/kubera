@@ -1,19 +1,16 @@
-use crate::http::router::{Route, RouteMatcher, Router, RouterBuilder, Upstream};
-use http::{HeaderName, HeaderValue, Method};
+use crate::http::router::{Router, Upstream};
+use http::{HeaderName, HeaderValue};
 
 use kubera_core::config::gateway::types::{
-    BackendGroupName, BackendKindName, GatewayConfiguration, HostnameMatchType,
-    HttpHeaderMatchType, HttpHeaderName, HttpPathMatchType, HttpQueryParamMatchType,
+    GatewayConfiguration, HostnameMatchType, HttpHeaderMatchType, HttpPathMatchType,
+    HttpQueryParamMatchType,
 };
 use kubera_core::select_continue;
 use kubera_core::sync::signal::{channel, Receiver};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
-pub enum ControllerError {
-    #[error("Failed to spawn controller")]
-    SpawnError,
-}
+pub enum ControllerError {}
 
 pub async fn spawn_controller(
     gateway_configuration: Receiver<Option<GatewayConfiguration>>,
@@ -90,8 +87,11 @@ pub async fn spawn_controller(
                             }
 
                             for backend in route.backends() {
-                                let upstream = match (backend.group(), backend.kind()) {
-                                    (_, _) => Upstream::new_builder()
+                                let upstream = match (
+                                    backend.group().get().as_str(),
+                                    backend.kind().get().as_str(),
+                                ) {
+                                    ("core", "Service") => Upstream::new_builder()
                                         .kubernetes_service(
                                             backend.namespace().get().clone(),
                                             backend.name().get().clone(),

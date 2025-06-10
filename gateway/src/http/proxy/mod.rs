@@ -1,6 +1,7 @@
 mod context;
 
 use crate::http::router::Router;
+use crate::net::resolver::SocketAddrResolver;
 use async_trait::async_trait;
 use context::Context;
 use derive_builder::Builder;
@@ -13,6 +14,7 @@ use tracing::warn;
 #[derive(Debug, Builder)]
 pub struct Proxy {
     router: Receiver<Option<Router>>,
+    addr_resolver: SocketAddrResolver,
 }
 
 #[async_trait]
@@ -30,7 +32,10 @@ impl ProxyHttp for Proxy {
     ) -> Result<Box<HttpPeer>> {
         match _ctx.find_route(session.req_header()) {
             context::FindRouteResult::Found(route) => {
-                warn!("Found route: {:?}", route.upstreams());
+                let upstreams = route.upstreams();
+                let resolved = upstreams.iter().map(|u| self.addr_resolver.resolve(u));
+
+                warn!("Found route: {:?}", resolved);
                 Err(Error::explain(HTTPStatus(400), "Not implemented")) // TODO implement route to upstream
             }
             context::FindRouteResult::NotFound => {
@@ -52,7 +57,7 @@ impl ProxyHttp for Proxy {
         Self::CTX: Send + Sync,
     {
         warn!("Response filter is not implemented yet");
-        _upstream_response.insert_header(
+        let _ = _upstream_response.insert_header(
             http_constant::SERVER,
             HeaderValue::from_str("Kubera Gateway").unwrap(),
         );

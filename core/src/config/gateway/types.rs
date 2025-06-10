@@ -21,6 +21,7 @@ pub struct BackendGroupName(
     #[validate(
         pattern = "^$\\|^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$"
     )]
+    #[getset(get = "pub")]
     String,
 );
 
@@ -35,6 +36,7 @@ pub struct BackendKindName(
     #[validate(min_length = 1)]
     #[validate(max_length = 63)]
     #[validate(pattern = "^[a-zA-Z]([-a-zA-Z0-9]*[a-zA-Z0-9])?$")]
+    #[getset(get = "pub")]
     String,
 );
 

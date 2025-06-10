@@ -1,5 +1,6 @@
 mod kubernetes;
 
+use crate::net::resolver::ResolveRequest;
 use derive_builder::Builder;
 use getset::Getters;
 
@@ -25,6 +26,14 @@ pub struct Upstream {
 impl Upstream {
     pub fn new_builder() -> UpstreamBuilder {
         UpstreamBuilder::default()
+    }
+}
+
+impl From<&Upstream> for ResolveRequest {
+    fn from(upstream: &Upstream) -> Self {
+        match &upstream.target {
+            UpstreamTarget::KubernetesService(target) => target.into(),
+        }
     }
 }
 
