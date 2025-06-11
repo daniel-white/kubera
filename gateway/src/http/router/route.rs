@@ -1,4 +1,3 @@
-use super::backends::Backend;
 use super::matchers::{MatchResult, RouteMatcher};
 use derive_builder::Builder;
 use getset::Getters;
@@ -8,8 +7,6 @@ use tracing::instrument;
 #[derive(Debug, Builder, Getters, Clone, PartialEq)]
 pub struct Route {
     matcher: RouteMatcher,
-    #[getset(get = "pub")]
-    backends: Vec<Backend>,
 }
 
 impl Route {

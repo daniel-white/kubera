@@ -1,7 +1,6 @@
 use crate::api::v1alpha1::{GatewayClassParameters, GatewayParameters};
 use crate::constants::{MANAGED_BY_LABEL, MANAGED_BY_VALUE};
-use crate::controllers::Ref;
-use crate::controllers::source_controller::SourceResources;
+use crate::controllers::resources::{Ref, Resources};
 use derive_builder::Builder;
 use gateway_api::apis::standard::gatewayclasses::GatewayClass;
 use gateway_api::apis::standard::gateways::{Gateway, GatewayStatus};
@@ -18,14 +17,14 @@ use tokio::task::JoinSet;
 
 #[derive(Builder)]
 pub struct SourceResourcesReceivers {
-    gateway_classes: Receiver<SourceResources<GatewayClass>>,
-    gateway_class_parameters: Receiver<SourceResources<GatewayClassParameters>>,
-    gateways: Receiver<SourceResources<Gateway>>,
-    gateway_parameters: Receiver<SourceResources<GatewayParameters>>,
-    config_maps: Receiver<SourceResources<ConfigMap>>,
-    deployments: Receiver<SourceResources<Deployment>>,
-    services: Receiver<SourceResources<Service>>,
-    namespaces: Receiver<SourceResources<Namespace>>,
+    gateway_classes: Receiver<Resources<GatewayClass>>,
+    gateway_class_parameters: Receiver<Resources<GatewayClassParameters>>,
+    gateways: Receiver<Resources<Gateway>>,
+    gateway_parameters: Receiver<Resources<GatewayParameters>>,
+    config_maps: Receiver<Resources<ConfigMap>>,
+    deployments: Receiver<Resources<Deployment>>,
+    services: Receiver<Resources<Service>>,
+    namespaces: Receiver<Resources<Namespace>>,
 }
 
 impl SourceResourcesReceivers {

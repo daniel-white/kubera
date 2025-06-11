@@ -1,35 +1,11 @@
-use crate::controllers::Ref;
-use getset::Getters;
-use std::collections::BTreeMap;
-use std::fmt::Debug;
-
-#[derive(Clone, PartialEq, Debug)]
-pub enum SourceResourceState<K> {
-    Active(K),
-    Deleted(K),
-}
-
-#[derive(Getters, Default, Clone, PartialEq, Debug)]
-pub struct SourceResources<K> {
-    #[getset(get = "pub")]
-    resources: BTreeMap<Ref, SourceResourceState<K>>,
-}
-
-impl<K> SourceResources<K> {
-    pub fn set(&mut self, key: Ref, value: SourceResourceState<K>) {
-        self.resources.insert(key, value);
-    }
-}
 
 #[macro_export]
 macro_rules! spawn_controller {
     ($resource:ty, $join_set:ident, $client:ident) => {
-        
         spawn_controller!($resource, $join_set, $client, Config::default())
     };
     ($resource:ty, $join_set:ident, $client:ident, $config:expr) => {{
-        use crate::controllers::Ref;
-        use crate::controllers::source_controller::{SourceResourceState, SourceResources};
+        use crate::controllers::resources::{Ref, ResourceState, Resources};
         use futures::StreamExt;
         use kube::Api;
         use kube::runtime::Controller;
@@ -43,11 +19,11 @@ macro_rules! spawn_controller {
         use tracing::{debug, info};
 
         struct ControllerContext {
-            tx: Sender<SourceResources<$resource>>,
+            tx: Sender<Resources<$resource>>,
         }
 
         impl ControllerContext {
-            fn new(tx: Sender<SourceResources<$resource>>) -> Self {
+            fn new(tx: Sender<Resources<$resource>>) -> Self {
                 Self { tx }
             }
         }
@@ -72,17 +48,17 @@ macro_rules! spawn_controller {
             let resource_state = match &metadata.deletion_timestamp {
                 None => {
                     info!("Resource {:?} is active", resource_ref);
-                    SourceResourceState::Active(resource.as_ref().clone())
+                    ResourceState::Active(resource.as_ref().clone())
                 }
                 _ => {
                     info!("Resource {:?} is deleted", resource_ref);
-                    SourceResourceState::Deleted(resource.as_ref().clone())
+                    ResourceState::Deleted(resource.as_ref().clone())
                 }
             };
 
             new_resources.set(resource_ref, resource_state);
             ctx.tx.replace(new_resources);
-            
+
             Ok(Action::requeue(Duration::from_secs(60)))
         }
 
@@ -96,9 +72,12 @@ macro_rules! spawn_controller {
 
         let client = $client.clone();
         let config = $config.clone();
-        let (tx, rx) = channel::<SourceResources<$resource>>(SourceResources::default());
-        
-        debug!("Spawning controller for resource: {}", stringify!($resource));
+        let (tx, rx) = channel::<Resources<$resource>>(Resources::default());
+
+        debug!(
+            "Spawning controller for resource: {}",
+            stringify!($resource)
+        );
 
         $join_set.spawn(async move {
             let resources = Api::<$resource>::all(client);

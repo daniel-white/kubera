@@ -1,10 +1,7 @@
-mod backends;
 mod matchers;
 mod route;
 
 use crate::http::router::matchers::RouteMatcherBuilder;
-use backends::BackendsBuilder;
-pub use backends::{Backend, TransportSecurity};
 use derive_builder::Builder;
 use http::request::Parts;
 pub use matchers::{MatchResult, RouteMatcher};
@@ -19,18 +16,15 @@ pub struct Router {
 impl RouterBuilder {
     pub fn route<F>(&mut self, factory: F) -> &mut Self
     where
-        F: FnOnce(&mut RouteMatcherBuilder, &mut BackendsBuilder),
+        F: FnOnce(&mut RouteMatcherBuilder),
     {
         let mut route_builder = Route::new_builder();
         let mut matcher_builder = RouteMatcher::new_builder();
-        let mut backends_builder = BackendsBuilder::new();
 
-        factory(&mut matcher_builder, &mut backends_builder);
+        factory(&mut matcher_builder);
 
         let matcher = matcher_builder.build();
-        let backends = backends_builder.build();
         route_builder.matcher(matcher);
-        route_builder.backends(backends);
 
         match route_builder.build() {
             Ok(route) => {

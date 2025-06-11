@@ -33,23 +33,11 @@ impl ProxyHttp for Proxy {
     ) -> Result<Box<HttpPeer>> {
         match _ctx.find_route(session.req_header()) {
             context::FindRouteResult::Found(route) => {
-                let backends = route.backends();
-                future::join_all(
-                    backends
-                        .iter()
-                        .map(async |u| self.addr_resolver.resolve(u).await),
-                )
-                .await;
-
                 Err(Error::explain(HTTPStatus(400), "Not implemented")) // TODO implement route to upstream
             }
             context::FindRouteResult::NotFound => {
                 Err(Error::explain(HTTPStatus(404), "No matching route found"))
             }
-            context::FindRouteResult::NoBackends => Err(Error::explain(
-                HTTPStatus(503),
-                "No backends configured for this route",
-            )),
             context::FindRouteResult::MissingConfiguration => {
                 Err(Error::explain(HTTPStatus(503), "Missing configuration"))
             }

@@ -1,6 +1,6 @@
 use crate::api::v1alpha1::GatewayClassParameters;
 use crate::constants::{GATEWAY_PARAMETERS_CRD_KIND, GROUP};
-use crate::controllers::Ref;
+use crate::controllers::resources::Ref;
 use gateway_api::apis::standard::gatewayclasses::{GatewayClass, GatewayClassStatus};
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::{Condition, Time};
 use k8s_openapi::chrono::{DateTime, Utc};

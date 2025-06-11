@@ -1,7 +1,6 @@
-use crate::http::router::{Backend, Router, TransportSecurity};
+use crate::http::router::Router;
 use http::{HeaderName, HeaderValue};
 
-use kubera_core::config::gateway::types::HttpMethodMatch::Trace;
 use kubera_core::config::gateway::types::{
     GatewayConfiguration, HostnameMatchType, HttpHeaderMatchType, HttpPathMatchType,
     HttpQueryParamMatchType,
@@ -26,7 +25,7 @@ pub async fn spawn_controller(
                 let mut router_builder = Router::new_builder();
                 for host in gateway_config.hosts().iter() {
                     for route in host.http_routes().iter() {
-                        router_builder.route(|matcher_builder, backends_builder| {
+                        router_builder.route(|matcher_builder| {
                             for hostname in host.hostnames().iter() {
                                 match hostname.match_type() {
                                     HostnameMatchType::Exact => {
@@ -85,30 +84,6 @@ pub async fn spawn_controller(
                                             )
                                         }
                                     };
-                                }
-                            }
-
-                            for backend in route.backends() {
-                                debug!("Adding backend: {:?}", backend);
-                                let backend = match (
-                                    backend.group().get().as_str(),
-                                    backend.kind().get().as_str(),
-                                ) {
-                                    ("core", "Service") => Backend::new_builder()
-                                        .kubernetes_service(
-                                            backend.namespace().get().clone(),
-                                            backend.name().get().clone(),
-                                            80,
-                                        )
-                                        .transport_security(TransportSecurity::None)
-                                        .build()
-                                        .inspect_err(|e| debug!("Failed to build backend: {}", e))
-                                        .ok(),
-                                    _ => None,
-                                };
-
-                                if let Some(backend) = backend {
-                                    backends_builder.add_backend(backend);
                                 }
                             }
                         });
