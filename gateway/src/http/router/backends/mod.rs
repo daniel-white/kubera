@@ -12,33 +12,33 @@ pub enum TransportSecurity {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum UpstreamTarget {
+pub enum BackendTarget {
     KubernetesService(kubernetes::KubernetesServiceTarget),
 }
 
 #[derive(Debug, Builder, Getters, Clone, PartialEq)]
-pub struct Upstream {
+pub struct Backend {
     #[getset(get = "pub")]
-    target: UpstreamTarget,
+    target: BackendTarget,
     #[getset(get = "pub")]
     transport_security: TransportSecurity,
 }
 
-impl Upstream {
-    pub fn new_builder() -> UpstreamBuilder {
-        UpstreamBuilder::default()
+impl Backend {
+    pub fn new_builder() -> BackendBuilder {
+        BackendBuilder::default()
     }
 }
 
-impl From<&Upstream> for ResolveRequest {
-    fn from(upstream: &Upstream) -> Self {
-        match &upstream.target {
-            UpstreamTarget::KubernetesService(target) => target.into(),
+impl From<&Backend> for ResolveRequest {
+    fn from(backend: &Backend) -> Self {
+        match &backend.target {
+            BackendTarget::KubernetesService(target) => target.into(),
         }
     }
 }
 
-impl UpstreamBuilder {
+impl BackendBuilder {
     pub fn kubernetes_service(&mut self, namespace: String, name: String, port: u16) -> &mut Self {
         debug!(
             "Creating KubernetesServiceTarget with namespace: {}, name: {}, port: {}",
@@ -51,27 +51,27 @@ impl UpstreamBuilder {
             .build()
             .expect("Failed to build KubernetesServiceTarget");
 
-        self.target(UpstreamTarget::KubernetesService(target))
+        self.target(BackendTarget::KubernetesService(target))
     }
 }
 
 #[derive(Debug, Default)]
-pub struct UpstreamsBuilder {
-    upstreams: Vec<Upstream>,
+pub struct BackendsBuilder {
+    backends: Vec<Backend>,
 }
 
-impl UpstreamsBuilder {
+impl BackendsBuilder {
     pub fn new() -> Self {
         Self::default()
     }
 
-    pub fn add_upstream(&mut self, upstream: Upstream) -> &mut Self {
-        debug!("Added upstream: {:?}", upstream);
-        self.upstreams.push(upstream);
+    pub fn add_backend(&mut self, backend: Backend) -> &mut Self {
+        debug!("Added backends: {:?}", backend);
+        self.backends.push(backend);
         self
     }
 
-    pub fn build(self) -> Vec<Upstream> {
-        self.upstreams
+    pub fn build(self) -> Vec<Backend> {
+        self.backends
     }
 }

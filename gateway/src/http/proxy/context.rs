@@ -17,7 +17,7 @@ unsafe impl Sync for Context {}
 pub enum FindRouteResult {
     Found(Route),
     NotFound,
-    NoUpstreams,
+    NoBackends,
     MissingConfiguration,
 }
 
@@ -33,7 +33,7 @@ impl Context {
         self.route.get_or_init(|| match self.router.current() {
             None => FindRouteResult::MissingConfiguration,
             Some(router) => match router.match_route(parts) {
-                Some(route) if route.upstreams().is_empty() => FindRouteResult::NoUpstreams,
+                Some(route) if route.backends().is_empty() => FindRouteResult::NoBackends,
                 Some(route) => FindRouteResult::Found(route.clone()),
                 _ => FindRouteResult::NotFound,
             },

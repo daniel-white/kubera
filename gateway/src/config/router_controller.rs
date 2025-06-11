@@ -1,4 +1,4 @@
-use crate::http::router::{Router, TransportSecurity, Upstream};
+use crate::http::router::{Backend, Router, TransportSecurity};
 use http::{HeaderName, HeaderValue};
 
 use kubera_core::config::gateway::types::HttpMethodMatch::Trace;
@@ -26,7 +26,7 @@ pub async fn spawn_controller(
                 let mut router_builder = Router::new_builder();
                 for host in gateway_config.hosts().iter() {
                     for route in host.http_routes().iter() {
-                        router_builder.route(|matcher_builder, upstreams_builder| {
+                        router_builder.route(|matcher_builder, backends_builder| {
                             for hostname in host.hostnames().iter() {
                                 match hostname.match_type() {
                                     HostnameMatchType::Exact => {
@@ -90,11 +90,11 @@ pub async fn spawn_controller(
 
                             for backend in route.backends() {
                                 debug!("Adding backend: {:?}", backend);
-                                let upstream = match (
+                                let backend = match (
                                     backend.group().get().as_str(),
                                     backend.kind().get().as_str(),
                                 ) {
-                                    ("core", "Service") => Upstream::new_builder()
+                                    ("core", "Service") => Backend::new_builder()
                                         .kubernetes_service(
                                             backend.namespace().get().clone(),
                                             backend.name().get().clone(),
@@ -102,13 +102,13 @@ pub async fn spawn_controller(
                                         )
                                         .transport_security(TransportSecurity::None)
                                         .build()
-                                        .inspect_err(|e| debug!("Failed to build upstream: {}", e))
+                                        .inspect_err(|e| debug!("Failed to build backend: {}", e))
                                         .ok(),
                                     _ => None,
                                 };
 
-                                if let Some(upstream) = upstream {
-                                    upstreams_builder.add_upstream(upstream);
+                                if let Some(backend) = backend {
+                                    backends_builder.add_backend(backend);
                                 }
                             }
                         });

@@ -1,5 +1,5 @@
+use super::backends::Backend;
 use super::matchers::{MatchResult, RouteMatcher};
-use super::upstreams::Upstream;
 use derive_builder::Builder;
 use getset::Getters;
 use http::request::Parts;
@@ -9,7 +9,7 @@ use tracing::instrument;
 pub struct Route {
     matcher: RouteMatcher,
     #[getset(get = "pub")]
-    upstreams: Vec<Upstream>,
+    backends: Vec<Backend>,
 }
 
 impl Route {

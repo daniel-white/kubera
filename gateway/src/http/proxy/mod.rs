@@ -33,9 +33,9 @@ impl ProxyHttp for Proxy {
     ) -> Result<Box<HttpPeer>> {
         match _ctx.find_route(session.req_header()) {
             context::FindRouteResult::Found(route) => {
-                let upstreams = route.upstreams();
+                let backends = route.backends();
                 future::join_all(
-                    upstreams
+                    backends
                         .iter()
                         .map(async |u| self.addr_resolver.resolve(u).await),
                 )
@@ -46,9 +46,9 @@ impl ProxyHttp for Proxy {
             context::FindRouteResult::NotFound => {
                 Err(Error::explain(HTTPStatus(404), "No matching route found"))
             }
-            context::FindRouteResult::NoUpstreams => Err(Error::explain(
+            context::FindRouteResult::NoBackends => Err(Error::explain(
                 HTTPStatus(503),
-                "No upstreams configured for this route",
+                "No backends configured for this route",
             )),
             context::FindRouteResult::MissingConfiguration => {
                 Err(Error::explain(HTTPStatus(503), "Missing configuration"))
