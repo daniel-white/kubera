@@ -5,15 +5,18 @@ edition = "2024"
 
 [dependencies]
 anyhow = { workspace = true }
+backtrace-on-stack-overflow = "0.3"
 clap = { workspace = true }
 derive_builder = { workspace = true }
 flexi_logger = { workspace = true }
 futures = { workspace = true }
 gateway-api = "0.15"
 getset = { workspace = true }
+itertools = "0.14"
 k8s-openapi = { version = "0.24", features = ["v1_32"] }
 kube = { version = "0.99", features = ["runtime", "derive"] }
 kubera_core = { path = "../core" }
+multimap = "0.10"
 romap = "0.4"
 schemars = { workspace = true }
 serde = { workspace = true }

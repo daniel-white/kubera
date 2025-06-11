@@ -35,18 +35,10 @@ impl<K> ResourceState<K> {
     }
 }
 
-#[derive(Getters, Clone, PartialEq, Debug)]
+#[derive(Getters, Clone, Default, PartialEq, Debug)]
 pub struct Resources<K> {
     #[getset(get = "pub")]
     resources: BTreeMap<Ref, Arc<ResourceState<K>>>,
-}
-
-impl<K> Default for Resources<K> {
-    fn default() -> Self {
-        Self {
-            ..Default::default()
-        }
-    }
 }
 
 impl<K> Resources<K> {
@@ -78,5 +70,23 @@ impl<K> Resources<K> {
         );
 
         Self { resources }
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = (&Ref, &ResourceState<K>)> {
+        self.resources.iter().map(|(r, s)| (r, s.as_ref()))
+    }
+}
+
+#[derive(Debug, Builder, Getters, Clone, PartialEq)]
+pub struct ServiceBackend {
+    #[getset(get = "pub")]
+    port: Option<i32>,
+    #[getset(get = "pub")]
+    weight: Option<i32>,
+}
+
+impl ServiceBackend {
+    pub fn new_builder() -> ServiceBackendBuilder {
+        ServiceBackendBuilder::default()
     }
 }

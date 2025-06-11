@@ -3,6 +3,7 @@ mod filters;
 mod resources;
 mod resulting_resources_controller;
 mod source_controller;
+mod transformers;
 
 use crate::api::v1alpha1::{GatewayClassParameters, GatewayParameters};
 use crate::constants::MANAGED_BY_LABEL_QUERY;
@@ -30,7 +31,15 @@ pub async fn run() -> Result<()> {
     let gateways = spawn_controller!(Gateway, join_set, client);
     let gateways = filters::filter_gateways(&mut join_set, &gateway_classes, &gateways);
     let http_routes = spawn_controller!(HTTPRoute, join_set, client);
+    let http_routes = filters::filter_http_routes(&mut join_set, &gateways, &http_routes);
+    let service_backends =
+        transformers::collect_http_route_service_backends(&mut join_set, &http_routes);
     let endpoint_slices = spawn_controller!(EndpointSlice, join_set, client);
+    let service_endpoint_ips = transformers::collect_service_endpoint_ips(
+        &mut join_set,
+        &service_backends,
+        &endpoint_slices,
+    );
 
     let sources = desired_resources_controller::SourceResourcesReceivers::new_builder()
         .gateway_classes(gateway_classes)

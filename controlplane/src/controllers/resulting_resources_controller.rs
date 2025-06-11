@@ -1,6 +1,4 @@
-use crate::controllers::desired_resources_controller::{
-    ControllerError, DesiredResources,
-};
+use crate::controllers::desired_resources_controller::{ControllerError, DesiredResources};
 use gateway_api::apis::standard::gatewayclasses::GatewayClass;
 use kube::Api;
 use kube::Client;

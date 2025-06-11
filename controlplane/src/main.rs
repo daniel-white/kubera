@@ -27,6 +27,8 @@ enum Commands {
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    unsafe { backtrace_on_stack_overflow::enable() };
+
     init_logging();
 
     let cli = Cli::parse();

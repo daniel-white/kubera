@@ -2,7 +2,7 @@ use crate::controllers::resources::{Ref, ResourceState, Resources};
 use gateway_api::apis::standard::gatewayclasses::GatewayClass;
 use gateway_api::apis::standard::gateways::Gateway;
 use kubera_core::select_continue;
-use kubera_core::sync::signal::{channel, Receiver};
+use kubera_core::sync::signal::{Receiver, channel};
 use tokio::task::JoinSet;
 
 pub fn filter_gateways(
@@ -17,7 +17,7 @@ pub fn filter_gateways(
 
     join_set.spawn(async move {
         loop {
-            let current_gateway_classes = &gateway_classes.current();
+            let current_gateway_classes = gateway_classes.current();
             let filtered = gateways.current().filter_into(|_, gateway| {
                 if let ResourceState::Active(gateway) = gateway {
                     let gateway_class_ref = Ref::new_builder()
