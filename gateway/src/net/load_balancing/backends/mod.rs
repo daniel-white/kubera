@@ -13,7 +13,7 @@ pub enum TransportSecurity {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum BackendTarget {
-    KubernetesService(kubernetes::KubernetesService),
+    KubernetesService(kubernetes::KubernetesServiceBackend),
 }
 
 #[derive(Debug, Builder, Getters, Clone, PartialEq)]
@@ -44,7 +44,7 @@ impl BackendBuilder {
             "Creating KubernetesServiceTarget with namespace: {}, name: {}, port: {}",
             namespace, name, port
         );
-        let target = kubernetes::KubernetesService::new_builder()
+        let target = kubernetes::KubernetesServiceBackend::new_builder()
             .namespace(namespace)
             .name(name)
             .port(port)

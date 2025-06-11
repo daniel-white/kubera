@@ -1,6 +1,7 @@
 use derive_builder::Builder;
 use getset::Getters;
 use std::collections::BTreeMap;
+use std::sync::Arc;
 
 #[derive(Builder, Getters, Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[builder(setter(into))]
@@ -18,13 +19,13 @@ impl Ref {
     }
 }
 
-#[derive(Clone, PartialEq, Debug)]
-pub enum ResourceState<K: Clone> {
+#[derive(PartialEq, Debug)]
+pub enum ResourceState<K> {
     Active(K),
     Deleted(K),
 }
 
-impl<K: Clone> ResourceState<K> {
+impl<K> ResourceState<K> {
     pub fn is_active(&self) -> bool {
         matches!(self, ResourceState::Active(_))
     }
@@ -34,15 +35,29 @@ impl<K: Clone> ResourceState<K> {
     }
 }
 
-#[derive(Getters, Default, Clone, PartialEq, Debug)]
-pub struct Resources<K: Clone> {
+#[derive(Getters, Clone, PartialEq, Debug)]
+pub struct Resources<K> {
     #[getset(get = "pub")]
-    resources: BTreeMap<Ref, ResourceState<K>>,
+    resources: BTreeMap<Ref, Arc<ResourceState<K>>>,
 }
 
-impl<K: Clone> Resources<K> {
-    pub fn set(&mut self, resource_ref: Ref, resource_state: ResourceState<K>) {
-        self.resources.insert(resource_ref, resource_state);
+impl<K> Default for Resources<K> {
+    fn default() -> Self {
+        Self {
+            ..Default::default()
+        }
+    }
+}
+
+impl<K> Resources<K> {
+    pub fn set_active(&mut self, resource_ref: Ref, resource: K) {
+        self.resources
+            .insert(resource_ref, Arc::new(ResourceState::Active(resource)));
+    }
+
+    pub fn set_deleted(&mut self, resource_ref: Ref, resource: K) {
+        self.resources
+            .insert(resource_ref, Arc::new(ResourceState::Deleted(resource)));
     }
 
     pub fn is_active(&self, resource_ref: &Ref) -> bool {
@@ -55,13 +70,13 @@ impl<K: Clone> Resources<K> {
     where
         F: Fn(&Ref, &ResourceState<K>) -> bool,
     {
-        Self {
-            resources: BTreeMap::from_iter(
-                self.resources
-                    .iter()
-                    .filter(|(r, s)| f(r, s))
-                    .map(|(r, s)| (r.clone(), s.clone())),
-            ),
-        }
+        let resources = BTreeMap::from_iter(
+            self.resources
+                .iter()
+                .filter(|(r, s)| f(r, s))
+                .map(|(r, s)| (r.clone(), s.clone())),
+        );
+
+        Self { resources }
     }
 }

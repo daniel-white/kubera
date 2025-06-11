@@ -1,4 +1,3 @@
-
 #[macro_export]
 macro_rules! spawn_controller {
     ($resource:ty, $join_set:ident, $client:ident) => {
@@ -45,18 +44,19 @@ macro_rules! spawn_controller {
                 .build()
                 .expect("Failed to build Ref");
 
-            let resource_state = match &metadata.deletion_timestamp {
+            let resource = resource.as_ref().clone();
+
+            match &metadata.deletion_timestamp {
                 None => {
                     info!("Resource {:?} is active", resource_ref);
-                    ResourceState::Active(resource.as_ref().clone())
+                    new_resources.set_active(resource_ref, resource)
                 }
                 _ => {
                     info!("Resource {:?} is deleted", resource_ref);
-                    ResourceState::Deleted(resource.as_ref().clone())
+                    new_resources.set_deleted(resource_ref, resource)
                 }
             };
 
-            new_resources.set(resource_ref, resource_state);
             ctx.tx.replace(new_resources);
 
             Ok(Action::requeue(Duration::from_secs(60)))
