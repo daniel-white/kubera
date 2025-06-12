@@ -3,12 +3,14 @@ use crate::controllers::transformers::http_routes::HttpRouteBackend;
 use derive_builder::Builder;
 use getset::Getters;
 use itertools::Itertools;
+use k8s_openapi::api::core::v1::Service;
 use k8s_openapi::api::discovery::v1::EndpointSlice;
 use kubera_core::select_continue;
 use kubera_core::sync::signal::{channel, Receiver};
 use std::collections::BTreeMap;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use tokio::task::JoinSet;
+use tracing::{debug, info};
 
 #[derive(Debug, Builder, Getters, Clone, Hash, PartialEq, Eq)]
 pub struct Endpoints {
@@ -19,10 +21,16 @@ pub struct Endpoints {
     addresses: Vec<IpAddr>,
 }
 
+impl Endpoints {
+    pub fn new_builder() -> EndpointsBuilder {
+        EndpointsBuilder::default()
+    }
+}
+
 #[derive(Debug, Builder, Getters, Clone, Hash, PartialEq, Eq)]
 pub struct Backend {
     #[getset(get = "pub")]
-    ref_: ObjectRef,
+    object_ref: ObjectRef,
 
     #[getset(get = "pub")]
     endpoints: Vec<Endpoints>,
@@ -46,8 +54,9 @@ pub fn collect_service_backends(
 
     join_set.spawn(async move {
         loop {
-            endpoint_slices
-                .current()
+            let current_endpoint_slices = endpoint_slices.current();
+            let current_http_route_backends = http_route_backends.current();
+            let endpoint_slices_by_service: BTreeMap<_, _> = current_endpoint_slices
                 .iter()
                 .filter_map(|(_, endpoint_slice)| {
                     if let ObjectState::Active(endpoint_slice) = endpoint_slice {
@@ -55,23 +64,33 @@ pub fn collect_service_backends(
                         let labels = metadata.labels.as_ref()?;
                         labels
                             .get("kubernetes.io/service-name")
-                            .and_then(|service_name| {
+                            .map(|service_name| {
                                 ObjectRef::new_builder()
+                                    .of_kind::<Service>()
                                     .namespace(endpoint_slice.metadata.namespace.clone())
                                     .name(service_name)
                                     .build()
-                                    .ok()
+                                    .expect("Failed to build ObjectRef for Service")
                             })
-                        // .and_then(|service_ref| {
-                        //     Some((service_ref, extract_ip_addrs(&endpoint_slice)))
-                        // })
+                            .map(|service_ref| (service_ref, endpoint_slice))
                     } else {
                         None
                     }
-                });
-            //.collect();
+                })
+                .filter(|(object_ref, _)| current_http_route_backends.contains_key(object_ref))
+                .map(|(object_ref, endpoint_slice)| {
+                    (
+                        object_ref.clone(),
+                        extract_backend(object_ref, endpoint_slice),
+                    )
+                })
+                .collect();
 
-            // tx.replace(service_ips);
+            info!(
+                "DUMP EndpointSlices by Service: {:?}",
+                endpoint_slices_by_service
+            );
+            tx.replace(endpoint_slices_by_service);
 
             select_continue!(http_route_backends.changed(), endpoint_slices.changed());
         }
@@ -80,24 +99,50 @@ pub fn collect_service_backends(
     rx
 }
 
-// fn extract_backends(service_ref: Ref, endpoint_slice: &EndpointSlice) -> Vec<HttpRouteBackend> {
-//     let backend_ref = HttpRouteBackend::new_builder()
-//         .service_ref(service_ref)
-//         .build()
-//         .expect("Failed to build ServiceBackendRef");
-//     endpoint_slice
-//         .endpoints
-//         .iter()
-//         .map(|endpoint| {
-//             endpoint
-//                 .addresses
-//                 .iter()
-//                 .flat_map(|a| match endpoint_slice.address_type.as_str() {
-//                     "IPv4" => a.parse::<Ipv4Addr>().ok().map(|ip| IpAddr::from(ip)),
-//                     "IPv6" => a.parse::<Ipv6Addr>().ok().map(|ip| IpAddr::from(ip)),
-//                     _ => None,
-//                 })
-//         })
-//         .dedup()
-//         .collect()
-// }
+fn extract_backend(object_ref: ObjectRef, endpoint_slice: &EndpointSlice) -> Backend {
+    let endpoints = endpoint_slice
+        .endpoints
+        .iter()
+        .filter(
+            |endpoint| match endpoint.conditions.clone().and_then(|c| c.ready) {
+                Some(true) => true,
+                _ => {
+                    debug!(
+                        "Skipping endpoint in EndpointSlice {:?}: not ready",
+                        endpoint_slice.metadata.name
+                    );
+                    false
+                }
+            },
+        )
+        .map(|endpoint| {
+            let zone_ref = Zone::new_builder()
+                .zone(endpoint.zone.clone())
+                .node(endpoint.node_name.clone())
+                .build()
+                .expect("Failed to build Zone");
+
+            let addresses: Vec<_> = endpoint
+                .addresses
+                .iter()
+                .flat_map(|a| match endpoint_slice.address_type.as_str() {
+                    "IPv4" => a.parse::<Ipv4Addr>().ok().map(|ip| IpAddr::from(ip)),
+                    "IPv6" => a.parse::<Ipv6Addr>().ok().map(|ip| IpAddr::from(ip)),
+                    _ => None,
+                })
+                .collect();
+
+            Endpoints::new_builder()
+                .zone_ref(zone_ref)
+                .addresses(addresses)
+                .build()
+                .expect("Failed to build Endpoints")
+        })
+        .collect();
+
+    Backend::new_builder()
+        .object_ref(object_ref)
+        .endpoints(endpoints)
+        .build()
+        .expect("Failed to build Backend")
+}

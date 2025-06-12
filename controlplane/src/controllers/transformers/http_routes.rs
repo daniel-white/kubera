@@ -2,6 +2,7 @@ use crate::controllers::resources::{ObjectRef, ObjectState, Objects};
 use derive_builder::Builder;
 use gateway_api::apis::standard::httproutes::HTTPRoute;
 use getset::Getters;
+use k8s_openapi::api::core::v1::Service;
 use kubera_core::select_continue;
 use kubera_core::sync::signal::{channel, Receiver};
 use std::collections::BTreeMap;
@@ -49,22 +50,22 @@ pub fn collect_http_route_backends(
                                 for backend_ref in rule.backend_refs.iter().flatten() {
                                     if let Some(kind) = backend_ref.kind.as_deref() {
                                         if kind == "Service" {
-                                            let ref_ = ObjectRef::new_builder()
-                                                .group(backend_ref.group.clone())
-                                                .kind(kind)
-                                                .version("v1")
+                                            let object_ref = ObjectRef::new_builder()
+                                                .of_kind::<Service>()
                                                 .namespace(backend_ref.namespace.clone())
                                                 .name(&backend_ref.name)
                                                 .build()
                                                 .unwrap();
+
                                             let http_route_backend =
                                                 HttpRouteBackend::new_builder()
-                                                    .object_ref(ref_.clone())
+                                                    .object_ref(object_ref.clone())
                                                     .port(backend_ref.port)
                                                     .weight(backend_ref.weight)
                                                     .build()
                                                     .unwrap();
-                                            http_route_backends.insert(ref_, http_route_backend);
+                                            http_route_backends
+                                                .insert(object_ref, http_route_backend);
                                         }
                                     }
                                 }

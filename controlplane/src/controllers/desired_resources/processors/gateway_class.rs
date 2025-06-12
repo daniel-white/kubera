@@ -14,13 +14,12 @@ pub fn process(
 ) -> Result<GatewayClassParameters, GatewayClassProcessorError> {
     let parameters_ref = gateway_class.spec.parameters_ref.as_ref();
 
-    let ref_ = match parameters_ref {
+    let object_ref = match parameters_ref {
         Some(ref_param)
             if ref_param.kind == GATEWAY_PARAMETERS_CRD_KIND && ref_param.group == GROUP =>
         {
             ObjectRef::new_builder()
-                .group(GROUP.to_string())
-                .kind(GATEWAY_PARAMETERS_CRD_KIND)
+                .of_kind::<GatewayClassParameters>()
                 .namespace(ref_param.namespace.clone())
                 .name(ref_param.name.clone())
                 .build()
@@ -35,7 +34,7 @@ pub fn process(
     };
 
     gateway_class_parameters
-        .get(&ref_)
+        .get(&object_ref)
         .ok_or(GatewayClassProcessorError::MissingParameters)
         .cloned()
 }
