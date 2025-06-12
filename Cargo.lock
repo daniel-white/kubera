@@ -397,6 +397,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "build"
+version = "0.1.0"
+dependencies = [
+ "kubera_core",
+ "schemars",
+ "serde",
+ "serde_yaml 0.9.34+deprecated",
+]
+
+[[package]]
 name = "bumpalo"
 version = "3.18.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1407,16 +1417,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c206e4f9a9bc18a40b387ffdfee9b1204fb692da1eee32d35b6fa9f07447d960"
 
 [[package]]
-name = "http-serde"
-version = "2.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0f056c8559e3757392c8d091e796416e4649d8e49e88b8d76df6c002f05027fd"
-dependencies = [
- "http",
- "serde",
-]
-
-[[package]]
 name = "httparse"
 version = "1.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1989,11 +1989,9 @@ dependencies = [
  "flexi_logger",
  "getset",
  "http",
- "http-serde",
  "notify",
  "schemars",
  "serde",
- "serde_json",
  "serde_valid",
  "serde_yaml 0.9.34+deprecated",
  "strum 0.27.1",

@@ -29,7 +29,7 @@ pub fn collect_service_endpoint_ips(
                         let metadata = &endpoint_slice.metadata;
                         let labels = metadata.labels.as_ref()?;
                         labels
-                            .get("kubernetes.io/service-name:")
+                            .get("kubernetes.io/service-name")
                             .and_then(|service_name| {
                                 Ref::new_builder()
                                     .namespace(endpoint_slice.metadata.namespace.clone())

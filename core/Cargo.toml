@@ -9,29 +9,15 @@ derive_builder = { workspace = true }
 flexi_logger = { workspace = true }
 getset = { workspace = true }
 http = { workspace = true }
-http-serde = { workspace = true }
 notify = "8"
 schemars = { workspace = true }
 serde = { workspace = true }
-serde_json = { workspace = true }
 serde_valid = { version = "1", features = ["yaml"] }
 serde_yaml = { workspace = true }
 strum = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }
-
-[build-dependencies]
-derive_builder = { workspace = true }
-getset = { workspace = true }
-http = { workspace = true }
-http-serde = { workspace = true }
-schemars = { workspace = true }
-serde = { workspace = true }
-serde_json = { workspace = true }
-serde_valid = { version = "1", features = ["yaml"] }
-serde_yaml = { workspace = true }
-strum = { workspace = true }
 
 
 [lib]

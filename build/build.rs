@@ -3,8 +3,7 @@ use schemars::schema_for;
 use std::fs::File;
 use std::io::Write;
 use std::path::Path;
-
-include!("src/config/gateway/types.rs");
+use kubera_core::config::gateway::types::GatewayConfiguration;
 
 fn main() {
     // Generate schemas

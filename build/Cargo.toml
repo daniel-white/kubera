@@ -1,0 +1,12 @@
+[package]
+name = "build"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+
+[build-dependencies]
+kubera_core = { path = "../core" }
+schemars = { workspace = true }
+serde = { workspace = true }
+serde_yaml = { workspace = true }

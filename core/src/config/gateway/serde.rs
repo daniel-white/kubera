@@ -60,72 +60,87 @@ mod tests {
         let yaml = r#"
 version: v1alpha1
 hosts:
-  - hostnames:
-      - value: ".example.com"
-        type: Suffix
-      - value: "api.example.com"
-    httpRoutes:
-      - name: "get-users-route"
-        matches:
-          - methods:
-            - GET
-            paths:
-            - type: Prefix
-              value: "/users"
-            headers:
-              - name: "X-Requested-With"
-                type: Exact
-                value: "XMLHttpRequest"
-              - name: "User-Agent"
-                type: RegularExpression
-                value: ".*Chrome.*"
-            queryParams:
-              - name: "active"
-                type: Exact
-                value: "true"
-              - name: "sort"
-                type: RegularExpression
-                value: "asc|desc"
-        backends:
-          - name: "user-service"
-            namespace: "default"
-            kind: "Service"
-            group: "core"
-            port: 8080
-      - name: "post-users-route"
-        matches:
-          - methods:
-            - POST
-            paths:
-            - type: Exact
-              value: "/users/create"
-            headers:
-              - name: "Content-Type"
-                type: Exact
-                value: "application/json"
-        backends:
-          - name: "user-service"
-            namespace: "default"
-            kind: "Service"
-            group: "core"
-            port: 8081
+  - type: Exact
+    value: gateway.example.com
+  - type: Suffix
+    value: ".service.local"
 
-  - hostnames:
-      - value: "admin.example.com"
-    httpRoutes:
-      - name: "admin-dashboard"
-        matches:
-          - methods:
-            - GET
-            paths:
-            - type: Exact
-              value: "/dashboard"
-        backends:
-          - name: "admin-ui"
-            namespace: "admin"
-            kind: "Deployment"
-            group: "apps"
-            port: 443
+http_routes:
+  - name: route-1
+    namespace: production
+    hosts:
+      - type: Exact
+        value: api.service.local
+    rules:
+      - matches:
+          - method: POST
+            path:
+              type: Exact
+              value: /submit
+            headers:
+              - name: Content-Type
+                type: Exact
+                value: application/json
+              - name: X-Feature-Flag
+                type: RegularExpression
+                value: "^exp-.*"
+            queryParams:
+              - name: mode
+                type: Exact
+                value: async
+        backend_refs:
+          - name: backend-submit
+            namespace: appspace
+            port: 8443
+
+  - name: route-2
+    namespace: null
+    hosts:
+      - type: Suffix
+        value: ".beta.example.com"
+    rules:
+      - matches:
+          - method: GET
+            path:
+              type: Prefix
+              value: /v2/data
+            headers:
+              - name: X-Debug
+                type: Exact
+                value: true
+          - method: HEAD
+            path:
+              type: RegularExpression
+              value: "^/health(/.+)?$"
+            queryParams:
+              - name: probe
+                type: Exact
+                value: readiness
+        backend_refs:
+          - name: backend-v2
+            port: 9000
+          - name: fallback-backend
+            namespace: default
+            port: null
+
+service_backends:
+  - name: backend-submit
+    namespace: appspace
+    addresses:
+      - 192.168.10.1
+      - 192.168.10.2
+
+  - name: backend-v2
+    namespace: default
+    addresses:
+      - 10.0.2.15
+      - 10.0.2.16
+      - 10.0.2.17
+
+  - name: fallback-backend
+    namespace: default
+    addresses:
+      - 127.0.0.1
         "#
         .as_bytes();
 
