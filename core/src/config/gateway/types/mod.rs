@@ -3,7 +3,7 @@ pub mod net;
 pub mod objects;
 
 use crate::config::gateway::types::http::router::{HostHeaderMatch, HttpRoute};
-use crate::config::gateway::types::net::ServiceBackend;
+use crate::config::gateway::types::net::Backend;
 use derive_builder::Builder;
 use getset::Getters;
 use schemars::JsonSchema;
@@ -34,5 +34,5 @@ pub struct GatewayConfiguration {
 
     #[getset(get = "pub")]
     #[validate(max_items = 64)]
-    service_backends: Vec<ServiceBackend>,
+    service_backends: Vec<Backend>,
 }

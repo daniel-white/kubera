@@ -1,10 +1,10 @@
 #[macro_export]
 macro_rules! spawn_controller {
-    ($resource:ty, $join_set:ident, $client:ident) => {
-        spawn_controller!($resource, $join_set, $client, Config::default())
+    ($object_type:ty, $join_set:ident, $client:ident) => {
+        spawn_controller!($object_type, $join_set, $client, Config::default())
     };
-    ($resource:ty, $join_set:ident, $client:ident, $config:expr) => {{
-        use crate::controllers::resources::{Ref, Resources};
+    ($object_type:ty, $join_set:ident, $client:ident, $config:expr) => {{
+        use crate::controllers::resources::{ObjectRef, Objects};
         use futures::StreamExt;
         use kube::Api;
         use kube::runtime::Controller;
@@ -18,11 +18,11 @@ macro_rules! spawn_controller {
         use tracing::{debug, info};
 
         struct ControllerContext {
-            tx: Sender<Resources<$resource>>,
+            tx: Sender<Objects<$object_type>>,
         }
 
         impl ControllerContext {
-            fn new(tx: Sender<Resources<$resource>>) -> Self {
+            fn new(tx: Sender<Objects<$object_type>>) -> Self {
                 Self { tx }
             }
         }
@@ -31,39 +31,38 @@ macro_rules! spawn_controller {
         enum ControllerError {}
 
         async fn reconcile(
-            resource: Arc<$resource>,
+            object: Arc<$object_type>,
             ctx: Arc<ControllerContext>,
         ) -> Result<Action, ControllerError> {
-            let mut new_resources = ctx.tx.current();
+            let mut new_objects = ctx.tx.current();
 
-            let metadata = &resource.metadata;
+            let metadata = &object.metadata;
 
-            let resource_ref = Ref::new_builder()
-                .name(metadata.name.clone().expect("Resource must have a name"))
-                .namespace(metadata.namespace.clone())
+            let ref_ = ObjectRef::new_builder()
+                .from_object(object.as_ref())
                 .build()
                 .expect("Failed to build Ref");
 
-            let resource = resource.as_ref().clone();
+            let object = object.as_ref().clone();
 
             match &metadata.deletion_timestamp {
                 None => {
-                    info!("Resource {:?} is active", resource_ref);
-                    new_resources.set_active(resource_ref, resource)
+                    info!("reconciled object; object.ref={} object.state=active", ref_);
+                    new_objects.set_active(ref_, object)
                 }
                 _ => {
-                    info!("Resource {:?} is deleted", resource_ref);
-                    new_resources.set_deleted(resource_ref, resource)
+                    info!("reconciled object; object.ref={} object.state=deleted", ref_);
+                    new_objects.set_deleted(ref_, object)
                 }
             };
 
-            ctx.tx.replace(new_resources);
+            ctx.tx.replace(new_objects);
 
             Ok(Action::requeue(Duration::from_secs(60)))
         }
 
         fn error_policy(
-            _: Arc<$resource>,
+            _: Arc<$object_type>,
             _: &ControllerError,
             _: Arc<ControllerContext>,
         ) -> Action {
@@ -72,16 +71,16 @@ macro_rules! spawn_controller {
 
         let client = $client.clone();
         let config = $config.clone();
-        let (tx, rx) = channel::<Resources<$resource>>(Resources::default());
+        let (tx, rx) = channel::<Objects<$object_type>>(Objects::default());
 
         debug!(
-            "Spawning controller for resource: {}",
-            stringify!($resource)
+            "Spawning controller for object: {}",
+            stringify!($object_type)
         );
 
         $join_set.spawn(async move {
-            let resources = Api::<$resource>::all(client);
-            Controller::new(resources, config)
+            let object_api = Api::<$object_type>::all(client);
+            Controller::new(object_api, config)
                 .shutdown_on_signal()
                 .run(
                     reconcile,

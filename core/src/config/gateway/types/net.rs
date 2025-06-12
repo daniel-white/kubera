@@ -1,4 +1,5 @@
 use crate::config::gateway::types::objects::ObjectRef;
+use derive_builder::Builder;
 use getset::Getters;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -37,12 +38,44 @@ pub struct Hostname(
     String,
 );
 
-#[derive(Validate, Getters, Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-pub struct ServiceBackend {
+#[derive(
+    Validate,
+    Default,
+    Builder,
+    Getters,
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    JsonSchema,
+)]
+pub struct BackendEndpoints {
+    #[getset(get = "pub")]
+    #[validate(min_length = 1)]
+    #[validate(max_length = 253)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    zone: Option<String>,
+
+    #[getset(get = "pub")]
+    #[validate(min_length = 1)]
+    #[validate(max_length = 253)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    node: Option<String>,
+
+    #[getset(get = "pub")]
+    addresses: Vec<IpAddr>,
+}
+
+#[derive(
+    Validate, Getters, Builder, Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema,
+)]
+pub struct Backend {
     #[getset(get = "pub")]
     #[serde(flatten)]
     ref_: ObjectRef,
 
     #[getset(get = "pub")]
-    addresses: Vec<IpAddr>,
+    endpoints: Vec<BackendEndpoints>,
 }

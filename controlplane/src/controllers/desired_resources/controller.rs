@@ -1,6 +1,6 @@
 use crate::api::v1alpha1::{GatewayClassParameters, GatewayParameters};
 use crate::constants::{MANAGED_BY_LABEL, MANAGED_BY_VALUE};
-use crate::controllers::resources::{Ref, Resources};
+use crate::controllers::resources::{ObjectRef, Objects};
 use derive_builder::Builder;
 use gateway_api::apis::standard::gatewayclasses::GatewayClass;
 use gateway_api::apis::standard::gateways::{Gateway, GatewayStatus};
@@ -9,7 +9,7 @@ use k8s_openapi::api::apps::v1::Deployment;
 use k8s_openapi::api::core::v1::{ConfigMap, Namespace, Service};
 use kube::api::Patch;
 use kubera_core::select_continue;
-use kubera_core::sync::signal::{Receiver, channel};
+use kubera_core::sync::signal::{channel, Receiver};
 use serde::Serialize;
 use std::collections::HashMap;
 use thiserror::Error;
@@ -17,14 +17,14 @@ use tokio::task::JoinSet;
 
 #[derive(Builder)]
 pub struct SourceResourcesReceivers {
-    gateway_classes: Receiver<Resources<GatewayClass>>,
-    gateway_class_parameters: Receiver<Resources<GatewayClassParameters>>,
-    gateways: Receiver<Resources<Gateway>>,
-    gateway_parameters: Receiver<Resources<GatewayParameters>>,
-    config_maps: Receiver<Resources<ConfigMap>>,
-    deployments: Receiver<Resources<Deployment>>,
-    services: Receiver<Resources<Service>>,
-    namespaces: Receiver<Resources<Namespace>>,
+    gateway_classes: Receiver<Objects<GatewayClass>>,
+    gateway_class_parameters: Receiver<Objects<GatewayClassParameters>>,
+    gateways: Receiver<Objects<Gateway>>,
+    gateway_parameters: Receiver<Objects<GatewayParameters>>,
+    config_maps: Receiver<Objects<ConfigMap>>,
+    deployments: Receiver<Objects<Deployment>>,
+    services: Receiver<Objects<Service>>,
+    namespaces: Receiver<Objects<Namespace>>,
 }
 
 impl SourceResourcesReceivers {
@@ -37,13 +37,13 @@ impl SourceResourcesReceivers {
 pub enum DesiredResource<K: kube::Resource + Serialize> {
     Create(K),
     Patch(String, Patch<K>),
-    Delete(Ref),
+    Delete(ObjectRef),
 }
 
 #[derive(Builder, Getters, Clone, Debug, PartialEq)]
 pub struct DesiredGateway {
     #[getset(get = "pub")]
-    gateway_ref: Ref,
+    gateway_ref: ObjectRef,
     #[getset(get = "pub")]
     status: GatewayStatus,
     #[getset(get = "pub")]
@@ -63,9 +63,9 @@ impl DesiredGateway {
 #[derive(Builder, Getters, Clone, Default, Debug, PartialEq)]
 pub struct DesiredResources {
     #[getset(get = "pub")]
-    gateways: HashMap<Ref, DesiredGateway>,
+    gateways: HashMap<ObjectRef, DesiredGateway>,
     #[getset(get = "pub")]
-    gateway_classes: HashMap<Ref, GatewayClass>,
+    gateway_classes: HashMap<ObjectRef, GatewayClass>,
 }
 
 impl DesiredResources {

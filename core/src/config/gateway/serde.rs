@@ -61,86 +61,85 @@ mod tests {
 version: v1alpha1
 hosts:
   - type: Exact
-    value: gateway.example.com
+    value: edge.example.com
   - type: Suffix
-    value: ".service.local"
+    value: ".cluster.local"
 
 http_routes:
-  - name: route-1
+  - name: main-api
     namespace: production
     hosts:
       - type: Exact
-        value: api.service.local
-    rules:
-      - matches:
-          - method: POST
-            path:
-              type: Exact
-              value: /submit
-            headers:
-              - name: Content-Type
-                type: Exact
-                value: application/json
-              - name: X-Feature-Flag
-                type: RegularExpression
-                value: "^exp-.*"
-            queryParams:
-              - name: mode
-                type: Exact
-                value: async
-        backend_refs:
-          - name: backend-submit
-            namespace: appspace
-            port: 8443
-
-  - name: route-2
-    namespace: null
-    hosts:
-      - type: Suffix
-        value: ".beta.example.com"
+        value: api.edge.example.com
     rules:
       - matches:
           - method: GET
             path:
               type: Prefix
-              value: /v2/data
+              value: /v1/
             headers:
-              - name: X-Debug
+              - name: X-Env
                 type: Exact
-                value: true
-          - method: HEAD
-            path:
-              type: RegularExpression
-              value: "^/health(/.+)?$"
+                value: prod
+              - name: X-Trace-ID
+                type: RegularExpression
+                value: "^trace-[a-z0-9]+$"
             queryParams:
-              - name: probe
+              - name: verbose
                 type: Exact
-                value: readiness
+                value: "true"
         backend_refs:
-          - name: backend-v2
-            port: 9000
-          - name: fallback-backend
-            namespace: default
-            port: null
+          - name: users-backend
+            namespace: core-services
+            port: 8080
+          - name: analytics-backend
+            namespace: null
+            port: 9090
+
+  - name: canary-check
+    namespace: null
+    hosts:
+      - type: Suffix
+        value: ".internal.example.net"
+    rules:
+      - matches:
+          - method: POST
+            path:
+              type: Exact
+              value: /experiment
+        backend_refs:
+          - name: canary-backend
+            port: 8000
 
 service_backends:
-  - name: backend-submit
-    namespace: appspace
-    addresses:
-      - 192.168.10.1
-      - 192.168.10.2
+  - name: users-backend
+    namespace: core-services
+    backends:
+      - addresses:
+          - 10.0.0.5
+          - 10.0.0.6
+        node: node-a-1
+        zone: zone-us-east
+      - addresses:
+          - 10.0.1.5
+        node: node-a-2
+        zone: zone-us-west
 
-  - name: backend-v2
-    namespace: default
-    addresses:
-      - 10.0.2.15
-      - 10.0.2.16
-      - 10.0.2.17
+  - name: analytics-backend
+    namespace: null
+    backends:
+      - addresses:
+          - 192.168.10.100
+        node: analytics-node-1
+        zone: zone-eu-central
 
-  - name: fallback-backend
-    namespace: default
-    addresses:
-      - 127.0.0.1
+  - name: canary-backend
+    namespace: staging
+    backends:
+      - addresses:
+          - 10.42.0.77
+        node: null
+        zone: null
         "#
         .as_bytes();
 

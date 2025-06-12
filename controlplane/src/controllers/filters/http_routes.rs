@@ -1,17 +1,17 @@
-use crate::controllers::resources::{Ref, ResourceState, Resources};
+use crate::controllers::resources::{ObjectRef, ObjectState, Objects};
 use gateway_api::apis::standard::gateways::Gateway;
 use gateway_api::apis::standard::httproutes::HTTPRoute;
 use itertools::*;
 use kubera_core::select_continue;
-use kubera_core::sync::signal::{Receiver, channel};
+use kubera_core::sync::signal::{channel, Receiver};
 use tokio::task::JoinSet;
 
 pub fn filter_http_routes(
     join_set: &mut JoinSet<()>,
-    gateways: &Receiver<Resources<Gateway>>,
-    http_routes: &Receiver<Resources<HTTPRoute>>,
-) -> Receiver<Resources<HTTPRoute>> {
-    let (tx, rx) = channel(Resources::default());
+    gateways: &Receiver<Objects<Gateway>>,
+    http_routes: &Receiver<Objects<HTTPRoute>>,
+) -> Receiver<Objects<HTTPRoute>> {
+    let (tx, rx) = channel(Objects::default());
 
     let mut gateways = gateways.clone();
     let mut http_routes = http_routes.clone();
@@ -20,16 +20,18 @@ pub fn filter_http_routes(
         loop {
             let current_gateways = gateways.current();
             let filtered = http_routes.current().filter_into(|_, http_route| {
-                if let ResourceState::Active(http_route) = http_route {
+                if let ObjectState::Active(http_route) = http_route {
                     http_route
                         .spec
                         .parent_refs
                         .iter()
-                        .flat_map(|p| p.iter().map(|p| p))
-                        .map(|p| {
-                            Ref::new_builder()
-                                .namespace(p.namespace.clone())
-                                .name(&p.name)
+                        .flat_map(|parent_ref| parent_ref.iter().map(|p| p))
+                        .map(|parent_ref| {
+                            ObjectRef::new_builder()
+                                .group(parent_ref.group.clone())
+                                .kind(parent_ref.kind.clone().expect("Kind is required"))
+                                .namespace(parent_ref.namespace.clone())
+                                .name(parent_ref.name.clone())
                                 .build()
                                 .unwrap()
                         })

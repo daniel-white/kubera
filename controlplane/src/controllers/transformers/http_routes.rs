@@ -1,51 +1,83 @@
-use crate::controllers::resources::{Ref, ResourceState, Resources, ServiceBackend};
+use crate::controllers::resources::{ObjectRef, ObjectState, Objects};
+use derive_builder::Builder;
 use gateway_api::apis::standard::httproutes::HTTPRoute;
+use getset::Getters;
 use kubera_core::select_continue;
 use kubera_core::sync::signal::{channel, Receiver};
 use std::collections::BTreeMap;
 use tokio::task::JoinSet;
+use tracing::{debug, info};
 
-pub fn collect_http_route_service_backends(
+#[derive(Debug, Builder, Getters, Clone, Hash, PartialEq, Eq)]
+pub struct HttpRouteBackend {
+    #[getset(get = "pub")]
+    object_ref: ObjectRef,
+
+    #[getset(get = "pub")]
+    port: Option<i32>,
+
+    #[getset(get = "pub")]
+    weight: Option<i32>,
+}
+
+impl HttpRouteBackend {
+    pub fn new_builder() -> HttpRouteBackendBuilder {
+        HttpRouteBackendBuilder::default()
+    }
+}
+
+pub fn collect_http_route_backends(
     join_set: &mut JoinSet<()>,
-    http_routes: &Receiver<Resources<HTTPRoute>>,
-) -> Receiver<BTreeMap<Ref, ServiceBackend>> {
+    http_routes: &Receiver<Objects<HTTPRoute>>,
+) -> Receiver<BTreeMap<ObjectRef, HttpRouteBackend>> {
     let (tx, rx) = channel(BTreeMap::new());
 
     let mut http_routes = http_routes.clone();
 
     join_set.spawn(async move {
         loop {
-            let mut backends = BTreeMap::new();
-            for (_, http_route) in http_routes.current().iter() {
+            let mut http_route_backends = BTreeMap::new();
+            for (http_route_ref, http_route) in http_routes.current().iter() {
                 match http_route {
-                    ResourceState::Active(http_route) => {
+                    ObjectState::Active(http_route) => {
+                        info!(
+                            "Collecting backends for HTTPRoute: object.ref={}",
+                            http_route_ref
+                        );
                         for rules in http_route.spec.rules.iter() {
                             for rule in rules {
-                                for backend in rule.backend_refs.iter().flatten() {
-                                    if let Some(kind) = backend.kind.as_deref() {
+                                for backend_ref in rule.backend_refs.iter().flatten() {
+                                    if let Some(kind) = backend_ref.kind.as_deref() {
                                         if kind == "Service" {
-                                            let ref_ = Ref::new_builder()
-                                                .namespace(backend.namespace.clone())
-                                                .name(&backend.name)
+                                            let ref_ = ObjectRef::new_builder()
+                                                .group(backend_ref.group.clone())
+                                                .kind(kind)
+                                                .version("v1")
+                                                .namespace(backend_ref.namespace.clone())
+                                                .name(&backend_ref.name)
                                                 .build()
                                                 .unwrap();
-                                            let backend = ServiceBackend::new_builder()
-                                                .port(backend.port)
-                                                .weight(backend.weight)
-                                                .build()
-                                                .unwrap();
-                                            backends.insert(ref_, backend);
+                                            let http_route_backend =
+                                                HttpRouteBackend::new_builder()
+                                                    .object_ref(ref_.clone())
+                                                    .port(backend_ref.port)
+                                                    .weight(backend_ref.weight)
+                                                    .build()
+                                                    .unwrap();
+                                            http_route_backends.insert(ref_, http_route_backend);
                                         }
                                     }
                                 }
                             }
                         }
                     }
-                    _ => continue,
+                    _ => {
+                        debug!("Skipping deleted object.ref={}", http_route_ref);
+                    }
                 }
             }
 
-            tx.replace(backends);
+            tx.replace(http_route_backends);
 
             select_continue!(http_routes.changed());
         }

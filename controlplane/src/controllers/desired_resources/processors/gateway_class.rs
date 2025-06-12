@@ -1,6 +1,6 @@
 use crate::api::v1alpha1::GatewayClassParameters;
 use crate::constants::{GATEWAY_PARAMETERS_CRD_KIND, GROUP};
-use crate::controllers::resources::Ref;
+use crate::controllers::resources::ObjectRef;
 use gateway_api::apis::standard::gatewayclasses::{GatewayClass, GatewayClassStatus};
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::{Condition, Time};
 use k8s_openapi::chrono::{DateTime, Utc};
@@ -10,7 +10,7 @@ use thiserror::Error;
 
 pub fn process(
     gateway_class: &GatewayClass,
-    gateway_class_parameters: &BTreeMap<Ref, GatewayClassParameters>,
+    gateway_class_parameters: &BTreeMap<ObjectRef, GatewayClassParameters>,
 ) -> Result<GatewayClassParameters, GatewayClassProcessorError> {
     let parameters_ref = gateway_class.spec.parameters_ref.as_ref();
 
@@ -18,13 +18,15 @@ pub fn process(
         Some(ref_param)
             if ref_param.kind == GATEWAY_PARAMETERS_CRD_KIND && ref_param.group == GROUP =>
         {
-            Ref::new_builder()
+            ObjectRef::new_builder()
+                .group(GROUP.to_string())
+                .kind(GATEWAY_PARAMETERS_CRD_KIND)
                 .namespace(ref_param.namespace.clone())
                 .name(ref_param.name.clone())
                 .build()
                 .expect("Failed to build Ref")
         }
-        Some(r) if r.kind != GATEWAY_PARAMETERS_CRD_KIND || r.group != GROUP => {
+        Some(_) => {
             return Err(GatewayClassProcessorError::InvalidParametersRefKind);
         }
         _ => {
