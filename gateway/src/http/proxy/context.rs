@@ -1,11 +1,11 @@
-use crate::http::router::{Route, Router};
+use crate::http::router::{HttpRoute, HttpRouter};
 use http::request::Parts;
 use kubera_core::sync::signal::Receiver;
 use std::sync::OnceLock;
 
 #[derive(Debug)]
 pub struct Context {
-    router: Receiver<Option<Router>>,
+    router: Receiver<Option<HttpRouter>>,
     route: OnceLock<FindRouteResult>,
 }
 
@@ -15,13 +15,13 @@ unsafe impl Sync for Context {}
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum FindRouteResult {
-    Found(Route),
+    Found(HttpRoute),
     NotFound,
     MissingConfiguration,
 }
 
 impl Context {
-    pub fn new(router: Receiver<Option<Router>>) -> Self {
+    pub fn new(router: Receiver<Option<HttpRouter>>) -> Self {
         Self {
             router,
             route: OnceLock::new(),

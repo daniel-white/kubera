@@ -1,62 +1,49 @@
 mod headers;
+mod host;
 mod host_header;
 mod method;
 mod path;
 mod query_params;
 mod score;
 
-use crate::http::router::matchers::headers::HeaderMatcher;
-use crate::http::router::matchers::query_params::QueryParamMatcher;
-use crate::http::router::matchers::MatchResult::{Matched, NotMatched};
-use headers::HeadersMatcher;
-use host_header::{HostHeaderMatcher, HostHeaderValueMatcher};
+use headers::*;
+pub use host::*;
+use host_header::*;
 use http::request::Parts;
 use http::{HeaderName, HeaderValue};
-use method::MethodMatcher;
-use path::PathMatcher;
-use query_params::QueryParamsMatcher;
-use score::Score;
+use method::*;
+use path::*;
+use query_params::*;
+use score::MatchingScore;
 use std::borrow::Cow;
 use tracing::{debug, instrument, trace};
 use unicase::UniCase;
 
 pub(self) type CaseInsensitiveString = UniCase<String>;
 
-pub(self) trait Matcher<T> {
-    fn matches(&self, score: &Score, part: &T) -> bool;
+pub(self) trait Match<T> {
+    fn matches(&self, score: &MatchingScore, part: &T) -> bool;
 }
 
 #[derive(Debug, PartialEq, Clone)]
-pub struct RouteMatcher {
-    host_header: Option<HostHeaderMatcher>,
-    path: Option<PathMatcher>,
-    method: Option<MethodMatcher>,
-    headers: Option<HeadersMatcher>,
-    query_params: Option<QueryParamsMatcher>,
-}
-
-#[derive(Default)]
-pub struct RouteMatcherBuilder {
-    host_header: Option<HostHeaderMatcher>,
-    path: Option<PathMatcher>,
-    method: Option<MethodMatcher>,
-    headers: Option<HeadersMatcher>,
-    query_params: Option<QueryParamsMatcher>,
+pub struct HttpRouteMatches {
+    host_header: Option<HostHeaderMatch>,
+    path: Option<PathMatch>,
+    method: Option<MethodMatch>,
+    headers: Option<HeadersMatch>,
+    query_params: Option<QueryParamsMatch>,
 }
 
 pub enum MatchResult {
-    Matched(Score),
+    Matched(MatchingScore),
     NotMatched,
 }
 
-impl RouteMatcher {
-    pub fn new_builder() -> RouteMatcherBuilder {
-        RouteMatcherBuilder::default()
-    }
-
+impl HttpRouteMatches {
     #[instrument(skip(self, parts), level = "trace", name = "RouteMatcher::matches")]
     pub fn matches(&self, parts: &Parts) -> MatchResult {
-        let score = Score::default();
+        use MatchResult::*;
+        let score = MatchingScore::default();
 
         if let Some(host_header_matcher) = &self.host_header {
             trace!("Testing host header for match");
@@ -107,9 +94,18 @@ impl RouteMatcher {
     }
 }
 
-impl RouteMatcherBuilder {
-    pub fn build(self) -> RouteMatcher {
-        RouteMatcher {
+#[derive(Default)]
+pub struct HttpRouteMatchesBuilder {
+    host_header: Option<HostHeaderMatch>,
+    path: Option<PathMatch>,
+    method: Option<MethodMatch>,
+    headers: Option<HeadersMatch>,
+    query_params: Option<QueryParamsMatch>,
+}
+
+impl HttpRouteMatchesBuilder {
+    pub fn build(self) -> HttpRouteMatches {
+        HttpRouteMatches {
             host_header: self.host_header,
             path: self.path,
             method: self.method,
@@ -118,75 +114,75 @@ impl RouteMatcherBuilder {
         }
     }
 
-    pub fn with_host(&mut self, host: &str) -> &mut Self {
+    pub fn with_exact_host_header(&mut self, host: &str) -> &mut Self {
         self.host_header
             .get_or_insert_default()
-            .matchers
-            .push(HostHeaderValueMatcher::Exact(CaseInsensitiveString::from(
+            .host_header_value_matches
+            .push(HostHeaderValueMatch::Exact(CaseInsensitiveString::from(
                 host,
             )));
         self
     }
 
-    pub fn with_host_suffix(&mut self, suffix: &str) -> &mut Self {
+    pub fn with_host_header_suffix(&mut self, suffix: &str) -> &mut Self {
         self.host_header
             .get_or_insert_default()
-            .matchers
-            .push(HostHeaderValueMatcher::Suffix(CaseInsensitiveString::from(
+            .host_header_value_matches
+            .push(HostHeaderValueMatch::Suffix(CaseInsensitiveString::from(
                 suffix,
             )));
         self
     }
 
     pub fn with_exact_path(&mut self, path: &str) -> &mut Self {
-        self.path = Some(PathMatcher::Exact(path.to_string()));
+        self.path = Some(PathMatch::Exact(path.to_string()));
         self
     }
 
     pub fn with_path_prefix(&mut self, prefix: &str) -> &mut Self {
-        self.path = Some(PathMatcher::Prefix(prefix.to_string()));
+        self.path = Some(PathMatch::Prefix(prefix.to_string()));
         self
     }
 
     pub fn with_path_matching(&mut self, pattern: &str) -> &mut Self {
-        self.path = Some(PathMatcher::RegularExpression(pattern.to_string()));
+        self.path = Some(PathMatch::RegularExpression(pattern.to_string()));
         self
     }
 
     pub fn with_method(&mut self, method: http::Method) -> &mut Self {
-        self.method.get_or_insert_default().methods.insert(method);
+        self.method.get_or_insert_default().method = method;
         self
     }
 
-    pub fn with_header(&mut self, name: HeaderName, value: HeaderValue) -> &mut Self {
+    pub fn with_exact_header(&mut self, name: HeaderName, value: HeaderValue) -> &mut Self {
         self.headers
             .get_or_insert_default()
-            .matchers
-            .push(HeaderMatcher::new(name, value));
+            .header_matches
+            .push(HeaderMatch::new_exact(name, value));
         self
     }
 
     pub fn with_header_matching(&mut self, name: HeaderName, pattern: &str) -> &mut Self {
         self.headers
             .get_or_insert_default()
-            .matchers
-            .push(HeaderMatcher::new_matching(name, pattern));
+            .header_matches
+            .push(HeaderMatch::new_matching(name, pattern));
         self
     }
 
-    pub fn with_query_param(&mut self, name: &str, value: &str) -> &mut Self {
+    pub fn with_exact_query_param(&mut self, name: &str, value: &str) -> &mut Self {
         self.query_params
             .get_or_insert_default()
-            .matchers
-            .push(QueryParamMatcher::new(name, value));
+            .query_param_matches
+            .push(QueryParamMatch::new_exact(name, value));
         self
     }
 
     pub fn with_query_param_matching(&mut self, name: &str, pattern: &str) -> &mut Self {
         self.query_params
             .get_or_insert_default()
-            .matchers
-            .push(QueryParamMatcher::new_matching(name, pattern));
+            .query_param_matches
+            .push(QueryParamMatch::new_matching(name, pattern));
         self
     }
 }

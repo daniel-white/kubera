@@ -1,40 +1,40 @@
-use super::score::Score;
-use super::Matcher;
+use super::score::MatchingScore;
+use super::Match;
 use crate::util::get_regex;
 use tracing::{debug, instrument};
 
 #[derive(Debug, PartialEq, Clone)]
-pub enum PathMatcher {
+pub enum PathMatch {
     Exact(String),
     Prefix(String),
     RegularExpression(String),
 }
 
-impl Default for PathMatcher {
+impl Default for PathMatch {
     fn default() -> Self {
-        PathMatcher::Prefix("/".to_string())
+        Self::Prefix("/".to_string())
     }
 }
 
-impl Matcher<&str> for PathMatcher {
+impl Match<&str> for PathMatch {
     #[instrument(
         skip(self, score, path),
         level = "debug",
-        name = "PathMatcher::matches"
+        name = "PathMatch::matches"
         fields(matcher = ?self)
     )]
-    fn matches(&self, score: &Score, path: &&str) -> bool {
+    fn matches(&self, score: &MatchingScore, path: &&str) -> bool {
         let is_match = match self {
-            PathMatcher::Exact(expected_path) => expected_path == path,
-            PathMatcher::Prefix(prefix) => path.starts_with(prefix),
-            PathMatcher::RegularExpression(pattern) => {
+            PathMatch::Exact(expected_path) => expected_path == path,
+            PathMatch::Prefix(prefix) => path.starts_with(prefix),
+            PathMatch::RegularExpression(pattern) => {
                 let regex = get_regex(pattern);
                 regex.is_match(path)
             }
         };
         if is_match {
             debug!("Path matched");
-            score.score_path(self);
+            score.path(self);
         }
         is_match
     }

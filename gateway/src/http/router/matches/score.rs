@@ -1,28 +1,28 @@
-use super::headers::HeadersMatcher;
-use super::host_header::HostHeaderMatcher;
-use super::method::MethodMatcher;
-use super::path::PathMatcher;
-use super::query_params::QueryParamsMatcher;
+use super::headers::HeadersMatch;
+use super::host_header::HostHeaderMatch;
+use super::method::MethodMatch;
+use super::path::PathMatch;
+use super::query_params::QueryParamsMatch;
 use std::cell::Cell;
 use std::cmp::Ordering;
 use tracing::instrument;
 
 #[derive(Default, Clone, PartialEq, Eq, Debug)]
-pub struct Score {
+pub struct MatchingScore {
     path_exact: Cell<bool>,
     path_length: Cell<Option<usize>>,
-    method_match: Cell<bool>,
+    method: Cell<bool>,
     headers_count: Cell<Option<usize>>,
     query_params_count: Cell<Option<usize>>,
 }
 
-impl PartialOrd for Score {
+impl PartialOrd for MatchingScore {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl Ord for Score {
+impl Ord for MatchingScore {
     #[instrument(
         skip(self, other),
         level = "debug",
@@ -49,7 +49,7 @@ impl Ord for Score {
             _ => {}
         };
 
-        match (self.method_match.get(), other.method_match.get()) {
+        match (self.method.get(), other.method.get()) {
             (true, false) => return Ordering::Less,
             (false, true) => return Ordering::Greater,
             _ => {}
@@ -82,35 +82,35 @@ impl Ord for Score {
     }
 }
 
-impl Score {
-    pub fn score_host_header(&self, _matcher: &HostHeaderMatcher) {
+impl MatchingScore {
+    pub fn host_header(&self, _host_header_match: &HostHeaderMatch) {
         // Host header match is mandatory, so we don't need to score it
     }
 
-    pub fn score_path(&self, matcher: &PathMatcher) {
-        match matcher {
-            PathMatcher::Exact(_) => {
+    pub fn path(&self, path_match: &PathMatch) {
+        match path_match {
+            PathMatch::Exact(_) => {
                 self.path_exact.replace(true);
             }
-            PathMatcher::Prefix(prefix) => {
+            PathMatch::Prefix(prefix) => {
                 self.path_length.replace(Some(prefix.len()));
             }
-            PathMatcher::RegularExpression(pattern) => {
+            PathMatch::RegularExpression(pattern) => {
                 self.path_length.replace(Some(pattern.len() * 4));
             }
         };
     }
 
-    pub fn score_method(&self, _matcher: &MethodMatcher) {
-        self.method_match.replace(true);
+    pub fn method(&self, _method_match: &MethodMatch) {
+        self.method.replace(true);
     }
 
-    pub fn score_headers(&self, headers: &HeadersMatcher) {
-        self.headers_count.replace(Some(headers.matchers.len()));
+    pub fn headers(&self, _headers_match: &HeadersMatch, header_params_count: usize) {
+        self.headers_count.replace(Some(header_params_count));
     }
 
-    pub fn score_query_params(&self, query_params: &QueryParamsMatcher) {
+    pub fn query_params(&self, _query_params_match: &QueryParamsMatch, query_params_count: usize) {
         self.query_params_count
-            .replace(Some(query_params.matchers.len()));
+            .replace(Some(query_params_count));
     }
 }

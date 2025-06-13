@@ -1,16 +1,16 @@
 use super::CaseInsensitiveString;
-use super::Matcher;
-use crate::http::router::matchers::score::Score;
+use super::Match;
+use crate::http::router::matches::score::MatchingScore;
 use http::{HeaderMap, HeaderValue};
 use tracing::{debug, instrument};
 
 #[derive(Debug, PartialEq, Clone)]
-pub enum HostHeaderValueMatcher {
+pub enum HostHeaderValueMatch {
     Exact(CaseInsensitiveString),
     Suffix(CaseInsensitiveString),
 }
 
-impl HostHeaderValueMatcher {
+impl HostHeaderValueMatch {
     #[instrument(
         skip(self, host_header_value),
         level = "debug",
@@ -29,28 +29,28 @@ impl HostHeaderValueMatcher {
 }
 
 #[derive(Debug, PartialEq, Default, Clone)]
-pub struct HostHeaderMatcher {
-    pub matchers: Vec<HostHeaderValueMatcher>,
+pub struct HostHeaderMatch {
+    pub(super) host_header_value_matches: Vec<HostHeaderValueMatch>,
 }
 
-impl Matcher<HeaderMap> for HostHeaderMatcher {
+impl Match<HeaderMap> for HostHeaderMatch {
     #[instrument(
         skip(self, score, headers),
         level = "debug",
-        name = "HostHeaderMatcher::matches"
+        name = "HostHeaderMatch::matches"
     )]
-    fn matches(&self, score: &Score, headers: &HeaderMap) -> bool {
+    fn matches(&self, score: &MatchingScore, headers: &HeaderMap) -> bool {
         let is_match = match headers.get(http_constant::HOST) {
             Some(host_header_value) => self
-                .matchers
+                .host_header_value_matches
                 .iter()
-                .any(|matcher| matcher.matches(host_header_value)),
+                .any(|m| m.matches(host_header_value)),
             None => false, // If there's no Host header, it doesn't match
         };
 
         if is_match {
             debug!("Host header matched");
-            score.score_host_header(self);
+            score.host_header(self);
         }
 
         is_match

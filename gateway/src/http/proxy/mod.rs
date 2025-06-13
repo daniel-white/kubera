@@ -1,6 +1,6 @@
 mod context;
 
-use crate::http::router::Router;
+use crate::http::router::HttpRouter;
 use crate::net::resolver::SocketAddrResolver;
 use async_trait::async_trait;
 use context::Context;
@@ -14,7 +14,7 @@ use tracing::warn;
 
 #[derive(Debug, Builder)]
 pub struct Proxy {
-    router: Receiver<Option<Router>>,
+    router: Receiver<Option<HttpRouter>>,
     addr_resolver: SocketAddrResolver,
 }
 
