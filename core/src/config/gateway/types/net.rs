@@ -1,4 +1,3 @@
-use crate::config::gateway::types::objects::ObjectRef;
 use derive_builder::Builder;
 use getset::Getters;
 use schemars::JsonSchema;
@@ -39,43 +38,74 @@ pub struct Hostname(
 );
 
 #[derive(
+    Validate, Builder, Getters, Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema,
+)]
+pub struct Backend {
+    #[getset(get = "pub")]
+    weight: i32,
+
+    #[getset(get = "pub")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    port: Option<Port>,
+
+    #[getset(get = "pub")]
+    endpoints: Vec<Endpoint>,
+}
+
+#[derive(
+    Validate, Builder, Getters, Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema,
+)]
+pub struct Endpoint {
+    #[getset(get = "pub")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    node: Option<String>,
+
+    #[getset(get = "pub")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    zone: Option<String>,
+
+    #[getset(get = "pub")]
+    address: IpAddr,
+}
+
+#[derive(
     Validate,
-    Default,
     Builder,
     Getters,
     Debug,
     Clone,
     PartialEq,
+    Hash,
     Eq,
     Serialize,
     Deserialize,
     JsonSchema,
 )]
-pub struct BackendEndpoints {
+pub struct HostMatch {
     #[getset(get = "pub")]
-    #[validate(min_length = 1)]
-    #[validate(max_length = 253)]
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    zone: Option<String>,
+    #[serde(
+        default,
+        rename = "type",
+        skip_serializing_if = "HostMatchType::is_default"
+    )]
+    match_type: HostMatchType,
 
     #[getset(get = "pub")]
-    #[validate(min_length = 1)]
-    #[validate(max_length = 253)]
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    node: Option<String>,
-
-    #[getset(get = "pub")]
-    addresses: Vec<IpAddr>,
+    value: Hostname,
 }
 
 #[derive(
-    Validate, Getters, Builder, Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema,
+    Validate, Default, Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema,
 )]
-pub struct Backend {
-    #[getset(get = "pub")]
-    #[serde(flatten)]
-    ref_: ObjectRef,
-
-    #[getset(get = "pub")]
-    endpoints: Vec<BackendEndpoints>,
+pub enum HostMatchType {
+    #[default]
+    Exact,
+    Suffix,
 }
+
+impl HostMatchType {
+    pub fn is_default(&self) -> bool {
+        *self == Self::Exact
+    }
+}
+

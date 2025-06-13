@@ -85,11 +85,7 @@ pub fn collect_service_backends(
                     )
                 })
                 .collect();
-
-            info!(
-                "DUMP EndpointSlices by Service: {:?}",
-                endpoint_slices_by_service
-            );
+            
             tx.replace(endpoint_slices_by_service);
 
             select_continue!(http_route_backends.changed(), endpoint_slices.changed());

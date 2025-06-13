@@ -1,15 +1,14 @@
 pub mod http;
 pub mod net;
-pub mod objects;
 
-use crate::config::gateway::types::http::router::{HostHeaderMatch, HttpRoute};
-use crate::config::gateway::types::net::Backend;
+use crate::config::gateway::types::http::router::{HttpRoute};
 use derive_builder::Builder;
 use getset::Getters;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_valid::Validate;
 use strum::EnumString;
+use crate::config::gateway::types::net::HostMatch;
 
 #[derive(Validate, Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, EnumString)]
 #[serde(rename_all = "lowercase")]
@@ -26,13 +25,9 @@ pub struct GatewayConfiguration {
 
     #[getset(get = "pub")]
     #[validate(max_items = 64)]
-    hosts: Vec<HostHeaderMatch>,
+    hosts: Vec<HostMatch>,
 
     #[getset(get = "pub")]
     #[validate(max_items = 64)]
     http_routes: Vec<HttpRoute>,
-
-    #[getset(get = "pub")]
-    #[validate(max_items = 64)]
-    service_backends: Vec<Backend>,
 }

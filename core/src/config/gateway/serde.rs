@@ -57,90 +57,61 @@ mod tests {
 
     #[test]
     fn test_read_configuration() {
-        let yaml = r#"
-version: v1alpha1
+        let yaml = r#"version: v1alpha1
 hosts:
   - type: Exact
-    value: edge.example.com
-  - type: Suffix
-    value: ".cluster.local"
+    value: api.example.com
+  - value: .internal.example.net  # omitted 'type', defaults assumed elsewhere
 
 http_routes:
-  - name: main-api
-    namespace: production
-    hosts:
-      - type: Exact
-        value: api.edge.example.com
+  - host_headers:
+      - value: api.example.com  # omitted 'type'
     rules:
       - matches:
-          - method: GET
-            path:
+          - path:
               type: Prefix
-              value: /v1/
-            headers:
-              - name: X-Env
-                type: Exact
-                value: prod
-              - name: X-Trace-ID
-                type: RegularExpression
-                value: "^trace-[a-z0-9]+$"
-            queryParams:
-              - name: verbose
-                type: Exact
-                value: "true"
-        backend_refs:
-          - name: users-backend
-            namespace: core-services
-            port: 8080
-          - name: analytics-backend
-            namespace: null
-            port: 9090
-
-  - name: canary-check
-    namespace: null
-    hosts:
+              value: /v1/users
+        backends:
+          - endpoints:
+              - address: 10.0.1.10
+                node: node-a
+                zone: us-east-1a
+            weight: 100  # omitted 'port'
+  - host_headers:
       - type: Suffix
-        value: ".internal.example.net"
+        value: .example.net
     rules:
       - matches:
           - method: POST
             path:
               type: Exact
-              value: /experiment
-        backend_refs:
-          - name: canary-backend
-            port: 8000
-
-service_backends:
-  - name: users-backend
-    namespace: core-services
-    backends:
-      - addresses:
-          - 10.0.0.5
-          - 10.0.0.6
-        node: node-a-1
-        zone: zone-us-east
-      - addresses:
-          - 10.0.1.5
-        node: node-a-2
-        zone: zone-us-west
-
-  - name: analytics-backend
-    namespace: null
-    backends:
-      - addresses:
-          - 192.168.10.100
-        node: analytics-node-1
-        zone: zone-eu-central
-
-  - name: canary-backend
-    namespace: staging
-    backends:
-      - addresses:
-          - 10.42.0.77
-        node: null
-        zone: null
-        "#
+              value: /submit
+        backends:
+          - endpoints:
+              - address: 10.0.2.20
+                zone: us-east-1b  # omitted 'node'
+            port: 9090
+            weight: 50
+          - endpoints:
+              - address: 10.0.2.21
+            port: 9090
+            weight: 50
+  - host_headers:
+      - value: admin.internal.example.net  # omitted 'type'
+    rules:
+      - matches:
+          - path:
+              type: RegularExpression
+              value: ^/admin/.+$
+            headers:
+              - name: Authorization
+                value: Bearer .+  # omitted 'type'
+        backends:
+          - endpoints:
+              - address: 192.168.1.100
+            port: 9443
+            weight: 100
+"#
         .as_bytes();
 
         let config = read_configuration(yaml);
