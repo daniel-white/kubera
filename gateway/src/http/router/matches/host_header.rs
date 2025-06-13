@@ -1,6 +1,4 @@
 use super::CaseInsensitiveString;
-use super::Match;
-use crate::http::router::matches::score::MatchingScore;
 use http::{HeaderMap, HeaderValue};
 use tracing::{debug, instrument};
 
@@ -30,16 +28,20 @@ impl HostHeaderValueMatch {
 
 #[derive(Debug, PartialEq, Default, Clone)]
 pub struct HostHeaderMatch {
-    pub(super) host_header_value_matches: Vec<HostHeaderValueMatch>,
+    host_header_value_matches: Vec<HostHeaderValueMatch>,
 }
 
-impl Match<HeaderMap> for HostHeaderMatch {
+impl HostHeaderMatch {
+    pub fn new_builder() -> HostHeaderMatchBuilder {
+        HostHeaderMatchBuilder::default()
+    }
+
     #[instrument(
-        skip(self, score, headers),
+        skip(self, headers),
         level = "debug",
         name = "HostHeaderMatch::matches"
     )]
-    fn matches(&self, score: &MatchingScore, headers: &HeaderMap) -> bool {
+    pub fn matches(&self, headers: &HeaderMap) -> bool {
         let is_match = match headers.get(http_constant::HOST) {
             Some(host_header_value) => self
                 .host_header_value_matches
@@ -50,9 +52,31 @@ impl Match<HeaderMap> for HostHeaderMatch {
 
         if is_match {
             debug!("Host header matched");
-            score.host_header(self);
         }
 
         is_match
+    }
+}
+
+#[derive(Default)]
+pub struct HostHeaderMatchBuilder {
+    host_header_value_matches: Vec<HostHeaderValueMatch>,
+}
+
+impl HostHeaderMatchBuilder {
+    pub fn build(self) -> HostHeaderMatch {
+        HostHeaderMatch {
+            host_header_value_matches: self.host_header_value_matches,
+        }
+    }
+
+    pub fn with_exact_host(&mut self, host: &str) {
+        let host_header_value_match = HostHeaderValueMatch::Exact(host.into());
+        self.host_header_value_matches.push(host_header_value_match);
+    }
+
+    pub fn with_host_suffix(&mut self, host: &str) {
+        let host_header_value_match = HostHeaderValueMatch::Suffix(host.into());
+        self.host_header_value_matches.push(host_header_value_match);
     }
 }

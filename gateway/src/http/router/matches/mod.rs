@@ -8,13 +8,13 @@ mod score;
 
 use headers::*;
 pub use host::*;
-use host_header::*;
+pub use host_header::*;
 use http::request::Parts;
 use http::{HeaderName, HeaderValue};
 use method::*;
 use path::*;
 use query_params::*;
-use score::MatchingScore;
+pub use score::HttpRouteRuleMatchesScore;
 use std::borrow::Cow;
 use tracing::{debug, instrument, trace};
 use unicase::UniCase;
@@ -22,36 +22,31 @@ use unicase::UniCase;
 pub(self) type CaseInsensitiveString = UniCase<String>;
 
 pub(self) trait Match<T> {
-    fn matches(&self, score: &MatchingScore, part: &T) -> bool;
+    fn matches(&self, score: &HttpRouteRuleMatchesScore, part: &T) -> bool;
 }
 
 #[derive(Debug, PartialEq, Clone)]
-pub struct HttpRouteMatches {
-    host_header: Option<HostHeaderMatch>,
+pub struct HttpRouteRuleMatches {
     path: Option<PathMatch>,
     method: Option<MethodMatch>,
     headers: Option<HeadersMatch>,
     query_params: Option<QueryParamsMatch>,
 }
 
-pub enum MatchResult {
-    Matched(MatchingScore),
+pub enum HttpRouteRuleMatchesResult {
+    Matched(HttpRouteRuleMatchesScore),
     NotMatched,
 }
 
-impl HttpRouteMatches {
-    #[instrument(skip(self, parts), level = "trace", name = "RouteMatcher::matches")]
-    pub fn matches(&self, parts: &Parts) -> MatchResult {
-        use MatchResult::*;
-        let score = MatchingScore::default();
-
-        if let Some(host_header_matcher) = &self.host_header {
-            trace!("Testing host header for match");
-            if !host_header_matcher.matches(&score, &parts.headers) {
-                debug!("Host header did not match");
-                return NotMatched;
-            }
-        }
+impl HttpRouteRuleMatches {
+    #[instrument(
+        skip(self, parts),
+        level = "trace",
+        name = "HttpRouteRuleMatches::matches"
+    )]
+    pub fn matches(&self, parts: &Parts) -> HttpRouteRuleMatchesResult {
+        use HttpRouteRuleMatchesResult::*;
+        let score = HttpRouteRuleMatchesScore::default();
 
         if let Some(method_matcher) = &self.method {
             trace!("Testing method for match");
@@ -95,43 +90,21 @@ impl HttpRouteMatches {
 }
 
 #[derive(Default)]
-pub struct HttpRouteMatchesBuilder {
-    host_header: Option<HostHeaderMatch>,
+pub struct HttpRouteRuleMatchesBuilder {
     path: Option<PathMatch>,
     method: Option<MethodMatch>,
     headers: Option<HeadersMatch>,
     query_params: Option<QueryParamsMatch>,
 }
 
-impl HttpRouteMatchesBuilder {
-    pub fn build(self) -> HttpRouteMatches {
-        HttpRouteMatches {
-            host_header: self.host_header,
+impl HttpRouteRuleMatchesBuilder {
+    pub fn build(self) -> HttpRouteRuleMatches {
+        HttpRouteRuleMatches {
             path: self.path,
             method: self.method,
             headers: self.headers,
             query_params: self.query_params,
         }
-    }
-
-    pub fn with_exact_host_header(&mut self, host: &str) -> &mut Self {
-        self.host_header
-            .get_or_insert_default()
-            .host_header_value_matches
-            .push(HostHeaderValueMatch::Exact(CaseInsensitiveString::from(
-                host,
-            )));
-        self
-    }
-
-    pub fn with_host_header_suffix(&mut self, suffix: &str) -> &mut Self {
-        self.host_header
-            .get_or_insert_default()
-            .host_header_value_matches
-            .push(HostHeaderValueMatch::Suffix(CaseInsensitiveString::from(
-                suffix,
-            )));
-        self
     }
 
     pub fn with_exact_path(&mut self, path: &str) -> &mut Self {

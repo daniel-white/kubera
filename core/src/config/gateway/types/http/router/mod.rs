@@ -1,12 +1,12 @@
 mod matches;
 
+use crate::config::gateway::types::net::Backend;
 use derive_builder::Builder;
 use getset::Getters;
 pub use matches::*;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_valid::Validate;
-use crate::config::gateway::types::net::Backend;
 
 #[derive(
     Validate, Builder, Getters, Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema,
@@ -14,7 +14,7 @@ use crate::config::gateway::types::net::Backend;
 pub struct HttpRouteRule {
     #[getset(get = "pub")]
     #[validate(max_items = 16)]
-    matches: Vec<HttpRouteMatches>,
+    matches: Vec<HttpRouteRuleMatches>,
 
     #[getset(get = "pub")]
     #[validate(max_items = 16)]
@@ -27,10 +27,10 @@ pub struct HttpRouteRule {
 pub struct HttpRoute {
     #[getset(get = "pub")]
     #[validate(max_items = 16)]
-    host_headers: Vec<HostHeaderMatch>,
+    #[serde(rename = "host_headers")]
+    host_header_matches: Vec<HostHeaderMatch>,
 
     #[getset(get = "pub")]
     #[validate(max_items = 16)]
     rules: Vec<HttpRouteRule>,
 }
-

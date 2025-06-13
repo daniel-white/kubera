@@ -1,7 +1,7 @@
-use std::sync::Arc;
 use anyhow::Result;
+use std::sync::Arc;
 use tokio::sync::watch::{
-    channel as watch_channel, Receiver as WatchReceiver, Sender as WatchSender,
+    Receiver as WatchReceiver, Sender as WatchSender, channel as watch_channel,
 };
 use tracing::trace;
 

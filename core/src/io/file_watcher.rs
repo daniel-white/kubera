@@ -1,4 +1,4 @@
-use crate::sync::signal::{channel, Receiver, Sender};
+use crate::sync::signal::{Receiver, Sender, channel};
 use anyhow::Result;
 use notify::{Event, EventHandler, RecursiveMode, Watcher};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -40,7 +40,7 @@ pub fn spawn_file_watcher<P: AsRef<std::path::Path>>(p: P) -> Result<Receiver<u6
     let mut watcher = notify::recommended_watcher(SignalEventHandler::new(tx))?;
     watcher.watch(p.as_ref(), RecursiveMode::NonRecursive)?;
     Box::leak(Box::new(watcher));
-    
+
     info!("Started file watcher for: {:?}", p.as_ref());
 
     Ok(rx)

@@ -1,5 +1,5 @@
-use super::score::MatchingScore;
 use super::Match;
+use super::score::HttpRouteRuleMatchesScore;
 use crate::util::get_regex;
 use getset::Getters;
 use http::{HeaderMap, HeaderName, HeaderValue};
@@ -78,7 +78,7 @@ impl Match<HeaderMap> for HeadersMatch {
         level = "debug",
         name = "HeadersMatch::matches"
     )]
-    fn matches(&self, score: &MatchingScore, headers: &HeaderMap) -> bool {
+    fn matches(&self, score: &HttpRouteRuleMatchesScore, headers: &HeaderMap) -> bool {
         let is_match = self
             .header_matches
             .iter()

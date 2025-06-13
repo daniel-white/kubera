@@ -1,5 +1,5 @@
-use super::score::MatchingScore;
 use super::Match;
+use super::score::HttpRouteRuleMatchesScore;
 use crate::util::get_regex;
 use tracing::{debug, instrument};
 
@@ -23,7 +23,7 @@ impl Match<&str> for PathMatch {
         name = "PathMatch::matches"
         fields(matcher = ?self)
     )]
-    fn matches(&self, score: &MatchingScore, path: &&str) -> bool {
+    fn matches(&self, score: &HttpRouteRuleMatchesScore, path: &&str) -> bool {
         let is_match = match self {
             PathMatch::Exact(expected_path) => expected_path == path,
             PathMatch::Prefix(prefix) => path.starts_with(prefix),

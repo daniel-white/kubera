@@ -6,7 +6,7 @@ use itertools::Itertools;
 use k8s_openapi::api::core::v1::Service;
 use k8s_openapi::api::discovery::v1::EndpointSlice;
 use kubera_core::select_continue;
-use kubera_core::sync::signal::{channel, Receiver};
+use kubera_core::sync::signal::{Receiver, channel};
 use std::collections::BTreeMap;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use tokio::task::JoinSet;
@@ -85,7 +85,7 @@ pub fn collect_service_backends(
                     )
                 })
                 .collect();
-            
+
             tx.replace(endpoint_slices_by_service);
 
             select_continue!(http_route_backends.changed(), endpoint_slices.changed());

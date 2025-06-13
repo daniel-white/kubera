@@ -3,7 +3,7 @@ use gateway_api::apis::standard::gateways::Gateway;
 use gateway_api::apis::standard::httproutes::HTTPRoute;
 use itertools::*;
 use kubera_core::select_continue;
-use kubera_core::sync::signal::{channel, Receiver};
+use kubera_core::sync::signal::{Receiver, channel};
 use tokio::task::JoinSet;
 use tracing::{debug, info};
 

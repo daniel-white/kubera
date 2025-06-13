@@ -1,5 +1,5 @@
-use super::score::MatchingScore;
 use super::Match;
+use super::score::HttpRouteRuleMatchesScore;
 use crate::util::get_regex;
 use getset::Getters;
 use std::borrow::Cow;
@@ -75,7 +75,11 @@ impl Match<Vec<(Cow<'_, str>, Cow<'_, str>)>> for QueryParamsMatch {
         level = "debug",
         name = "QueryParamsMatch::matches"
     )]
-    fn matches(&self, score: &MatchingScore, query_params: &Vec<(Cow<str>, Cow<str>)>) -> bool {
+    fn matches(
+        &self,
+        score: &HttpRouteRuleMatchesScore,
+        query_params: &Vec<(Cow<str>, Cow<str>)>,
+    ) -> bool {
         let is_match = self.query_param_matches.iter().all(|m| {
             query_params
                 .iter()

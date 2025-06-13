@@ -37,6 +37,12 @@ pub struct Hostname(
     String,
 );
 
+impl From<&str> for Hostname {
+    fn from(value: &str) -> Self {
+        Self(value.to_string())
+    }
+}
+
 #[derive(
     Validate, Builder, Getters, Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema,
 )]
@@ -108,4 +114,3 @@ impl HostMatchType {
         *self == Self::Exact
     }
 }
-

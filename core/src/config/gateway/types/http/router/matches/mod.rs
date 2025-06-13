@@ -19,7 +19,7 @@ use serde_valid::Validate;
     Validate, Builder, Getters, Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema,
 )]
 #[serde(rename_all = "camelCase")]
-pub struct HttpRouteMatches {
+pub struct HttpRouteRuleMatches {
     #[getset(get = "pub")]
     #[serde(default, skip_serializing_if = "Option::is_none")]
     path: Option<HttpPathMatch>,

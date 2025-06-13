@@ -1,9 +1,9 @@
 // core/build.rs
+use kubera_core::config::gateway::types::GatewayConfiguration;
 use schemars::schema_for;
 use std::fs::File;
 use std::io::Write;
 use std::path::Path;
-use kubera_core::config::gateway::types::GatewayConfiguration;
 
 fn main() {
     // Generate schemas

@@ -1,151 +1,55 @@
 version: v1alpha1
 hosts:
-  - hostnames:
-      - value: ".google.com"
-        type: Suffix
-      - value: "api.example.com"
-    httpRoutes:
-      - name: "get-users-route"
-        matches:
-          - methods:
-              - GET
-            paths:
-              - type: Prefix
-                value: "/users"
-            headers:
-              - name: "X-Requested-With"
-                type: Exact
-                value: "XMLHttpRequest"
-              - name: "User-Agent"
-                type: RegularExpression
-                value: ".*Chrome.*"
-            queryParams:
-              - name: "active"
-                type: Exact
-                value: "true"
-              - name: "sort"
-                type: RegularExpression
-                value: "asc|desc"
-        backends:
-          - name: "user-service"
-            namespace: "default"
-            kind: "Service"
-            group: "core"
-            port: 8080
-      - name: "post-users-route"
-        matches:
-          - methods:
-              - POST
-            paths:
-              - type: Exact
-                value: "/users/create"
-            headers:
-              - name: "Content-Type"
-                type: Exact
-                value: "application/json"
-        backends:
-          - name: "user-service"
-            namespace: "default"
-            kind: "Service"
-            group: "core"
-            port: 8081
-      - name: "login-route"
-        matches:
-          - methods:
-              - POST
-            paths:
-              - type: Exact
-                value: "/auth/login"
-            headers:
-              - name: "Content-Type"
-                type: Exact
-                value: "application/json"
-        backends:
-          - name: "auth-service"
-            namespace: "default"
-            kind: "Service"
-            group: "core"
-            port: 9000
-      - name: "refresh-token-route"
-        matches:
-          - methods:
-              - POST
-            paths:
-              - type: Exact
-                value: "/auth/refresh"
-        backends:
-          - name: "auth-service"
-            namespace: "default"
-            kind: "Service"
-            group: "core"
-            port: 9000
-      - name: "get-products-route"
-        matches:
-          - methods:
-              - GET
-            paths:
-              - type: Prefix
-                value: "/products"
-        backends:
-          - name: "product-service"
-            namespace: "default"
-            kind: "Service"
-            group: "core"
-            port: 8100
-      - name: "health-check"
-        matches:
-          - methods:
-              - GET
-            paths:
-              - type: Exact
-                value: "/healthz"
-        backends:
-          - name: "health-service"
-            namespace: "default"
-            kind: "Service"
-            group: "core"
-            port: 8082
+  - type: Exact
+    value: api.example.com
+  - value: .internal.example.net 
+    type: Suffix
 
-  - hostnames:
-      - value: "admin.example.com"
-    httpRoutes:
-      - name: "admin-dashboard"
-        matches:
-          - methods:
-              - GET
-            paths:
-              - type: Exact
-                value: "/dashboard"
+http_routes:
+  - host_headers:
+      - value: api.example.com  # omitted 'type'
+    rules:
+      - matches:
+          - path:
+              type: Prefix
+              value: /v1/users
         backends:
-          - name: "admin-ui"
-            namespace: "admin"
-            kind: "Deployment"
-            group: "apps"
-            port: 443
-      - name: "admin-users"
-        matches:
-          - methods:
-              - GET
-              - DELETE
-            paths:
-              - type: Prefix
-                value: "/admin/users"
+          - endpoints:
+              - address: 10.0.1.10
+                node: node-a
+                zone: us-east-1a
+            weight: 100  # omitted 'port'
+  - host_headers:
+      - type: Suffix
+        value: .example.net
+    rules:
+      - matches:
+          - method: POST
+            path:
+              type: Exact
+              value: /submit
         backends:
-          - name: "admin-user-service"
-            namespace: "admin"
-            kind: "Service"
-            group: "core"
-            port: 8500
-      - name: "admin-logs"
-        matches:
-          - methods:
-              - GET
-            paths:
-              - type: Prefix
-                value: "/admin/logs"
+          - endpoints:
+              - address: 10.0.2.20
+                zone: us-east-1b  # omitted 'node'
+            port: 9090
+            weight: 50
+          - endpoints:
+              - address: 10.0.2.21
+            port: 9090
+            weight: 50
+  - host_headers:
+      - value: admin.internal.example.net  # omitted 'type'
+    rules:
+      - matches:
+          - path:
+              type: RegularExpression
+              value: ^/admin/.+$
+            headers:
+              - name: Authorization
+                value: Bearer .+  # omitted 'type'
         backends:
-          - name: "log-service"
-            namespace: "admin"
-            kind: "Service"
-            group: "core"
-            port: 8600
+          - endpoints:
+              - address: 192.168.1.100
+            port: 9443
+            weight: 100

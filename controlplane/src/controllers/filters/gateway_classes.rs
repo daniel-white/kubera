@@ -2,7 +2,7 @@ use crate::constants::GATEWAY_CLASS_CONTROLLER_NAME;
 use crate::controllers::resources::{ObjectState, Objects};
 use gateway_api::apis::standard::gatewayclasses::GatewayClass;
 use kubera_core::select_continue;
-use kubera_core::sync::signal::{channel, Receiver};
+use kubera_core::sync::signal::{Receiver, channel};
 use tokio::task::JoinSet;
 
 pub fn filter_gateway_classes(

@@ -1,8 +1,8 @@
 use anyhow::Result;
 use derive_builder::Builder;
 use getset::Getters;
-use hickory_resolver::name_server::TokioConnectionProvider;
 use hickory_resolver::Resolver;
+use hickory_resolver::name_server::TokioConnectionProvider;
 use std::net::SocketAddr;
 use tracing::debug;
 

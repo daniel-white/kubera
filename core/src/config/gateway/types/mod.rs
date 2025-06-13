@@ -1,14 +1,14 @@
 pub mod http;
 pub mod net;
 
-use crate::config::gateway::types::http::router::{HttpRoute};
+use crate::config::gateway::types::http::router::HttpRoute;
+use crate::config::gateway::types::net::HostMatch;
 use derive_builder::Builder;
 use getset::Getters;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_valid::Validate;
 use strum::EnumString;
-use crate::config::gateway::types::net::HostMatch;
 
 #[derive(Validate, Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, EnumString)]
 #[serde(rename_all = "lowercase")]

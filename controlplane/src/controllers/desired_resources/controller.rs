@@ -9,7 +9,7 @@ use k8s_openapi::api::apps::v1::Deployment;
 use k8s_openapi::api::core::v1::{ConfigMap, Namespace, Service};
 use kube::api::Patch;
 use kubera_core::select_continue;
-use kubera_core::sync::signal::{channel, Receiver};
+use kubera_core::sync::signal::{Receiver, channel};
 use serde::Serialize;
 use std::collections::HashMap;
 use thiserror::Error;

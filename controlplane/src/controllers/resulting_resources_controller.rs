@@ -1,8 +1,8 @@
 use crate::controllers::desired_resources_controller::{ControllerError, DesiredResources};
 use gateway_api::apis::standard::gatewayclasses::GatewayClass;
-use kube::api::PostParams;
 use kube::Api;
 use kube::Client;
+use kube::api::PostParams;
 use kubera_core::select_continue;
 use kubera_core::sync::signal::Receiver;
 use tokio::task::JoinSet;

@@ -6,17 +6,7 @@ use serde::{Deserialize, Serialize};
 use serde_valid::Validate;
 
 #[derive(
-    Validate,
-    Builder,
-    Getters,
-    Debug,
-    Clone,
-    PartialEq,
-    Hash,
-    Eq,
-    Serialize,
-    Deserialize,
-    JsonSchema,
+    Validate, Getters, Debug, Clone, PartialEq, Hash, Eq, Serialize, Deserialize, JsonSchema,
 )]
 pub struct HostHeaderMatch {
     #[getset(get = "pub")]
@@ -29,6 +19,22 @@ pub struct HostHeaderMatch {
 
     #[getset(get = "pub")]
     value: Hostname,
+}
+
+impl HostHeaderMatch {
+    pub fn with_exact_host(value: &str) -> Self {
+        Self {
+            match_type: HostHeaderMatchType::Exact,
+            value: value.into(),
+        }
+    }
+
+    pub fn with_host_suffix(value: &str) -> Self {
+        Self {
+            match_type: HostHeaderMatchType::Exact,
+            value: value.into(),
+        }
+    }
 }
 
 #[derive(

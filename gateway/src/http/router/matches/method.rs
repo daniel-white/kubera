@@ -1,5 +1,5 @@
-use super::score::MatchingScore;
 use super::Match;
+use super::score::HttpRouteRuleMatchesScore;
 use http::Method;
 use tracing::{debug, instrument};
 
@@ -15,7 +15,7 @@ impl Match<Method> for MethodMatch {
         name = "MethodMatcher::matches"
         fields(match = ?self)
     )]
-    fn matches(&self, score: &MatchingScore, method: &Method) -> bool {
+    fn matches(&self, score: &HttpRouteRuleMatchesScore, method: &Method) -> bool {
         let is_match = self.method == *method;
         if is_match {
             debug!("Method matched");
