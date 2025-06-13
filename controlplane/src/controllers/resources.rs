@@ -119,18 +119,18 @@ impl<K> Objects<K> {
             .map_or(false, |state| state.is_active())
     }
 
-    pub fn filter_into<F>(&self, f: F) -> Objects<K>
+    pub fn filter<F>(&self, f: F) -> Objects<K>
     where
         F: Fn(&ObjectRef, &ObjectState<K>) -> bool,
     {
-        let resources = BTreeMap::from_iter(
+        let objects = BTreeMap::from_iter(
             self.objects
                 .iter()
                 .filter(|(r, s)| f(r, s))
                 .map(|(r, s)| (r.clone(), s.clone())),
         );
 
-        Self { objects: resources }
+        Self { objects }
     }
 
     pub fn iter(&self) -> impl Iterator<Item = (&ObjectRef, &ObjectState<K>)> {

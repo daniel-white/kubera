@@ -20,45 +20,46 @@ pub fn filter_http_routes(
     join_set.spawn(async move {
         loop {
             let current_gateways = gateways.current();
-            let filtered = http_routes
-                .current()
-                .filter_into(|http_route_ref, http_route| {
-                    if let ObjectState::Active(http_route) = http_route {
-                        let result = http_route
-                            .spec
-                            .parent_refs
-                            .iter()
-                            .flat_map(|parent_ref| parent_ref.iter().map(|p| p))
-                            .map(|parent_ref| {
-                                ObjectRef::new_builder()
-                                    .of_kind::<Gateway>() // Assuming v1 for simplicity, adjust as needed
-                                    .namespace(parent_ref.namespace.clone().or_else(|| {
-                                        http_route_ref.namespace().clone()
-                                    }))
-                                    .name(parent_ref.name.clone())
-                                    .build()
-                                    .unwrap()
-                            })
-                            .unique()
-                            .any(|r| current_gateways.is_active(&r));
+            let filtered = http_routes.current().filter(|http_route_ref, http_route| {
+                if let ObjectState::Active(http_route) = http_route {
+                    let result = http_route
+                        .spec
+                        .parent_refs
+                        .iter()
+                        .flat_map(|parent_ref| parent_ref.iter().map(|p| p))
+                        .map(|parent_ref| {
+                            ObjectRef::new_builder()
+                                .of_kind::<Gateway>() // Assuming v1 for simplicity, adjust as needed
+                                .namespace(
+                                    parent_ref
+                                        .namespace
+                                        .clone()
+                                        .or_else(|| http_route_ref.namespace().clone()),
+                                )
+                                .name(parent_ref.name.clone())
+                                .build()
+                                .unwrap()
+                        })
+                        .unique()
+                        .any(|r| current_gateways.is_active(&r));
 
-                        if result {
-                            info!(
-                                "HTTPRoute object.ref={} matches an active Kubera Gateway",
-                                http_route_ref
-                            );
-                        } else {
-                            debug!(
-                                "HTTPRoute object.ref={} does not match any active Kubera Gateway",
-                                http_route_ref
-                            );
-                        }
-
-                        result
+                    if result {
+                        info!(
+                            "HTTPRoute object.ref={} matches an active Kubera Gateway",
+                            http_route_ref
+                        );
                     } else {
-                        false
+                        debug!(
+                            "HTTPRoute object.ref={} does not match any active Kubera Gateway",
+                            http_route_ref
+                        );
                     }
-                });
+
+                    result
+                } else {
+                    false
+                }
+            });
 
             tx.replace(filtered);
 

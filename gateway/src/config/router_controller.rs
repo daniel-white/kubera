@@ -20,7 +20,7 @@ pub async fn spawn_controller(
 
     tokio::spawn(async move {
         loop {
-            if let Some(gateway_config) = gateway_configuration.current() {
+            if let Some(gateway_config) = gateway_configuration.current().as_ref() {
                 let mut router = HttpRouter::new_builder();
 
                 for host_match in gateway_config.hosts().iter() {
@@ -47,10 +47,8 @@ pub async fn spawn_controller(
                                     }
                                 }
                             }
-                            
-                            for route_rule in http_route.rules() {
-                                
-                            }
+
+                            for route_rule in http_route.rules() {}
                         });
                     });
                 }

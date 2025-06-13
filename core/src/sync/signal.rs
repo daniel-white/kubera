@@ -1,40 +1,41 @@
+use std::sync::Arc;
 use anyhow::Result;
 use tokio::sync::watch::{
     channel as watch_channel, Receiver as WatchReceiver, Sender as WatchSender,
 };
 use tracing::trace;
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct RecvError;
 
 pub fn channel<T>(value: T) -> (Sender<T>, Receiver<T>)
 where
-    T: PartialEq + Clone,
+    T: PartialEq,
 {
-    let (tx, rx) = watch_channel(value);
+    let (tx, rx) = watch_channel(Arc::new(value));
     (Sender { tx }, Receiver { rx })
 }
 
 #[derive(Clone)]
 pub struct Sender<T>
 where
-    T: PartialEq + Clone,
+    T: PartialEq,
 {
-    tx: WatchSender<T>,
+    tx: WatchSender<Arc<T>>,
 }
 
 impl<T> Sender<T>
 where
-    T: PartialEq + Clone,
+    T: PartialEq,
 {
-    pub fn current(&self) -> T {
+    pub fn current(&self) -> Arc<T> {
         self.tx.borrow().clone()
     }
 
     pub fn replace(&self, value: T) -> () {
-        if *self.tx.borrow() != value {
+        if *self.tx.borrow().as_ref() != value {
             trace!("Replacing value in signal");
-            self.tx.send_replace(value);
+            self.tx.send_replace(Arc::new(value));
         }
     }
 }
@@ -42,16 +43,16 @@ where
 #[derive(Clone, Debug)]
 pub struct Receiver<T>
 where
-    T: PartialEq + Clone,
+    T: PartialEq,
 {
-    rx: WatchReceiver<T>,
+    rx: WatchReceiver<Arc<T>>,
 }
 
 impl<T> Receiver<T>
 where
     T: PartialEq + Clone,
 {
-    pub fn current(&self) -> T {
+    pub fn current(&self) -> Arc<T> {
         self.rx.borrow().clone()
     }
 

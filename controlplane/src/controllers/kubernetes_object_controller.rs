@@ -15,6 +15,7 @@ macro_rules! spawn_controller {
         use std::sync::Arc;
         use std::time::Duration;
         use thiserror::Error;
+        use tracing::instrument;
         use tracing::{debug, info};
 
         struct ControllerContext {
@@ -30,11 +31,13 @@ macro_rules! spawn_controller {
         #[derive(Error, Debug)]
         enum ControllerError {}
 
+        #[instrument(skip(object, ctx))]
         async fn reconcile(
             object: Arc<$object_type>,
             ctx: Arc<ControllerContext>,
         ) -> Result<Action, ControllerError> {
-            let mut new_objects = ctx.tx.current();
+            let objects = ctx.tx.current();
+            let mut new_objects = objects.as_ref().clone();
 
             let metadata = &object.metadata;
 
@@ -51,7 +54,10 @@ macro_rules! spawn_controller {
                     new_objects.set_active(ref_, object)
                 }
                 _ => {
-                    info!("reconciled object; object.ref={} object.state=deleted", ref_);
+                    info!(
+                        "reconciled object; object.ref={} object.state=deleted",
+                        ref_
+                    );
                     new_objects.set_deleted(ref_, object)
                 }
             };

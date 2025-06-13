@@ -1,8 +1,8 @@
 use crate::controllers::desired_resources_controller::{ControllerError, DesiredResources};
 use gateway_api::apis::standard::gatewayclasses::GatewayClass;
+use kube::api::PostParams;
 use kube::Api;
 use kube::Client;
-use kube::api::PostParams;
 use kubera_core::select_continue;
 use kubera_core::sync::signal::Receiver;
 use tokio::task::JoinSet;
@@ -16,7 +16,7 @@ pub async fn spawn_controller(
     let client = client.clone();
     join_set.spawn(async move {
         loop {
-            if let Some(desired_resources) = desired_resources.current() {
+            if let Some(desired_resources) = desired_resources.current().as_ref() {
                 let gateway_classes = Api::<GatewayClass>::all(client.clone());
 
                 for (ref_, gateway_class) in desired_resources.gateway_classes() {

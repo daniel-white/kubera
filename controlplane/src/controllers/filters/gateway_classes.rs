@@ -16,7 +16,7 @@ pub fn filter_gateway_classes(
     join_set.spawn(async move {
         loop {
             let current = gateway_classes.current();
-            let filtered = current.filter_into(|_, gateway_class| {
+            let filtered = current.filter(|_, gateway_class| {
                 if let ObjectState::Active(gateway_class) = gateway_class {
                     gateway_class.spec.controller_name == GATEWAY_CLASS_CONTROLLER_NAME
                 } else {

@@ -29,7 +29,7 @@ impl Context {
     }
 
     pub fn find_route(&self, parts: &Parts) -> &FindRouteResult {
-        self.route.get_or_init(|| match self.router.current() {
+        self.route.get_or_init(|| match self.router.current().as_ref() {
             None => FindRouteResult::MissingConfiguration,
             Some(router) => match router.match_route(parts) {
                 Some(route) => FindRouteResult::Found(route.clone()),
