@@ -19,7 +19,7 @@ pub fn filter_gateway_classes(
             let filtered: Objects<_> = current
                 .iter()
                 .filter(|(_, _, gateway_class)| {
-                    if let ObjectState::Active(gateway_class) = gateway_class.as_ref() {
+                    if let ObjectState::Active(gateway_class) = gateway_class {
                         gateway_class.spec.controller_name == GATEWAY_CLASS_CONTROLLER_NAME
                     } else {
                         false

@@ -22,7 +22,7 @@ pub fn filter_gateways(
             let filtered = current_gateways
                 .iter()
                 .filter(|(_, _, gateway)| {
-                    if let ObjectState::Active(gateway) = gateway.as_ref() {
+                    if let ObjectState::Active(gateway) = gateway {
                         let gateway_class_ref = ObjectRef::new_builder()
                             .of_kind::<GatewayClass>()
                             .namespace(None)

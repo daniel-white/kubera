@@ -9,6 +9,7 @@ use kubera_core::select_continue;
 use kubera_core::sync::signal::{channel, Receiver};
 use std::collections::BTreeMap;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
+use std::sync::Arc;
 use tokio::task::JoinSet;
 use tracing::{debug, info};
 
@@ -59,7 +60,7 @@ pub fn collect_service_backends(
             let endpoint_slices_by_service: BTreeMap<_, _> = current_endpoint_slices
                 .iter()
                 .filter_map(|(_, _, endpoint_slice)| {
-                    if let ObjectState::Active(endpoint_slice) = endpoint_slice.as_ref() {
+                    if let ObjectState::Active(endpoint_slice) = endpoint_slice {
                         let metadata = &endpoint_slice.metadata;
                         let labels = metadata.labels.as_ref()?;
                         labels
@@ -72,7 +73,7 @@ pub fn collect_service_backends(
                                     .build()
                                     .expect("Failed to build ObjectRef for Service")
                             })
-                            .map(|service_ref| (service_ref, endpoint_slice))
+                            .map(|service_ref| (service_ref, endpoint_slice.clone()))
                     } else {
                         None
                     }
@@ -81,7 +82,7 @@ pub fn collect_service_backends(
                 .map(|(object_ref, endpoint_slice)| {
                     (
                         object_ref.clone(),
-                        extract_backend(object_ref, endpoint_slice),
+                        extract_backend(&object_ref, endpoint_slice.as_ref()),
                     )
                 })
                 .collect();
@@ -95,7 +96,7 @@ pub fn collect_service_backends(
     rx
 }
 
-fn extract_backend(object_ref: ObjectRef, endpoint_slice: &EndpointSlice) -> Backend {
+fn extract_backend(object_ref: &ObjectRef, endpoint_slice: &EndpointSlice) -> Backend {
     let endpoints = endpoint_slice
         .endpoints
         .iter()
@@ -137,7 +138,7 @@ fn extract_backend(object_ref: ObjectRef, endpoint_slice: &EndpointSlice) -> Bac
         .collect();
 
     Backend::new_builder()
-        .object_ref(object_ref)
+        .object_ref(object_ref.clone())
         .endpoints(endpoints)
         .build()
         .expect("Failed to build Backend")

@@ -24,7 +24,7 @@ pub fn filter_http_routes(
             let filtered = current_http_routes
                 .iter()
                 .filter(|(http_route_ref, _, http_route)| {
-                    if let ObjectState::Active(http_route) = http_route.as_ref() {
+                    if let ObjectState::Active(http_route) = http_route {
                         let result = http_route
                             .spec
                             .parent_refs

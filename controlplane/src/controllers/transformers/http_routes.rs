@@ -41,7 +41,7 @@ pub fn collect_http_route_backends(
             let mut http_route_backends = BTreeMap::new();
 
             for (http_route_ref, _, http_route) in current_http_routes.iter() {
-                match http_route.as_ref() {
+                match http_route {
                     ObjectState::Active(http_route) => {
                         info!(
                             "Collecting backends for HTTPRoute: object.ref={}",
