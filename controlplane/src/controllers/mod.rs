@@ -36,39 +36,49 @@ pub async fn run() -> Result<()> {
     let endpoint_slices = spawn_controller!(EndpointSlice, join_set, client);
     let service_endpoint_ips =
         transformers::collect_service_backends(&mut join_set, &service_backends, &endpoint_slices);
+    let config_maps = spawn_controller!(ConfigMap, join_set, client, managed_by_selector);
+    let gateway_config_maps = filters::filter_gateway_config_maps(&mut join_set, &config_maps);
+    let gateway_configurations =
+        transformers::generate_gateway_configuration(&mut join_set, &gateways);
+    transformers::sync_gateway_configuration(
+        &mut join_set,
+        &client,
+        &gateway_config_maps,
+        &gateway_configurations,
+    );
 
-    let sources = desired_resources_controller::SourceResourcesReceivers::new_builder()
-        .gateway_classes(gateway_classes)
-        .gateway_class_parameters(spawn_controller!(GatewayClassParameters, join_set, client))
-        .gateways(gateways)
-        .gateway_parameters(spawn_controller!(GatewayParameters, join_set, client))
-        .config_maps(spawn_controller!(
-            ConfigMap,
-            join_set,
-            client,
-            managed_by_selector
-        ))
-        .deployments(spawn_controller!(
-            Deployment,
-            join_set,
-            client,
-            managed_by_selector
-        ))
-        .services(spawn_controller!(
-            Service,
-            join_set,
-            client,
-            managed_by_selector
-        ))
-        .namespaces(spawn_controller!(Namespace, join_set, client))
-        .build()
-        .expect("Failed to build sources");
-
-    let desired_resources =
-        desired_resources_controller::spawn_controller(&mut join_set, sources).await?;
-
-    resulting_resources_controller::spawn_controller(&mut join_set, &client, desired_resources)
-        .await?;
+    // let sources = desired_resources_controller::SourceResourcesReceivers::new_builder()
+    //     .gateway_classes(gateway_classes)
+    //     .gateway_class_parameters(spawn_controller!(GatewayClassParameters, join_set, client))
+    //     .gateways(gateways)
+    //     .gateway_parameters(spawn_controller!(GatewayParameters, join_set, client))
+    //     .config_maps(spawn_controller!(
+    //         ConfigMap,
+    //         join_set,
+    //         client,
+    //         managed_by_selector
+    //     ))
+    //     .deployments(spawn_controller!(
+    //         Deployment,
+    //         join_set,
+    //         client,
+    //         managed_by_selector
+    //     ))
+    //     .services(spawn_controller!(
+    //         Service,
+    //         join_set,
+    //         client,
+    //         managed_by_selector
+    //     ))
+    //     .namespaces(spawn_controller!(Namespace, join_set, client))
+    //     .build()
+    //     .expect("Failed to build sources");
+    //
+    // let desired_resources =
+    //     desired_resources_controller::spawn_controller(&mut join_set, sources).await?;
+    //
+    // resulting_resources_controller::spawn_controller(&mut join_set, &client, desired_resources)
+    //     .await?;
 
     join_set.join_all().await;
 

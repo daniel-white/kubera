@@ -1,5 +1,7 @@
+mod gateway_config;
 mod http_routes;
 mod services;
 
-pub use http_routes::collect_http_route_backends;
-pub use services::collect_service_backends;
+pub use gateway_config::*;
+pub use http_routes::*;
+pub use services::*;

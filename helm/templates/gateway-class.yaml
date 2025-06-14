@@ -15,3 +15,52 @@ kind: GatewayClassParameters
 metadata:
   name: kubera-gateway-class-config
 spec: { }
+
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: kubera-gateway
+spec:
+  gatewayClassName: kubera
+  listeners:
+    - name: http
+      protocol: HTTP
+      port: 80
+      allowedRoutes:
+        namespaces:
+          from: Same
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dummy-service
+spec:
+  selector:
+    app: dummy-app
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8080
+
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: dummy-http-route
+spec:
+  parentRefs:
+    - name: kubera-gateway
+  hostnames:
+    - "dummy.example.com"
+  rules:
+    - backendRefs:
+        - name: dummy-service
+          port: 80
+        - name: kubernetes
+          namespace: default
+          port: 80
+        - name: kube-dns
+          namespace: kube-system
+          port: 53

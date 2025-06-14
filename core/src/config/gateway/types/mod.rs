@@ -31,3 +31,13 @@ pub struct GatewayConfiguration {
     #[validate(max_items = 64)]
     http_routes: Vec<HttpRoute>,
 }
+
+impl Default for GatewayConfiguration {
+    fn default() -> Self {
+        GatewayConfiguration {
+            version: GatewayConfigurationVersion::V1Alpha1,
+            hosts: Vec::new(),
+            http_routes: Vec::new(),
+        }
+    }
+}

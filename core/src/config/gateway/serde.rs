@@ -1,6 +1,6 @@
 use crate::config::gateway::types::GatewayConfiguration;
-use serde_valid::Validate;
 use serde_valid::validation::{Error, Errors};
+use serde_valid::Validate;
 use std::fmt::Debug;
 use std::io::{Read, Write};
 use thiserror::Error;
@@ -39,9 +39,9 @@ pub enum WriteError {
 }
 
 #[instrument(skip(config, writer))]
-pub fn write_configuration(
+pub fn write_configuration<W: Write>(
     config: &GatewayConfiguration,
-    writer: impl Write,
+    writer: &mut W,
 ) -> Result<(), WriteError> {
     config
         .validate()
@@ -57,62 +57,7 @@ mod tests {
 
     #[test]
     fn test_read_configuration() {
-        let yaml = r#"version: v1alpha1
-hosts:
-  - type: Exact
-    value: api.example.com
-  - value: .internal.example.net  # omitted 'type', defaults assumed elsewhere
-
-http_routes:
-  - host_headers:
-      - value: api.example.com  # omitted 'type'
-    rules:
-      - matches:
-          - path:
-              type: Prefix
-              value: /v1/users
-        backends:
-          - endpoints:
-              - address: 10.0.1.10
-                node: node-a
-                zone: us-east-1a
-            weight: 100  # omitted 'port'
-  - host_headers:
-      - type: Suffix
-        value: .example.net
-    rules:
-      - matches:
-          - method: POST
-            path:
-              type: Exact
-              value: /submit
-        backends:
-          - endpoints:
-              - address: 10.0.2.20
-                zone: us-east-1b  # omitted 'node'
-            port: 9090
-            weight: 50
-          - endpoints:
-              - address: 10.0.2.21
-            port: 9090
-            weight: 50
-  - host_headers:
-      - value: admin.internal.example.net  # omitted 'type'
-    rules:
-      - matches:
-          - path:
-              type: RegularExpression
-              value: ^/admin/.+$
-            headers:
-              - name: Authorization
-                value: Bearer .+  # omitted 'type'
-        backends:
-          - endpoints:
-              - address: 192.168.1.100
-            port: 9443
-            weight: 100
-"#
-        .as_bytes();
+        let yaml = include_str!("tests/config1.yaml").as_bytes();
 
         let config = read_configuration(yaml);
         assert_eq!(
