@@ -1,10 +1,10 @@
-use crate::controllers::resources::{ObjectRef, ObjectState, Objects};
+use crate::controllers::objects::{ObjectRef, ObjectState, Objects};
 use derive_builder::Builder;
 use gateway_api::apis::standard::httproutes::HTTPRoute;
 use getset::Getters;
 use k8s_openapi::api::core::v1::Service;
 use kubera_core::select_continue;
-use kubera_core::sync::signal::{Receiver, channel};
+use kubera_core::sync::signal::{channel, Receiver};
 use std::collections::BTreeMap;
 use tokio::task::JoinSet;
 use tracing::{debug, info};
@@ -37,9 +37,11 @@ pub fn collect_http_route_backends(
 
     join_set.spawn(async move {
         loop {
+            let current_http_routes = http_routes.current();
             let mut http_route_backends = BTreeMap::new();
-            for (http_route_ref, http_route) in http_routes.current().iter() {
-                match http_route {
+
+            for (http_route_ref, _, http_route) in current_http_routes.iter() {
+                match http_route.as_ref() {
                     ObjectState::Active(http_route) => {
                         info!(
                             "Collecting backends for HTTPRoute: object.ref={}",

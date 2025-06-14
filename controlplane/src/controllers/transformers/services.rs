@@ -1,4 +1,4 @@
-use crate::controllers::resources::{ObjectRef, ObjectState, Objects, Zone};
+use crate::controllers::objects::{ObjectRef, ObjectState, Objects, Zone};
 use crate::controllers::transformers::http_routes::HttpRouteBackend;
 use derive_builder::Builder;
 use getset::Getters;
@@ -6,7 +6,7 @@ use itertools::Itertools;
 use k8s_openapi::api::core::v1::Service;
 use k8s_openapi::api::discovery::v1::EndpointSlice;
 use kubera_core::select_continue;
-use kubera_core::sync::signal::{Receiver, channel};
+use kubera_core::sync::signal::{channel, Receiver};
 use std::collections::BTreeMap;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use tokio::task::JoinSet;
@@ -58,8 +58,8 @@ pub fn collect_service_backends(
             let current_http_route_backends = http_route_backends.current();
             let endpoint_slices_by_service: BTreeMap<_, _> = current_endpoint_slices
                 .iter()
-                .filter_map(|(_, endpoint_slice)| {
-                    if let ObjectState::Active(endpoint_slice) = endpoint_slice {
+                .filter_map(|(_, _, endpoint_slice)| {
+                    if let ObjectState::Active(endpoint_slice) = endpoint_slice.as_ref() {
                         let metadata = &endpoint_slice.metadata;
                         let labels = metadata.labels.as_ref()?;
                         labels

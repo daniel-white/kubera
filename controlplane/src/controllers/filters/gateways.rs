@@ -1,8 +1,8 @@
-use crate::controllers::resources::{ObjectRef, ObjectState, Objects};
+use crate::controllers::objects::{ObjectRef, ObjectState, Objects};
 use gateway_api::apis::standard::gatewayclasses::GatewayClass;
 use gateway_api::apis::standard::gateways::Gateway;
 use kubera_core::select_continue;
-use kubera_core::sync::signal::{Receiver, channel};
+use kubera_core::sync::signal::{channel, Receiver};
 use tokio::task::JoinSet;
 
 pub fn filter_gateways(
@@ -19,19 +19,25 @@ pub fn filter_gateways(
         loop {
             let current_gateway_classes = gateway_classes.current();
             let current_gateways = gateways.current();
-            let filtered = current_gateways.filter(|_, gateway| {
-                if let ObjectState::Active(gateway) = gateway {
-                    let gateway_class_ref = ObjectRef::new_builder()
-                        .of_kind::<GatewayClass>()
-                        .namespace(None)
-                        .name(&gateway.spec.gateway_class_name)
-                        .build()
-                        .unwrap();
-                    current_gateway_classes.is_active(&gateway_class_ref)
-                } else {
-                    false
-                }
-            });
+            let filtered = current_gateways
+                .iter()
+                .filter(|(_, _, gateway)| {
+                    if let ObjectState::Active(gateway) = gateway.as_ref() {
+                        let gateway_class_ref = ObjectRef::new_builder()
+                            .of_kind::<GatewayClass>()
+                            .namespace(None)
+                            .name(&gateway.spec.gateway_class_name)
+                            .build()
+                            .unwrap();
+                        current_gateway_classes
+                            .get_by_ref(&gateway_class_ref)
+                            .map(|o| o.is_active())
+                            .unwrap_or_default()
+                    } else {
+                        false
+                    }
+                })
+                .collect();
 
             tx.replace(filtered);
 

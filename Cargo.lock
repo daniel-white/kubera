@@ -1969,8 +1969,6 @@ dependencies = [
  "k8s-openapi",
  "kube",
  "kubera_core",
- "multimap",
- "romap",
  "schemars",
  "serde",
  "serde_json",
@@ -2221,15 +2219,6 @@ dependencies = [
  "tagptr",
  "thiserror 1.0.69",
  "uuid",
-]
-
-[[package]]
-name = "multimap"
-version = "0.10.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1d87ecb2933e8aeadb3e3a02b828fed80a7528047e68b4f424523a0981a3a084"
-dependencies = [
- "serde",
 ]
 
 [[package]]
@@ -3152,15 +3141,6 @@ dependencies = [
  "byteorder",
  "rmp",
  "serde",
-]
-
-[[package]]
-name = "romap"
-version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9acb522582b7ba1ed9d580dc731e7f8fa99615bfca896e53bd10d852102d63ff"
-dependencies = [
- "either",
 ]
 
 [[package]]

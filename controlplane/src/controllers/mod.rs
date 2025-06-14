@@ -1,7 +1,7 @@
 mod desired_resources;
 mod filters;
-mod kubernetes_object_controller;
-mod resources;
+mod object_controller;
+mod objects;
 mod resulting_resources_controller;
 mod transformers;
 
@@ -16,8 +16,8 @@ use gateway_api::apis::standard::httproutes::HTTPRoute;
 use k8s_openapi::api::apps::v1::Deployment;
 use k8s_openapi::api::core::v1::{ConfigMap, Namespace, Service};
 use k8s_openapi::api::discovery::v1::EndpointSlice;
-use kube::Client;
 use kube::runtime::watcher::Config;
+use kube::Client;
 use tokio::task::JoinSet;
 
 pub async fn run() -> Result<()> {
