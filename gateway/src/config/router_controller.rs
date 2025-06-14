@@ -48,7 +48,7 @@ pub async fn spawn_controller(
                         }
 
                         for config_rule in config_route.rules() {
-                            route.add_rule(|rule| {
+                            route.add_rule(config_rule.unique_id().into(), |rule| {
                                 for config_matches in config_rule.matches() {
                                     rule.add_matches(|matches| {
                                         match config_matches

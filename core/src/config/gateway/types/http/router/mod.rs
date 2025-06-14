@@ -8,10 +8,22 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_valid::Validate;
 
+#[derive(Validate, Getters, Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct HttpRouteRuleUniqueId(#[getset(get = "pub")] String);
+
+impl HttpRouteRuleUniqueId {
+    pub fn new<S: Into<String>>(id: S) -> Self {
+        Self(id.into())
+    }
+}
+
 #[derive(
     Validate, Builder, Getters, Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema,
 )]
 pub struct HttpRouteRule {
+    #[getset(get = "pub")]
+    unique_id: HttpRouteRuleUniqueId,
+
     #[getset(get = "pub")]
     #[validate(max_items = 16)]
     matches: Vec<HttpRouteRuleMatches>,

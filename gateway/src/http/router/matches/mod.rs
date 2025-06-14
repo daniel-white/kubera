@@ -89,7 +89,7 @@ impl HttpRouteRuleMatches {
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct HttpRouteRuleMatchesBuilder {
     path: Option<PathMatch>,
     method: Option<MethodMatch>,

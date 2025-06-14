@@ -1,9 +1,7 @@
 use crate::http::router::matches::{
     HostHeaderMatch, HostHeaderMatchBuilder, HttpRouteRuleMatchesBuilder, HttpRouteRuleMatchesScore,
 };
-use crate::http::router::{
-    HttpBackend, HttpBackendBuilder, HttpRouteRuleMatches, HttpRouteRuleMatchesResult,
-};
+use crate::http::router::{HttpBackend, HttpBackendBuilder, HttpRouteRuleMatches};
 use getset::Getters;
 use http::request::Parts;
 use tracing::instrument;
@@ -45,7 +43,7 @@ impl HttpRoute {
         if matched_rules.is_empty() {
             return HttpRouteMatchResult::NotMatched;
         }
-        
+
         HttpRouteMatchResult::NotMatched
 
         // HttpRouteMatchResult::Matched(matched_rules)
@@ -76,19 +74,51 @@ impl HttpRouteBuilder {
         self
     }
 
-    pub fn add_rule<F>(&mut self, factory: F) -> &mut Self
+    pub fn add_rule<F>(&mut self, unique_id: HttpRouteRuleUniqueId, factory: F) -> &mut Self
     where
         F: FnOnce(&mut HttpRouteRuleBuilder),
     {
-        let mut builder = HttpRouteRuleBuilder::default();
+        let mut builder = HttpRouteRuleBuilder::new(unique_id);
         factory(&mut builder);
         self.rule_builders.push(builder);
         self
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct HttpRouteRuleUniqueId(String);
+
+impl HttpRouteRuleUniqueId {
+    pub fn new<S: Into<String>>(id: S) -> Self {
+        Self(id.into())
+    }
+}
+
+impl From<kubera_core::config::gateway::types::http::router::HttpRouteRuleUniqueId>
+    for HttpRouteRuleUniqueId
+{
+    fn from(
+        value: kubera_core::config::gateway::types::http::router::HttpRouteRuleUniqueId,
+    ) -> Self {
+        Self::new(value.get())
+    }
+}
+
+impl From<&kubera_core::config::gateway::types::http::router::HttpRouteRuleUniqueId>
+    for HttpRouteRuleUniqueId
+{
+    fn from(
+        value: &kubera_core::config::gateway::types::http::router::HttpRouteRuleUniqueId,
+    ) -> Self {
+        Self::new(value.get())
+    }
+}
+
 #[derive(Debug, Getters, Clone, PartialEq)]
 pub struct HttpRouteRule {
+    #[getset(get = "pub")]
+    unique_id: HttpRouteRuleUniqueId,
+
     #[getset(get = "pub")]
     matches: Vec<HttpRouteRuleMatches>,
 
@@ -96,15 +126,25 @@ pub struct HttpRouteRule {
     backends: Vec<HttpBackend>,
 }
 
-#[derive(Default)]
+#[derive(Debug)]
 pub struct HttpRouteRuleBuilder {
+    unique_id: HttpRouteRuleUniqueId,
     matches_builders: Vec<HttpRouteRuleMatchesBuilder>,
     backend_builders: Vec<HttpBackendBuilder>,
 }
 
 impl HttpRouteRuleBuilder {
+    pub fn new(unique_id: HttpRouteRuleUniqueId) -> Self {
+        Self {
+            unique_id,
+            matches_builders: Vec::new(),
+            backend_builders: Vec::new(),
+        }
+    }
+
     pub fn build(self) -> HttpRouteRule {
         HttpRouteRule {
+            unique_id: self.unique_id,
             matches: self
                 .matches_builders
                 .into_iter()
