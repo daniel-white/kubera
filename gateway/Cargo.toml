@@ -6,6 +6,7 @@ edition = "2024"
 [dependencies]
 anyhow = { workspace = true }
 async-trait = { workspace = true }
+axum = "0.8"
 clap = { workspace = true }
 derive_builder = { workspace = true }
 futures = { workspace = true }
@@ -22,6 +23,7 @@ tokio = { workspace = true }
 tracing = { workspace = true }
 unicase = { workspace = true }
 url = "2"
+prometheus = "0.14"
 
 [[bin]]
 name = "kubera_gateway"

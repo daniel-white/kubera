@@ -1,15 +1,13 @@
 mod matches;
 mod routes;
 
-use crate::http::router::matches::{HostMatch, HostValueMatch};
-use derive_builder::Builder;
+use crate::services::proxy::router::matches::{HostMatch, HostValueMatch};
 use getset::Getters;
 use http::request::Parts;
-pub use matches::{HttpRouteRuleMatches, HttpRouteRuleMatchesResult};
+pub use matches::HttpRouteRuleMatches;
 use std::net::IpAddr;
 
-use crate::http::router::routes::{HttpRoute, HttpRouteBuilder};
-use tracing::{debug, instrument};
+use crate::services::proxy::router::routes::{HttpRoute, HttpRouteBuilder};
 use kubera_core::net::Hostname;
 
 #[derive(Debug, Clone, Default, PartialEq)]

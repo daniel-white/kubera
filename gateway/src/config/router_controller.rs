@@ -1,4 +1,4 @@
-use crate::http::router::HttpRouter;
+use crate::services::proxy::router::HttpRouter;
 use http::{HeaderName, HeaderValue};
 
 use kubera_core::config::gateway::types::http::router::*;

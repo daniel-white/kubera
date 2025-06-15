@@ -1,6 +1,6 @@
 mod context;
+pub mod router;
 
-use crate::http::router::HttpRouter;
 use async_trait::async_trait;
 use context::Context;
 use derive_builder::Builder;
@@ -9,6 +9,7 @@ use http::HeaderValue;
 use kubera_core::sync::signal::Receiver;
 use pingora::http::ResponseHeader;
 use pingora::prelude::*;
+use router::HttpRouter;
 use tracing::warn;
 
 #[derive(Debug, Builder)]

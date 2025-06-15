@@ -1,5 +1,5 @@
-use super::Match;
 use super::score::HttpRouteRuleMatchesScore;
+use super::Match;
 use crate::util::get_regex;
 use getset::Getters;
 use http::{HeaderMap, HeaderName, HeaderValue};
@@ -69,7 +69,7 @@ impl HeaderMatch {
 
 #[derive(Debug, PartialEq, Default, Clone)]
 pub struct HeadersMatch {
-    pub(super) header_matches: Vec<HeaderMatch>,
+    pub(in crate::services) header_matches: Vec<HeaderMatch>,
 }
 
 impl Match<HeaderMap> for HeadersMatch {

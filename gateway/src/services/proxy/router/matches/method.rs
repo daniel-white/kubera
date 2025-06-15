@@ -1,11 +1,11 @@
-use super::Match;
 use super::score::HttpRouteRuleMatchesScore;
+use super::Match;
 use http::Method;
 use tracing::{debug, instrument};
 
 #[derive(Debug, Default, PartialEq, Clone)]
 pub struct MethodMatch {
-    pub(super) method: Method,
+    pub(in crate::services) method: Method,
 }
 
 impl Match<Method> for MethodMatch {

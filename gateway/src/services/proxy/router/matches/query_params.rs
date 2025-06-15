@@ -1,5 +1,5 @@
-use super::Match;
 use super::score::HttpRouteRuleMatchesScore;
+use super::Match;
 use crate::util::get_regex;
 use getset::Getters;
 use std::borrow::Cow;
@@ -66,7 +66,7 @@ impl QueryParamMatch {
 
 #[derive(Debug, Getters, PartialEq, Default, Clone)]
 pub struct QueryParamsMatch {
-    pub(super) query_param_matches: Vec<QueryParamMatch>,
+    pub(in crate::services) query_param_matches: Vec<QueryParamMatch>,
 }
 
 impl Match<Vec<(Cow<'_, str>, Cow<'_, str>)>> for QueryParamsMatch {

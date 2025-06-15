@@ -10,7 +10,7 @@ members = [
 [workspace.dependencies]
 anyhow = "1"
 async-trait = "0.1"
-clap = { version = "4", features = ["derive"] }
+clap = { version = "4", features = ["derive", "env"] }
 derive_builder = "0.20"
 flexi_logger = "0.30.2"
 futures = "0.3"

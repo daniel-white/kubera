@@ -1,4 +1,4 @@
-use crate::http::router::HttpRouter;
+use crate::services::proxy::router::HttpRouter;
 use http::request::Parts;
 use kubera_core::sync::signal::Receiver;
 use std::sync::OnceLock;

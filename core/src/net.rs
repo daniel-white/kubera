@@ -1,11 +1,15 @@
-use std::borrow::Cow;
+use crate::CaseInsensitiveString;
 use getset::Getters;
 use schemars::{json_schema, JsonSchema, Schema, SchemaGenerator};
 use serde::{Deserialize, Serialize};
 use serde_valid::Validate;
-use crate::CaseInsensitiveString;
+use std::borrow::Cow;
+use std::fmt::Display;
+use std::str::FromStr;
 
-#[derive(Validate, Getters, Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(
+    Validate, Getters, Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema,
+)]
 pub struct Port(
     #[validate(minimum = 1)]
     #[validate(maximum = 65535)]
@@ -16,6 +20,29 @@ pub struct Port(
 impl Port {
     pub fn new(port: u16) -> Self {
         Self(port)
+    }
+}
+
+impl Into<u16> for Port {
+    fn into(self) -> u16 {
+        self.0
+    }
+}
+
+impl Display for Port {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl FromStr for Port {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.parse::<u16>() {
+            Ok(port) => Ok(Self::new(port)),
+            Err(_) => Err(()),
+        }
     }
 }
 
