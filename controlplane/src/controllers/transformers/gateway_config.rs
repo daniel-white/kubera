@@ -10,7 +10,7 @@ use kube::api::{Patch, PatchParams, PostParams};
 use kube::Client;
 use kubera_core::config::gateway::serde::write_configuration;
 use kubera_core::config::gateway::types::http::router::{HttpRoute, HttpRouteBuilder};
-use kubera_core::config::gateway::types::net::Hostname;
+use kubera_core::net::Hostname;
 use kubera_core::config::gateway::types::{
     GatewayConfiguration, GatewayConfigurationBuilder, GatewayConfigurationVersion,
 };

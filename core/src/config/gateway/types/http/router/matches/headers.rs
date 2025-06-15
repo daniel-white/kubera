@@ -1,10 +1,10 @@
-use crate::config::gateway::types::CaseInsensitiveString;
 use getset::Getters;
 use http::HeaderName;
 use schemars::{json_schema, JsonSchema, Schema, SchemaGenerator};
 use serde::{Deserialize, Serialize};
 use serde_valid::Validate;
 use std::borrow::Cow;
+use crate::CaseInsensitiveString;
 
 #[derive(Validate, Getters, Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct HttpHeaderMatch {

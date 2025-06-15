@@ -4,8 +4,8 @@ use crate::http::router::matches::{
 use crate::http::router::{HttpBackend, HttpBackendBuilder, HttpRouteRuleMatches};
 use getset::Getters;
 use http::request::Parts;
+use kubera_core::net::Hostname;
 use tracing::instrument;
-use kubera_core::config::gateway::types::net::Hostname;
 
 pub enum HttpRouteMatchResult<'a> {
     Matched(Vec<(&'a HttpRoute, &'a HttpRouteRule, HttpRouteRuleMatchesScore)>),

@@ -25,7 +25,7 @@ enum Commands {
     },
 }
 
-#[tokio::main]
+#[tokio::main(flavor = "multi_thread")]
 async fn main() -> Result<()> {
     unsafe { backtrace_on_stack_overflow::enable() };
 

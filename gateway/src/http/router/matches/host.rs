@@ -1,6 +1,5 @@
 use http::HeaderMap;
-use kubera_core::config::gateway::types::net::Hostname;
-use kubera_core::config::gateway::types::CaseInsensitiveString;
+use kubera_core::net::Hostname;
 use tracing::{debug, instrument};
 
 #[derive(Debug, PartialEq, Clone)]

@@ -10,8 +10,7 @@ use std::net::IpAddr;
 
 use crate::http::router::routes::{HttpRoute, HttpRouteBuilder};
 use tracing::{debug, instrument};
-use kubera_core::config::gateway::types::CaseInsensitiveString;
-use kubera_core::config::gateway::types::net::Hostname;
+use kubera_core::net::Hostname;
 
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct HttpRouter {
