@@ -1,5 +1,4 @@
 use crate::config::gateway::types::net::Hostname;
-use derive_builder::Builder;
 use getset::Getters;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -22,17 +21,17 @@ pub struct HostHeaderMatch {
 }
 
 impl HostHeaderMatch {
-    pub fn with_exact_host(value: &str) -> Self {
+    pub fn exactly<S: AsRef<str>>(hostname: S) -> Self {
         Self {
             match_type: HostHeaderMatchType::Exact,
-            value: value.into(),
+            value: Hostname::new(hostname),
         }
     }
 
-    pub fn with_host_suffix(value: &str) -> Self {
+    pub fn with_suffix<S: AsRef<str>>(suffix: S) -> Self {
         Self {
-            match_type: HostHeaderMatchType::Exact,
-            value: value.into(),
+            match_type: HostHeaderMatchType::Suffix,
+            value: Hostname::new(suffix),
         }
     }
 }

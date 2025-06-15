@@ -4,7 +4,7 @@ use gateway_api::apis::standard::httproutes::HTTPRoute;
 use getset::Getters;
 use k8s_openapi::api::core::v1::Service;
 use kubera_core::select_continue;
-use kubera_core::sync::signal::{channel, Receiver};
+use kubera_core::sync::signal::{Receiver, channel};
 use std::collections::BTreeMap;
 use tokio::task::JoinSet;
 use tracing::{debug, info};

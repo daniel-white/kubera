@@ -26,10 +26,10 @@ pub async fn spawn_controller(
                 for host_match in gateway_config.hosts().iter() {
                     match host_match.match_type() {
                         HostMatchType::Exact => {
-                            router.add_exact_host(host_match.value().get());
+                            router.add_exact_host(host_match.value());
                         }
                         HostMatchType::Suffix => {
-                            router.add_host_suffix(host_match.value().get());
+                            router.add_host_suffix(host_match.value());
                         }
                     }
                 }
@@ -39,10 +39,10 @@ pub async fn spawn_controller(
                         for host_header_match in config_route.host_header_matches() {
                             match host_header_match.match_type() {
                                 HostHeaderMatchType::Exact => {
-                                    route.add_exact_host(host_header_match.value().get());
+                                    route.add_exact_host(host_header_match.value());
                                 }
                                 HostHeaderMatchType::Suffix => {
-                                    route.add_host_suffix(host_header_match.value().get());
+                                    route.add_host_suffix(host_header_match.value());
                                 }
                             }
                         }
@@ -51,26 +51,21 @@ pub async fn spawn_controller(
                             route.add_rule(config_rule.unique_id().into(), |rule| {
                                 for config_matches in config_rule.matches() {
                                     rule.add_matches(|matches| {
-                                        match config_matches
-                                            .path()
-                                            .as_ref()
-                                            .map(|p| (p.match_type(), p.value()))
-                                        {
-                                            Some((HttpPathMatchType::Exact, value)) => {
+                                        let path = config_matches.path();
+                                        match (path.match_type(), path.value()) {
+                                            (HttpPathMatchType::Exact, value) => {
                                                 matches.with_exact_path(value);
                                             }
-                                            Some((HttpPathMatchType::Prefix, value)) => {
+                                            (HttpPathMatchType::Prefix, value) => {
                                                 matches.with_path_prefix(value);
                                             }
-                                            Some((HttpPathMatchType::RegularExpression, value)) => {
+                                            (HttpPathMatchType::RegularExpression, value) => {
                                                 matches.with_path_matching(value);
                                             }
                                             _ => (),
                                         }
 
-                                        if let Some(config_method) = config_matches.method() {
-                                            matches.with_method(config_method.clone().into());
-                                        }
+                                        matches.with_method(config_matches.method().clone().into());
 
                                         if let Some(config_headers) = config_matches.headers() {
                                             for config_header in config_headers.iter() {

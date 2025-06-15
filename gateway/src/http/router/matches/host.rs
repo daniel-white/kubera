@@ -1,11 +1,12 @@
-use super::CaseInsensitiveString;
 use http::HeaderMap;
+use kubera_core::config::gateway::types::net::Hostname;
+use kubera_core::config::gateway::types::CaseInsensitiveString;
 use tracing::{debug, instrument};
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum HostValueMatch {
-    Exact(CaseInsensitiveString),
-    Suffix(CaseInsensitiveString),
+    Exact(Hostname),
+    Suffix(Hostname),
 }
 
 impl HostValueMatch {
@@ -15,12 +16,10 @@ impl HostValueMatch {
         name = "HostValueMatch::matches"
         fields(match = ?self)
     )]
-    fn matches(&self, host: &str) -> bool {
+    fn matches(&self, host: &Hostname) -> bool {
         match self {
-            Self::Exact(expected) => expected == &CaseInsensitiveString::from(host),
-            Self::Suffix(expected_suffix) => {
-                CaseInsensitiveString::from(host).ends_with(expected_suffix.as_str())
-            }
+            Self::Exact(expected) => expected == host,
+            Self::Suffix(expected_suffix) => host.ends_with(expected_suffix),
         }
     }
 }
@@ -35,9 +34,9 @@ impl HostMatch {
     fn matches(&self, headers: &HeaderMap) -> bool {
         let is_match = match headers
             .get(http_constant::HOST)
-            .and_then(|v| v.to_str().ok())
+            .and_then(|v| v.to_str().ok().map(Hostname::from))
         {
-            Some(host) => self.host_value_matches.iter().any(|m| m.matches(host)),
+            Some(hostname) => self.host_value_matches.iter().any(|m| m.matches(&hostname)),
             None => false,
         };
 

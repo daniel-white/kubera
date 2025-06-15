@@ -5,7 +5,7 @@ use crate::controllers::objects::Objects;
 use k8s_openapi::api::core::v1::ConfigMap;
 use kube::ResourceExt;
 use kubera_core::select_continue;
-use kubera_core::sync::signal::{channel, Receiver};
+use kubera_core::sync::signal::{Receiver, channel};
 use tokio::task::JoinSet;
 
 pub fn filter_gateway_config_maps(

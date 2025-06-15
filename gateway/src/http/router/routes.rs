@@ -5,6 +5,7 @@ use crate::http::router::{HttpBackend, HttpBackendBuilder, HttpRouteRuleMatches}
 use getset::Getters;
 use http::request::Parts;
 use tracing::instrument;
+use kubera_core::config::gateway::types::net::Hostname;
 
 pub enum HttpRouteMatchResult<'a> {
     Matched(Vec<(&'a HttpRoute, &'a HttpRouteRule, HttpRouteRuleMatchesScore)>),
@@ -64,12 +65,12 @@ impl HttpRouteBuilder {
         }
     }
 
-    pub fn add_exact_host(&mut self, host: &str) -> &mut Self {
+    pub fn add_exact_host(&mut self, host: &Hostname) -> &mut Self {
         self.host_header_match_builder.with_exact_host(host);
         self
     }
 
-    pub fn add_host_suffix(&mut self, host: &str) -> &mut Self {
+    pub fn add_host_suffix(&mut self, host: &Hostname) -> &mut Self {
         self.host_header_match_builder.with_host_suffix(host);
         self
     }

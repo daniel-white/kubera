@@ -17,6 +17,7 @@ use kubera_core::select_continue;
 use kubera_core::sync::signal::{channel, Receiver};
 use std::collections::{BTreeMap, HashMap};
 use std::io::BufWriter;
+use std::net::IpAddr;
 use tokio::task::JoinSet;
 use tracing::warn;
 
@@ -35,18 +36,29 @@ pub fn generate_gateway_configuration(
                 .iter()
                 .map(|(gateway_ref, _, gateway)| {
                     warn!("Generating configuration for gateway: {}", gateway_ref);
-                    let c = GatewayConfigurationBuilder::default()
-                        .version(GatewayConfigurationVersion::V1Alpha1)
-                        .hosts(vec![])
-                        .http_routes(vec![
-                            HttpRouteBuilder::default()
-                                .host_header_matches(vec![])
-                                .rules(vec![])
-                                .build()
-                                .unwrap(),
-                        ])
-                        .build()
-                        .unwrap();
+                    let mut c = GatewayConfigurationBuilder::new();
+
+                    c.with_host_suffix(".google.com");
+
+                    c.add_http_route(|r| {
+                        r.add_rule("rule", |r| {
+                            r.add_match(|m| {
+                                m.with_prefix_path("/hello");
+                            });
+                            r.add_match(|m| {
+                                m.with_prefix_path("/world");
+                            });
+
+                            r.add_backend(|b| {
+                                b.with_port(80);
+                                b.add_endpoint(IpAddr::from([127, 0, 0, 1]), |e| {
+                                    e.with_node("local");
+                                });
+                            });
+                        });
+                    });
+
+                    let c = c.build();
                     (gateway_ref.clone(), c)
                 })
                 .collect();

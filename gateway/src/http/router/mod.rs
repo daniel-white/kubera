@@ -10,6 +10,8 @@ use std::net::IpAddr;
 
 use crate::http::router::routes::{HttpRoute, HttpRouteBuilder};
 use tracing::{debug, instrument};
+use kubera_core::config::gateway::types::CaseInsensitiveString;
+use kubera_core::config::gateway::types::net::Hostname;
 
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct HttpRouter {
@@ -50,14 +52,14 @@ impl HttpRouterBuilder {
         self
     }
 
-    pub fn add_exact_host(&mut self, host: &str) -> &mut Self {
-        let host_value_match = HostValueMatch::Exact(host.into());
+    pub fn add_exact_host(&mut self, host: &Hostname) -> &mut Self {
+        let host_value_match = HostValueMatch::Exact(host.clone());
         self.host_value_matches.push(host_value_match);
         self
     }
 
-    pub fn add_host_suffix(&mut self, host: &str) -> &mut Self {
-        let host_value_match = HostValueMatch::Suffix(host.into());
+    pub fn add_host_suffix(&mut self, host: &Hostname) -> &mut Self {
+        let host_value_match = HostValueMatch::Suffix(host.clone());
         self.host_value_matches.push(host_value_match);
         self
     }

@@ -1,11 +1,11 @@
-use super::CaseInsensitiveString;
 use http::{HeaderMap, HeaderValue};
 use tracing::{debug, instrument};
+use kubera_core::config::gateway::types::net::Hostname;
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum HostHeaderValueMatch {
-    Exact(CaseInsensitiveString),
-    Suffix(CaseInsensitiveString),
+    Exact(Hostname),
+    Suffix(Hostname),
 }
 
 impl HostHeaderValueMatch {
@@ -16,10 +16,10 @@ impl HostHeaderValueMatch {
         fields(matcher = ?self)
     )]
     fn matches(&self, host_header_value: &HeaderValue) -> bool {
-        match host_header_value.to_str().map(CaseInsensitiveString::from) {
+        match host_header_value.to_str().map(Hostname::from) {
             Ok(host) => match self {
                 Self::Exact(expected) => expected == &host,
-                Self::Suffix(expected) => host.ends_with(expected.as_str()),
+                Self::Suffix(expected) => host.ends_with(expected),
             },
             Err(_) => false, // If the header value is not a valid UTF-8 string, it doesn't match
         }
@@ -70,13 +70,13 @@ impl HostHeaderMatchBuilder {
         }
     }
 
-    pub fn with_exact_host(&mut self, host: &str) {
-        let host_header_value_match = HostHeaderValueMatch::Exact(host.into());
+    pub fn with_exact_host(&mut self, host: &Hostname) {
+        let host_header_value_match = HostHeaderValueMatch::Exact(host.clone());
         self.host_header_value_matches.push(host_header_value_match);
     }
 
-    pub fn with_host_suffix(&mut self, host: &str) {
-        let host_header_value_match = HostHeaderValueMatch::Suffix(host.into());
+    pub fn with_host_suffix(&mut self, host: &Hostname) {
+        let host_header_value_match = HostHeaderValueMatch::Suffix(host.clone());
         self.host_header_value_matches.push(host_header_value_match);
     }
 }

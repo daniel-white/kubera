@@ -30,6 +30,33 @@ impl Default for HttpPathMatch {
     }
 }
 
+impl HttpPathMatch {
+    pub fn exactly<S: AsRef<str>>(path: S) -> Self {
+        Self {
+            match_type: HttpPathMatchType::Exact,
+            value: path.as_ref().to_string(),
+        }
+    }
+
+    pub fn with_prefix<S: AsRef<str>>(prefix: S) -> Self {
+        Self {
+            match_type: HttpPathMatchType::Prefix,
+            value: prefix.as_ref().to_string(),
+        }
+    }
+
+    pub fn matching<S: AsRef<str>>(pattern: S) -> Self {
+        Self {
+            match_type: HttpPathMatchType::RegularExpression,
+            value: pattern.as_ref().to_string(),
+        }
+    }
+
+    pub fn is_default(&self) -> bool {
+        self.match_type.is_default() && self.value == "/"
+    }
+}
+
 #[derive(Default, Validate, Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub enum HttpPathMatchType {
     Exact,

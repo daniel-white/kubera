@@ -25,6 +25,24 @@ pub struct HttpQueryParamMatch {
     value: String,
 }
 
+impl HttpQueryParamMatch {
+    pub fn exactly<N: AsRef<str>, V: AsRef<str>>(name: N, value: V) -> Self {
+        Self {
+            match_type: HttpQueryParamMatchType::Exact,
+            name: HttpQueryParamName(name.as_ref().to_string()),
+            value: value.as_ref().to_string(),
+        }
+    }
+
+    pub fn matches<N: AsRef<str>, P: AsRef<str>>(name: N, pattern: P) -> Self {
+        Self {
+            match_type: HttpQueryParamMatchType::RegularExpression,
+            name: HttpQueryParamName(name.as_ref().to_string()),
+            value: pattern.as_ref().to_string(),
+        }
+    }
+}
+
 #[derive(Default, Validate, Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub enum HttpQueryParamMatchType {
     #[default]
