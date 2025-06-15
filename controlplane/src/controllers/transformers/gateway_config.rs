@@ -10,6 +10,7 @@ use kube::api::{Patch, PatchParams, PostParams};
 use kube::Client;
 use kubera_core::config::gateway::serde::write_configuration;
 use kubera_core::config::gateway::types::http::router::{HttpRoute, HttpRouteBuilder};
+use kubera_core::config::gateway::types::net::Hostname;
 use kubera_core::config::gateway::types::{
     GatewayConfiguration, GatewayConfigurationBuilder, GatewayConfigurationVersion,
 };
@@ -38,7 +39,22 @@ pub fn generate_gateway_configuration(
                     warn!("Generating configuration for gateway: {}", gateway_ref);
                     let mut c = GatewayConfigurationBuilder::new();
 
-                    c.with_host_suffix(".google.com");
+                    match gateway {
+                        ObjectState::Active(gateway) => {
+                            for hostname in gateway
+                                .spec
+                                .listeners
+                                .iter()
+                                .filter_map(|l| l.hostname.as_ref())
+                            {
+                                match map_host_match_to_type(&hostname) {
+                                    HostMatchType::Exact(hostname) => c.with_exact_host(hostname),
+                                    HostMatchType::Suffix(hostname) => c.with_host_suffix(hostname),
+                                };
+                            }
+                        }
+                        ObjectState::Deleted(_) => {}
+                    }
 
                     c.add_http_route(|r| {
                         r.add_rule("rule", |r| {
@@ -70,6 +86,21 @@ pub fn generate_gateway_configuration(
     });
 
     rx
+}
+
+enum HostMatchType {
+    Exact(Hostname),
+    Suffix(Hostname),
+}
+
+fn map_host_match_to_type<S: AsRef<str>>(host: S) -> HostMatchType {
+    let host = host.as_ref();
+    if host.starts_with('*') {
+        let host = host.trim_start_matches('*');
+        HostMatchType::Suffix(Hostname::new(host))
+    } else {
+        HostMatchType::Exact(Hostname::new(host))
+    }
 }
 
 pub fn sync_gateway_configuration(

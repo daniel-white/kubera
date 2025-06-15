@@ -51,6 +51,12 @@ impl From<&str> for Hostname {
     }
 }
 
+impl AsRef<str> for Hostname {
+    fn as_ref(&self) -> &str {
+        self.0.0.as_ref()
+    }
+}
+
 impl JsonSchema for Hostname {
     fn schema_name() -> Cow<'static, str> {
         Cow::from(stringify!(Hostname))
