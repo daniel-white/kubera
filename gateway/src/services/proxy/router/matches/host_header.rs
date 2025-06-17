@@ -1,6 +1,6 @@
 use http::{HeaderMap, HeaderValue};
-use tracing::{debug, instrument};
 use kubera_core::net::Hostname;
+use tracing::{debug, instrument};
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum HostHeaderValueMatch {

@@ -5,7 +5,17 @@ use serde_valid::Validate;
 use strum::EnumString;
 
 #[derive(
-    Validate, Default, Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, EnumString, Hash
+    Validate,
+    Default,
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    JsonSchema,
+    EnumString,
+    Hash,
 )]
 #[serde(rename_all = "UPPERCASE")]
 pub enum HttpMethodMatch {

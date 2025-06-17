@@ -1,8 +1,6 @@
 use crate::ipc::IpcServices;
-use crate::ipc::events::EventSender;
 use crate::objects::{ObjectRef, ObjectState, Objects};
 use anyhow::Result;
-use gateway_api::apis::standard::gatewayclasses::GatewayClass;
 use gateway_api::apis::standard::gateways::Gateway;
 use k8s_openapi::api::core::v1::ConfigMap;
 use kube::Client;
@@ -27,7 +25,7 @@ use tracing::warn;
 
 fn on_configuration_update(
     ipc_services: &IpcServices,
-    mut configuration_hashes: &mut HashMap<ObjectRef, u64>,
+    configuration_hashes: &mut HashMap<ObjectRef, u64>,
     gateway_ref: &ObjectRef,
     configuration: &GatewayConfiguration,
 ) {
@@ -186,7 +184,7 @@ pub fn sync_gateway_configuration(
 
                     match current_config_maps.as_ref().get_by_ref(&config_map_ref) {
                         Some(ObjectState::Active(_)) => {
-                            config_maps_api
+                            let _ = config_maps_api
                                 .patch(
                                     config_map_ref.name(),
                                     &PatchParams::default(),
@@ -202,7 +200,7 @@ pub fn sync_gateway_configuration(
                                 });
                         }
                         _ => {
-                            config_maps_api
+                            let _ = config_maps_api
                                 .create(&PostParams::default(), &config_map)
                                 .await
                                 .inspect_err(|e| {

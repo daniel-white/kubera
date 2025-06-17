@@ -19,8 +19,6 @@ use std::borrow::Cow;
 use tracing::{debug, instrument, trace};
 use unicase::UniCase;
 
-pub(self) type CaseInsensitiveString = UniCase<String>;
-
 pub(self) trait Match<T> {
     fn matches(&self, score: &HttpRouteRuleMatchesScore, part: &T) -> bool;
 }

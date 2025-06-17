@@ -4,7 +4,6 @@ pub mod router;
 use async_trait::async_trait;
 use context::Context;
 use derive_builder::Builder;
-use futures::future;
 use http::HeaderValue;
 use kubera_core::sync::signal::Receiver;
 use pingora::http::ResponseHeader;

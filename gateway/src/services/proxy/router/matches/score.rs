@@ -1,5 +1,4 @@
 use super::headers::HeadersMatch;
-use super::host_header::HostHeaderMatch;
 use super::method::MethodMatch;
 use super::path::PathMatch;
 use super::query_params::QueryParamsMatch;

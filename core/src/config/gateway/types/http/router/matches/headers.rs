@@ -1,12 +1,14 @@
+use crate::CaseInsensitiveString;
 use getset::Getters;
 use http::HeaderName;
-use schemars::{json_schema, JsonSchema, Schema, SchemaGenerator};
+use schemars::{JsonSchema, Schema, SchemaGenerator, json_schema};
 use serde::{Deserialize, Serialize};
 use serde_valid::Validate;
 use std::borrow::Cow;
-use crate::CaseInsensitiveString;
 
-#[derive(Validate, Getters, Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Hash, JsonSchema)]
+#[derive(
+    Validate, Getters, Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Hash, JsonSchema,
+)]
 pub struct HttpHeaderMatch {
     #[getset(get = "pub")]
     #[serde(
@@ -43,7 +45,9 @@ impl HttpHeaderMatch {
     }
 }
 
-#[derive(Default, Validate, Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Hash, JsonSchema)]
+#[derive(
+    Default, Validate, Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Hash, JsonSchema,
+)]
 pub enum HttpHeaderMatchType {
     #[default]
     Exact,

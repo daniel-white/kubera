@@ -1,7 +1,6 @@
-use super::score::HttpRouteRuleMatchesScore;
 use super::Match;
+use super::score::HttpRouteRuleMatchesScore;
 use crate::util::get_regex;
-use getset::Getters;
 use http::{HeaderMap, HeaderName, HeaderValue};
 use tracing::{debug, instrument};
 

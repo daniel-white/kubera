@@ -5,7 +5,6 @@ use self::endpoints::router;
 use self::events::EventStreamFactory;
 use crate::ipc::events::EventSender;
 use anyhow::Result;
-use axum::Router;
 use derive_builder::Builder;
 use getset::Getters;
 use kubera_core::net::Port;

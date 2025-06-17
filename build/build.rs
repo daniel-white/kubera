@@ -17,7 +17,7 @@ fn main() {
 fn write_gateway_configuration_schema(out_dir: &str) {
     let dest_path = Path::new(&out_dir).join("gateway_configuration_schema.yaml");
     let mut file = File::create(dest_path).unwrap();
-    
+
     let schema = schema_for!(GatewayConfiguration);
     file.write_all(serde_yaml::to_string(&schema).unwrap().as_bytes())
         .unwrap();
@@ -26,7 +26,7 @@ fn write_gateway_configuration_schema(out_dir: &str) {
 fn write_crds(out_dir: &str) {
     let dest_path = Path::new(out_dir).join("crds.yaml");
     let file = File::create(dest_path).unwrap();
-    
+
     [GatewayClassParameters::crd(), GatewayParameters::crd()]
         .iter()
         .fold(file, |mut output, crd| {

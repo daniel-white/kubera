@@ -1,13 +1,10 @@
-mod desired_resources;
 mod filters;
 mod object_controller;
-mod resulting_resources_controller;
 mod transformers;
 
 use crate::ipc::IpcServices;
 use crate::spawn_controller;
 use anyhow::Result;
-use desired_resources::controller as desired_resources_controller;
 use gateway_api::apis::standard::gatewayclasses::GatewayClass;
 use gateway_api::apis::standard::gateways::Gateway;
 use gateway_api::apis::standard::httproutes::HTTPRoute;
@@ -17,8 +14,6 @@ use kube::Client;
 use kube::runtime::watcher::Config;
 use kubera_api::constants::MANAGED_BY_LABEL_QUERY;
 use std::sync::Arc;
-use tokio::net::TcpListener;
-use tokio::spawn;
 use tokio::task::JoinSet;
 
 pub async fn run(ipc_services: IpcServices) -> Result<()> {
@@ -36,7 +31,7 @@ pub async fn run(ipc_services: IpcServices) -> Result<()> {
     let http_routes = filters::filter_http_routes(&mut join_set, &gateways, &http_routes);
     let service_backends = transformers::collect_http_route_backends(&mut join_set, &http_routes);
     let endpoint_slices = spawn_controller!(EndpointSlice, join_set, client);
-    let service_endpoint_ips =
+    let _service_endpoint_ips =
         transformers::collect_service_backends(&mut join_set, &service_backends, &endpoint_slices);
     let config_maps = spawn_controller!(ConfigMap, join_set, client, managed_by_selector);
     let gateway_config_maps = filters::filter_gateway_config_maps(&mut join_set, &config_maps);

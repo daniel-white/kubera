@@ -6,7 +6,7 @@ pub mod ipc;
 
 use crate::ipc::{IpcServiceConfiguration, spawn_ipc_service};
 use anyhow::Result;
-use clap::{Parser, Subcommand};
+use clap::Parser;
 use cli::Cli;
 use controllers::run;
 use kubera_core::config::logging::init_logging;
@@ -21,7 +21,7 @@ async fn main() -> Result<()> {
 
     init_logging();
 
-    let cli = Cli::parse();
+    let _cli = Cli::parse();
 
     let ipc_configuration = IpcServiceConfiguration::new_builder()
         .port(Port::new(8000))

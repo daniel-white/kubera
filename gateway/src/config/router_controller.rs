@@ -1,11 +1,11 @@
 use crate::services::proxy::router::HttpRouter;
-use http::{HeaderName, HeaderValue};
+use http::HeaderValue;
 
+use kubera_core::config::gateway::types::GatewayConfiguration;
 use kubera_core::config::gateway::types::http::router::*;
 use kubera_core::config::gateway::types::net::HostMatchType;
-use kubera_core::config::gateway::types::GatewayConfiguration;
 use kubera_core::select_continue;
-use kubera_core::sync::signal::{channel, Receiver};
+use kubera_core::sync::signal::{Receiver, channel};
 use thiserror::Error;
 use tracing::debug;
 
@@ -62,7 +62,6 @@ pub async fn spawn_controller(
                                             (HttpPathMatchType::RegularExpression, value) => {
                                                 matches.with_path_matching(value);
                                             }
-                                            _ => (),
                                         }
 
                                         matches.with_method(config_matches.method().clone().into());

@@ -1,7 +1,6 @@
 use crate::objects::ObjectRef;
 use kubera_core::ipc::{Event, GatewayEvent};
 use std::fmt::Display;
-use std::hash::Hash;
 use thiserror::Error;
 use tokio::sync::broadcast::{Sender as BroadcastSender, channel as broadcast_channel};
 use tokio_stream::wrappers::BroadcastStream;
