@@ -1,16 +1,16 @@
-mod api;
 mod cli;
-mod constants;
-mod control_service;
 mod controllers;
 pub mod objects;
 
+pub mod ipc;
+
+use crate::ipc::{IpcConfiguration, spawn_ipc_service};
 use anyhow::Result;
-use api::write_crds;
 use clap::{Parser, Subcommand};
-use cli::{Cli, Commands};
+use cli::Cli;
 use controllers::run;
 use kubera_core::config::logging::init_logging;
+use kubera_core::net::Port;
 
 #[tokio::main(flavor = "multi_thread")]
 async fn main() -> Result<()> {
@@ -23,8 +23,10 @@ async fn main() -> Result<()> {
 
     let cli = Cli::parse();
 
-    match cli.command().as_ref().unwrap_or(&Commands::Run) {
-        Commands::Run => run().await,
-        Commands::WriteCrds { output_path } => write_crds(output_path.as_deref()),
-    }
+    let ipc_configuration = IpcConfiguration::new_builder()
+        .port(Port::new(8000))
+        .build()?;
+    let ipc_services = spawn_ipc_service(ipc_configuration).await?;
+
+    run(ipc_services).await
 }

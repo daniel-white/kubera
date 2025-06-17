@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = [
+members = ["api",
     "build",
     "controlplane",
     "core",
@@ -19,6 +19,7 @@ getset = "0.1"
 http = "1"
 http-constant = "1"
 http-serde = "2"
+kube = { version = "0.99", features = ["runtime", "derive"] }
 regex = { version = "1", features = ["perf", "unicode"] }
 schemars = "0.9"
 serde = { version = "1", features = ["derive"] }

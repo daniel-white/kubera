@@ -1,30 +1,31 @@
-use crate::constants::{
-    CONFIGMAP_ROLE_GATEWAY_CONFIG, CONFIGMAP_ROLE_LABEL, MANAGED_BY_LABEL, MANAGED_BY_VALUE,
-};
-use crate::control_service::GatewayConfigurationEventSender;
+use crate::ipc::gateway_events::GatewayEventSender;
+use crate::ipc::IpcServices;
 use crate::objects::{ObjectRef, ObjectState, Objects};
 use anyhow::Result;
 use gateway_api::apis::standard::gatewayclasses::GatewayClass;
 use gateway_api::apis::standard::gateways::Gateway;
 use k8s_openapi::api::core::v1::ConfigMap;
-use kube::Client;
 use kube::api::{Patch, PatchParams, PostParams};
+use kube::Client;
+use kubera_api::constants::{
+    CONFIGMAP_ROLE_GATEWAY_CONFIG, CONFIGMAP_ROLE_LABEL, MANAGED_BY_LABEL, MANAGED_BY_VALUE,
+};
 use kubera_core::config::gateway::serde::write_configuration;
-use kubera_core::config::gateway::types::http::router::HttpRouteBuilder;
 use kubera_core::config::gateway::types::{GatewayConfiguration, GatewayConfigurationBuilder};
 use kubera_core::net::Hostname;
 use kubera_core::select_continue;
-use kubera_core::sync::signal::{Receiver, channel};
+use kubera_core::sync::signal::{channel, Receiver};
 use std::collections::{BTreeMap, HashMap};
 use std::io::BufWriter;
 use std::net::IpAddr;
+use std::sync::Arc;
 use tokio::task::JoinSet;
 use tracing::warn;
 
 pub fn generate_gateway_configuration(
     join_set: &mut JoinSet<()>,
     gateways: &Receiver<Objects<Gateway>>,
-    signal: GatewayConfigurationEventSender,
+    ipc_services: Arc<IpcServices>,
 ) -> Receiver<HashMap<ObjectRef, GatewayConfiguration>> {
     let (tx, rx) = channel(HashMap::default());
 
@@ -79,7 +80,9 @@ pub fn generate_gateway_configuration(
                     });
 
                     let gateway_configuration = gateway_configuration.build();
-                    signal.send(&gateway_ref, &gateway_configuration);
+                    ipc_services
+                        .gateway_event_sender()
+                        .on_configuration_update(&gateway_ref, &gateway_configuration);
                     (gateway_ref.clone(), gateway_configuration)
                 })
                 .collect();

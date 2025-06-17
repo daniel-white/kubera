@@ -1,0 +1,15 @@
+[package]
+name = "kubera_api"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+derive_builder = { workspace = true }
+gateway-api = "0.15"
+getset = { workspace = true }
+k8s-openapi = { version = "0.24", features = ["v1_32"] }
+kube = { workspace = true }
+schemars = { version = "0.8" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+serde_yaml = { workspace = true }

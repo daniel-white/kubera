@@ -1,9 +1,9 @@
-use crate::constants::{
-    CONFIGMAP_ROLE_GATEWAY_CONFIG, CONFIGMAP_ROLE_LABEL, MANAGED_BY_LABEL, MANAGED_BY_VALUE,
-};
 use crate::objects::Objects;
 use k8s_openapi::api::core::v1::ConfigMap;
 use kube::ResourceExt;
+use kubera_api::constants::{
+    CONFIGMAP_ROLE_GATEWAY_CONFIG, CONFIGMAP_ROLE_LABEL, MANAGED_BY_LABEL, MANAGED_BY_VALUE,
+};
 use kubera_core::select_continue;
 use kubera_core::sync::signal::{Receiver, channel};
 use tokio::task::JoinSet;

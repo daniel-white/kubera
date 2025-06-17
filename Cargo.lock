@@ -454,6 +454,8 @@ dependencies = [
 name = "build"
 version = "0.1.0"
 dependencies = [
+ "kube",
+ "kubera_api",
  "kubera_core",
  "schemars 0.9.0",
  "serde",
@@ -2029,6 +2031,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "kubera_api"
+version = "0.1.0"
+dependencies = [
+ "derive_builder",
+ "gateway-api",
+ "getset",
+ "k8s-openapi",
+ "kube",
+ "schemars 0.8.22",
+ "serde",
+ "serde_json",
+ "serde_yaml 0.9.34+deprecated",
+]
+
+[[package]]
 name = "kubera_controlplane"
 version = "0.1.0"
 dependencies = [
@@ -2044,9 +2061,9 @@ dependencies = [
  "itertools 0.14.0",
  "k8s-openapi",
  "kube",
+ "kubera_api",
  "kubera_core",
  "problemdetails",
- "schemars 0.8.22",
  "serde",
  "serde_json",
  "serde_yaml 0.9.34+deprecated",

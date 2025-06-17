@@ -15,10 +15,10 @@ gateway-api = "0.15"
 getset = { workspace = true }
 itertools = "0.14"
 k8s-openapi = { version = "0.24", features = ["v1_32"] }
-kube = { version = "0.99", features = ["runtime", "derive"] }
+kube = { workspace = true }
+kubera_api = { path = "../api" }
 kubera_core = { path = "../core" }
 problemdetails = { version = "0.6", features = ["axum"] }
-schemars = { version = "0.8" }
 serde = { workspace = true }
 serde_json = { workspace = true }
 serde_yaml = { workspace = true }

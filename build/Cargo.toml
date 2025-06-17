@@ -6,6 +6,8 @@ edition = "2024"
 [dependencies]
 
 [build-dependencies]
+kube = { workspace = true }
+kubera_api = { path = "../api" }
 kubera_core = { path = "../core" }
 schemars = { workspace = true }
 serde = { workspace = true }

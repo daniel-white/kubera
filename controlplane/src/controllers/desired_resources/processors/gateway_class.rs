@@ -1,9 +1,9 @@
-use crate::api::v1alpha1::GatewayClassParameters;
-use crate::constants::{GATEWAY_PARAMETERS_CRD_KIND, GROUP};
 use crate::objects::ObjectRef;
 use gateway_api::apis::standard::gatewayclasses::{GatewayClass, GatewayClassStatus};
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::{Condition, Time};
 use k8s_openapi::chrono::{DateTime, Utc};
+use kubera_api::constants::{GATEWAY_PARAMETERS_CRD_KIND, GROUP};
+use kubera_api::v1alpha1::GatewayClassParameters;
 use std::collections::BTreeMap;
 use std::time::SystemTime;
 use thiserror::Error;

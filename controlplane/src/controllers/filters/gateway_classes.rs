@@ -1,6 +1,6 @@
-use crate::constants::GATEWAY_CLASS_CONTROLLER_NAME;
 use crate::objects::{ObjectState, Objects};
 use gateway_api::apis::standard::gatewayclasses::GatewayClass;
+use kubera_api::constants::GATEWAY_CLASS_CONTROLLER_NAME;
 use kubera_core::select_continue;
 use kubera_core::sync::signal::{Receiver, channel};
 use tokio::task::JoinSet;

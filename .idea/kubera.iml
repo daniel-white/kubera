@@ -6,6 +6,7 @@
       <sourceFolder url="file://$MODULE_DIR$/controlplane/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/gateway/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/build/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/api/src" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
     </content>
     <orderEntry type="inheritedJdk" />

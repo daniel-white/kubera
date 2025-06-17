@@ -1,5 +1,3 @@
-use crate::api::v1alpha1::{GatewayClassParameters, GatewayParameters};
-use crate::constants::{MANAGED_BY_LABEL, MANAGED_BY_VALUE};
 use crate::objects::{ObjectRef, Objects};
 use derive_builder::Builder;
 use gateway_api::apis::standard::gatewayclasses::GatewayClass;
@@ -8,6 +6,8 @@ use getset::Getters;
 use k8s_openapi::api::apps::v1::Deployment;
 use k8s_openapi::api::core::v1::{ConfigMap, Namespace, Service};
 use kube::api::Patch;
+use kubera_api::constants::{MANAGED_BY_LABEL, MANAGED_BY_VALUE};
+use kubera_api::v1alpha1::{GatewayClassParameters, GatewayParameters};
 use kubera_core::select_continue;
 use kubera_core::sync::signal::{Receiver, channel};
 use serde::Serialize;
