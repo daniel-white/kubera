@@ -40,18 +40,18 @@ pub enum HttpMethodMatch {
     Connect,
 }
 
-impl Into<Method> for HttpMethodMatch {
-    fn into(self) -> Method {
-        match self {
-            Self::Get => Method::GET,
-            Self::Post => Method::POST,
-            Self::Put => Method::PUT,
-            Self::Patch => Method::PATCH,
-            Self::Delete => Method::DELETE,
-            Self::Head => Method::HEAD,
-            Self::Options => Method::OPTIONS,
-            Self::Trace => Method::TRACE,
-            Self::Connect => Method::CONNECT,
+impl From<HttpMethodMatch> for Method {
+    fn from(method_match: HttpMethodMatch) -> Method {
+        match method_match {
+            HttpMethodMatch::Get => Method::GET,
+            HttpMethodMatch::Post => Method::POST,
+            HttpMethodMatch::Put => Method::PUT,
+            HttpMethodMatch::Patch => Method::PATCH,
+            HttpMethodMatch::Delete => Method::DELETE,
+            HttpMethodMatch::Head => Method::HEAD,
+            HttpMethodMatch::Options => Method::OPTIONS,
+            HttpMethodMatch::Trace => Method::TRACE,
+            HttpMethodMatch::Connect => Method::CONNECT,
         }
     }
 }

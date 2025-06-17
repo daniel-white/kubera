@@ -93,7 +93,7 @@ pub fn generate_gateway_configuration(
                                 .iter()
                                 .filter_map(|l| l.hostname.as_ref())
                             {
-                                match map_host_match_to_type(&hostname) {
+                                match map_host_match_to_type(hostname) {
                                     HostMatchType::Exact(hostname) => {
                                         gateway_configuration.with_exact_host(hostname)
                                     }

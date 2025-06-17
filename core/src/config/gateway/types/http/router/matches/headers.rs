@@ -74,15 +74,15 @@ impl HttpHeaderName {
     }
 }
 
-impl Into<CaseInsensitiveString> for HttpHeaderName {
-    fn into(self) -> CaseInsensitiveString {
-        self.0
+impl From<HttpHeaderName> for CaseInsensitiveString {
+    fn from(name: HttpHeaderName) -> Self {
+        name.0
     }
 }
 
-impl Into<String> for HttpHeaderName {
-    fn into(self) -> String {
-        self.0.to_string()
+impl From<HttpHeaderName> for String {
+    fn from(name: HttpHeaderName) -> Self {
+        name.0.to_string()
     }
 }
 

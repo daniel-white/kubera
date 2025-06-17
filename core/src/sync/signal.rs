@@ -32,7 +32,7 @@ where
         self.tx.borrow().clone()
     }
 
-    pub fn replace(&self, value: T) -> () {
+    pub fn replace(&self, value: T) {
         if *self.tx.borrow().as_ref() != value {
             trace!("Replacing value in signal");
             self.tx.send_replace(Arc::new(value));

@@ -4,7 +4,6 @@ macro_rules! spawn_controller {
         spawn_controller!($object_type, $join_set, $client, Config::default())
     };
     ($object_type:ty, $join_set:ident, $client:ident, $config:expr) => {{
-        use crate::objects::{ObjectRef, Objects};
         use futures::StreamExt;
         use kube::Api;
         use kube::runtime::Controller;
@@ -17,6 +16,7 @@ macro_rules! spawn_controller {
         use thiserror::Error;
         use tracing::instrument;
         use tracing::{debug, info};
+        use $crate::objects::{ObjectRef, Objects};
 
         struct ControllerContext {
             tx: Sender<Objects<$object_type>>,

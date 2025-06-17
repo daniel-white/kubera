@@ -7,15 +7,18 @@ use std::io::Write;
 use std::path::Path;
 
 fn main() {
-    let out_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap();
-    let out_dir = out_dir.as_str();
+    let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap();
+    let manifest_dir = Path::new(manifest_dir.as_str());
+    let profile = std::env::var("PROFILE").unwrap();
+    let out_dir = manifest_dir.join("..").join("target").join(profile);
+    let out_dir = out_dir.as_path();
 
     write_gateway_configuration_schema(out_dir);
     write_crds(out_dir);
 }
 
-fn write_gateway_configuration_schema(out_dir: &str) {
-    let dest_path = Path::new(&out_dir).join("gateway_configuration_schema.yaml");
+fn write_gateway_configuration_schema(out_dir: &Path) {
+    let dest_path = out_dir.join("gateway_configuration_schema.yaml");
     let mut file = File::create(dest_path).unwrap();
 
     let schema = schema_for!(GatewayConfiguration);
@@ -23,8 +26,8 @@ fn write_gateway_configuration_schema(out_dir: &str) {
         .unwrap();
 }
 
-fn write_crds(out_dir: &str) {
-    let dest_path = Path::new(out_dir).join("crds.yaml");
+fn write_crds(out_dir: &Path) {
+    let dest_path = out_dir.join("crds.yaml");
     let file = File::create(dest_path).unwrap();
 
     [GatewayClassParameters::crd(), GatewayParameters::crd()]

@@ -121,8 +121,8 @@ fn extract_backend(object_ref: &ObjectRef, endpoint_slice: &EndpointSlice) -> Ba
                 .addresses
                 .iter()
                 .flat_map(|a| match endpoint_slice.address_type.as_str() {
-                    "IPv4" => a.parse::<Ipv4Addr>().ok().map(|ip| IpAddr::from(ip)),
-                    "IPv6" => a.parse::<Ipv6Addr>().ok().map(|ip| IpAddr::from(ip)),
+                    "IPv4" => a.parse::<Ipv4Addr>().ok().map(IpAddr::from),
+                    "IPv6" => a.parse::<Ipv6Addr>().ok().map(IpAddr::from),
                     _ => None,
                 })
                 .collect();

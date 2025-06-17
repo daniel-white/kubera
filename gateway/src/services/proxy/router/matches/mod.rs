@@ -17,9 +17,8 @@ use query_params::*;
 pub use score::HttpRouteRuleMatchesScore;
 use std::borrow::Cow;
 use tracing::{debug, instrument, trace};
-use unicase::UniCase;
 
-pub(self) trait Match<T> {
+trait Match<T> {
     fn matches(&self, score: &HttpRouteRuleMatchesScore, part: &T) -> bool;
 }
 

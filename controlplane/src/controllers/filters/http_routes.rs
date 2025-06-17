@@ -29,7 +29,7 @@ pub fn filter_http_routes(
                             .spec
                             .parent_refs
                             .iter()
-                            .flat_map(|parent_ref| parent_ref.iter().map(|p| p))
+                            .flat_map(|parent_ref| parent_ref.iter())
                             .map(|parent_ref| {
                                 ObjectRef::new_builder()
                                     .of_kind::<Gateway>() // Assuming v1 for simplicity, adjust as needed

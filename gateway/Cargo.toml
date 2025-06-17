@@ -11,7 +11,6 @@ clap = { workspace = true }
 derive_builder = { workspace = true }
 futures = { workspace = true }
 getset = { workspace = true }
-hickory-resolver = "0.25"
 http = { workspace = true }
 http-constant = { workspace = true }
 kubera_core = { path = "../core" }

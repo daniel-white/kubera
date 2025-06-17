@@ -35,7 +35,7 @@ pub fn filter_gateway_config_maps(
                         .map(|l| l.as_str() == CONFIGMAP_ROLE_GATEWAY_CONFIG)
                         .unwrap_or(false);
 
-                    return is_managed_by && is_gateway_config;
+                    is_managed_by && is_gateway_config
                 })
                 .collect();
 

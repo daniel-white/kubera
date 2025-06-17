@@ -23,9 +23,9 @@ impl Port {
     }
 }
 
-impl Into<u16> for Port {
-    fn into(self) -> u16 {
-        self.0
+impl From<Port> for u16 {
+    fn from(port: Port) -> Self {
+        port.0
     }
 }
 
@@ -64,15 +64,15 @@ impl Hostname {
     }
 }
 
-impl Into<CaseInsensitiveString> for Hostname {
-    fn into(self) -> CaseInsensitiveString {
-        self.0
+impl From<Hostname> for CaseInsensitiveString {
+    fn from(hostname: Hostname) -> Self {
+        hostname.0
     }
 }
 
-impl Into<String> for Hostname {
-    fn into(self) -> String {
-        self.0.to_string()
+impl From<Hostname> for String {
+    fn from(hostname: Hostname) -> Self {
+        hostname.0.to_string()
     }
 }
 
