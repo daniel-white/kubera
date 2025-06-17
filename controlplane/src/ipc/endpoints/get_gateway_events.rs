@@ -4,7 +4,7 @@ use axum::extract::Path;
 use axum::response::sse::Event;
 use axum::{
     extract::State,
-    response::{sse::Sse, IntoResponse},
+    response::{IntoResponse, sse::Sse},
 };
 use futures::TryStreamExt;
 use gateway_api::apis::standard::gateways::Gateway;

@@ -1,12 +1,12 @@
-use crate::ipc::events::EventSender;
 use crate::ipc::IpcServices;
+use crate::ipc::events::EventSender;
 use crate::objects::{ObjectRef, ObjectState, Objects};
 use anyhow::Result;
 use gateway_api::apis::standard::gatewayclasses::GatewayClass;
 use gateway_api::apis::standard::gateways::Gateway;
 use k8s_openapi::api::core::v1::ConfigMap;
-use kube::api::{Patch, PatchParams, PostParams};
 use kube::Client;
+use kube::api::{Patch, PatchParams, PostParams};
 use kubera_api::constants::{
     CONFIGMAP_ROLE_GATEWAY_CONFIG, CONFIGMAP_ROLE_LABEL, MANAGED_BY_LABEL, MANAGED_BY_VALUE,
 };
@@ -15,9 +15,9 @@ use kubera_core::config::gateway::types::{GatewayConfiguration, GatewayConfigura
 use kubera_core::ipc::{Event, GatewayEvent};
 use kubera_core::net::Hostname;
 use kubera_core::select_continue;
-use kubera_core::sync::signal::{channel, Receiver};
-use std::collections::hash_map::{Entry, HashMap};
+use kubera_core::sync::signal::{Receiver, channel};
 use std::collections::BTreeMap;
+use std::collections::hash_map::{Entry, HashMap};
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::io::BufWriter;
 use std::net::IpAddr;

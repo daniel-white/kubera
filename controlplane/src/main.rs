@@ -4,7 +4,7 @@ pub mod objects;
 
 pub mod ipc;
 
-use crate::ipc::{spawn_ipc_service, IpcServiceConfiguration};
+use crate::ipc::{IpcServiceConfiguration, spawn_ipc_service};
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 use cli::Cli;
