@@ -1,4 +1,4 @@
-use crate::controllers::objects::{ObjectRef, ObjectState, Objects};
+use crate::objects::{ObjectRef, ObjectState, Objects};
 use gateway_api::apis::standard::gateways::Gateway;
 use gateway_api::apis::standard::httproutes::HTTPRoute;
 use itertools::*;

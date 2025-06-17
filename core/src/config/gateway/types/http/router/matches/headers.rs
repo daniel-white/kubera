@@ -6,7 +6,7 @@ use serde_valid::Validate;
 use std::borrow::Cow;
 use crate::CaseInsensitiveString;
 
-#[derive(Validate, Getters, Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Validate, Getters, Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Hash, JsonSchema)]
 pub struct HttpHeaderMatch {
     #[getset(get = "pub")]
     #[serde(
@@ -43,7 +43,7 @@ impl HttpHeaderMatch {
     }
 }
 
-#[derive(Default, Validate, Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Default, Validate, Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Hash, JsonSchema)]
 pub enum HttpHeaderMatchType {
     #[default]
     Exact,
@@ -56,7 +56,7 @@ impl HttpHeaderMatchType {
     }
 }
 
-#[derive(Validate, Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Validate, Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Hash)]
 pub struct HttpHeaderName(
     #[validate(min_length = 1)]
     #[validate(max_length = 256)]

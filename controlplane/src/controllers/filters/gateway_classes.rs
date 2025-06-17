@@ -1,5 +1,5 @@
 use crate::constants::GATEWAY_CLASS_CONTROLLER_NAME;
-use crate::controllers::objects::{ObjectState, Objects};
+use crate::objects::{ObjectState, Objects};
 use gateway_api::apis::standard::gatewayclasses::GatewayClass;
 use kubera_core::select_continue;
 use kubera_core::sync::signal::{Receiver, channel};

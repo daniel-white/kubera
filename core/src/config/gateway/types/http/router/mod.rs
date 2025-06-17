@@ -7,7 +7,9 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_valid::Validate;
 
-#[derive(Validate, Getters, Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(
+    Validate, Getters, Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Hash, JsonSchema,
+)]
 pub struct HttpRouteRuleUniqueId(#[getset(get = "pub")] String);
 
 impl HttpRouteRuleUniqueId {
@@ -16,7 +18,9 @@ impl HttpRouteRuleUniqueId {
     }
 }
 
-#[derive(Validate, Getters, Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(
+    Validate, Getters, Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Hash, JsonSchema,
+)]
 pub struct HttpRouteRule {
     #[getset(get = "pub")]
     unique_id: HttpRouteRuleUniqueId,
@@ -83,7 +87,9 @@ impl HttpRouteRuleBuilder {
     }
 }
 
-#[derive(Validate, Getters, Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(
+    Validate, Getters, Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Hash, JsonSchema,
+)]
 pub struct HttpRoute {
     #[getset(get = "pub")]
     #[validate(max_items = 16)]

@@ -5,10 +5,11 @@ edition = "2024"
 
 [dependencies]
 anyhow = { workspace = true }
+axum = { workspace = true }
 backtrace-on-stack-overflow = "0.3"
 clap = { workspace = true }
+dashmap = "6"
 derive_builder = { workspace = true }
-flexi_logger = { workspace = true }
 futures = { workspace = true }
 gateway-api = "0.15"
 getset = { workspace = true }
@@ -16,12 +17,14 @@ itertools = "0.14"
 k8s-openapi = { version = "0.24", features = ["v1_32"] }
 kube = { version = "0.99", features = ["runtime", "derive"] }
 kubera_core = { path = "../core" }
+problemdetails = { version = "0.6", features = ["axum"] }
 schemars = { version = "0.8" }
 serde = { workspace = true }
 serde_json = { workspace = true }
 serde_yaml = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true }
+tokio-stream = { version = "0.1", features = ["full"] }
 tracing = { workspace = true }
 
 [[bin]]

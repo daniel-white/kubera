@@ -4,7 +4,7 @@ macro_rules! spawn_controller {
         spawn_controller!($object_type, $join_set, $client, Config::default())
     };
     ($object_type:ty, $join_set:ident, $client:ident, $config:expr) => {{
-        use crate::controllers::objects::{ObjectRef, Objects};
+        use crate::objects::{ObjectRef, Objects};
         use futures::StreamExt;
         use kube::Api;
         use kube::runtime::Controller;

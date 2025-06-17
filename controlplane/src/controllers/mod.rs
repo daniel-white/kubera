@@ -1,12 +1,15 @@
 mod desired_resources;
 mod filters;
 mod object_controller;
-mod objects;
 mod resulting_resources_controller;
 mod transformers;
 
 use crate::api::v1alpha1::{GatewayClassParameters, GatewayParameters};
 use crate::constants::MANAGED_BY_LABEL_QUERY;
+use crate::control_service::endpoints::gateway_event_stream;
+use crate::control_service::endpoints::gateway_event_stream::stream_gateway_configuration_events;
+use crate::control_service::gateway_configuration_events_channel;
+use crate::objects::ObjectRef;
 use crate::spawn_controller;
 use anyhow::Result;
 use desired_resources::controller as desired_resources_controller;
@@ -16,9 +19,13 @@ use gateway_api::apis::standard::httproutes::HTTPRoute;
 use k8s_openapi::api::apps::v1::Deployment;
 use k8s_openapi::api::core::v1::{ConfigMap, Namespace, Service};
 use k8s_openapi::api::discovery::v1::EndpointSlice;
-use kube::Client;
 use kube::runtime::watcher::Config;
+use kube::Client;
+use std::sync::Arc;
+use tokio::net::TcpListener;
+use tokio::spawn;
 use tokio::task::JoinSet;
+use tracing::warn;
 
 pub async fn run() -> Result<()> {
     let mut join_set = JoinSet::new();
@@ -38,14 +45,28 @@ pub async fn run() -> Result<()> {
         transformers::collect_service_backends(&mut join_set, &service_backends, &endpoint_slices);
     let config_maps = spawn_controller!(ConfigMap, join_set, client, managed_by_selector);
     let gateway_config_maps = filters::filter_gateway_config_maps(&mut join_set, &config_maps);
+    let (sender, subscriber_factory) = gateway_configuration_events_channel();
     let gateway_configurations =
-        transformers::generate_gateway_configuration(&mut join_set, &gateways);
+        transformers::generate_gateway_configuration(&mut join_set, &gateways, sender);
     transformers::sync_gateway_configuration(
         &mut join_set,
         &client,
         &gateway_config_maps,
         &gateway_configurations,
     );
+
+    spawn(async {
+        let listener = TcpListener::bind("0.0.0.0:8080")
+            .await
+            .expect("Failed to bind to port 8080");
+
+        let router = axum::Router::new().route(
+            "/api/gateway/{namespace}/{name}/events",
+            axum::routing::get(stream_gateway_configuration_events),
+        );
+        axum::serve(listener, router.with_state(Arc::new(subscriber_factory))).await
+    })
+    .await;
 
     // let sources = desired_resources_controller::SourceResourcesReceivers::new_builder()
     //     .gateway_classes(gateway_classes)

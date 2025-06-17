@@ -1,7 +1,7 @@
 use crate::constants::{
     CONFIGMAP_ROLE_GATEWAY_CONFIG, CONFIGMAP_ROLE_LABEL, MANAGED_BY_LABEL, MANAGED_BY_VALUE,
 };
-use crate::controllers::objects::Objects;
+use crate::objects::Objects;
 use k8s_openapi::api::core::v1::ConfigMap;
 use kube::ResourceExt;
 use kubera_core::select_continue;

@@ -8,7 +8,7 @@ use std::fmt::Display;
 use std::str::FromStr;
 
 #[derive(
-    Validate, Getters, Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema,
+    Validate, Getters, Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, Hash,
 )]
 pub struct Port(
     #[validate(minimum = 1)]

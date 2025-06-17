@@ -6,17 +6,21 @@ use crate::config::gateway::types::net::HostMatch;
 use getset::Getters;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use serde_valid::export::regex::Regex;
-use serde_valid::{
-    error::{MaxLengthError, MinLengthError, PatternError}, Validate, ValidateMaxLength, ValidateMinLength,
-    ValidatePattern,
-};
-use std::fmt::{Display, Formatter};
+use serde_valid::Validate;
 use strum::EnumString;
-use unicase::UniCase;
 
 #[derive(
-    Validate, Default, Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, EnumString,
+    Validate,
+    Default,
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    JsonSchema,
+    Hash,
+    EnumString,
 )]
 #[serde(rename_all = "lowercase")]
 pub enum GatewayConfigurationVersion {
@@ -24,7 +28,9 @@ pub enum GatewayConfigurationVersion {
     V1Alpha1,
 }
 
-#[derive(Validate, Getters, Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(
+    Validate, Getters, Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Hash, JsonSchema,
+)]
 pub struct GatewayConfiguration {
     #[getset(get = "pub")]
     version: GatewayConfigurationVersion,

@@ -1,8 +1,8 @@
+use crate::net::Hostname;
 use getset::Getters;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_valid::Validate;
-use crate::net::Hostname;
 
 #[derive(
     Validate, Getters, Debug, Clone, PartialEq, Hash, Eq, Serialize, Deserialize, JsonSchema,

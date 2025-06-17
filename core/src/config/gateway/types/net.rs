@@ -1,11 +1,13 @@
 use crate::net::{Hostname, Port};
 use getset::Getters;
-use schemars::{JsonSchema, Schema, SchemaGenerator};
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_valid::Validate;
 use std::net::IpAddr;
 
-#[derive(Validate, Getters, Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(
+    Validate, Getters, Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, Hash,
+)]
 pub struct Backend {
     #[getset(get = "pub")]
     weight: i32,
@@ -58,7 +60,9 @@ impl BackendBuilder {
     }
 }
 
-#[derive(Validate, Getters, Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(
+    Validate, Getters, Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Hash, JsonSchema,
+)]
 pub struct Endpoint {
     #[getset(get = "pub")]
     #[serde(default, skip_serializing_if = "Option::is_none")]

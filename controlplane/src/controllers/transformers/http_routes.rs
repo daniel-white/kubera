@@ -1,4 +1,4 @@
-use crate::controllers::objects::{ObjectRef, ObjectState, Objects};
+use crate::objects::{ObjectRef, ObjectState, Objects};
 use derive_builder::Builder;
 use gateway_api::apis::standard::httproutes::HTTPRoute;
 use getset::Getters;

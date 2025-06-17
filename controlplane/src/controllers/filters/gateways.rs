@@ -1,4 +1,4 @@
-use crate::controllers::objects::{ObjectRef, ObjectState, Objects};
+use crate::objects::{ObjectRef, ObjectState, Objects};
 use gateway_api::apis::standard::gatewayclasses::GatewayClass;
 use gateway_api::apis::standard::gateways::Gateway;
 use kubera_core::select_continue;

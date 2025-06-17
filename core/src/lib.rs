@@ -9,6 +9,7 @@ use unicase::UniCase;
 
 pub mod config;
 pub mod io;
+pub mod ipc;
 pub mod net;
 pub mod sync;
 

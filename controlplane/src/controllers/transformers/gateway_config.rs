@@ -1,21 +1,20 @@
 use crate::constants::{
     CONFIGMAP_ROLE_GATEWAY_CONFIG, CONFIGMAP_ROLE_LABEL, MANAGED_BY_LABEL, MANAGED_BY_VALUE,
 };
-use crate::controllers::objects::{ObjectRef, ObjectState, Objects};
+use crate::control_service::GatewayConfigurationEventSender;
+use crate::objects::{ObjectRef, ObjectState, Objects};
 use anyhow::Result;
 use gateway_api::apis::standard::gatewayclasses::GatewayClass;
 use gateway_api::apis::standard::gateways::Gateway;
 use k8s_openapi::api::core::v1::ConfigMap;
-use kube::api::{Patch, PatchParams, PostParams};
 use kube::Client;
+use kube::api::{Patch, PatchParams, PostParams};
 use kubera_core::config::gateway::serde::write_configuration;
-use kubera_core::config::gateway::types::http::router::{HttpRoute, HttpRouteBuilder};
+use kubera_core::config::gateway::types::http::router::HttpRouteBuilder;
+use kubera_core::config::gateway::types::{GatewayConfiguration, GatewayConfigurationBuilder};
 use kubera_core::net::Hostname;
-use kubera_core::config::gateway::types::{
-    GatewayConfiguration, GatewayConfigurationBuilder, GatewayConfigurationVersion,
-};
 use kubera_core::select_continue;
-use kubera_core::sync::signal::{channel, Receiver};
+use kubera_core::sync::signal::{Receiver, channel};
 use std::collections::{BTreeMap, HashMap};
 use std::io::BufWriter;
 use std::net::IpAddr;
@@ -25,6 +24,7 @@ use tracing::warn;
 pub fn generate_gateway_configuration(
     join_set: &mut JoinSet<()>,
     gateways: &Receiver<Objects<Gateway>>,
+    signal: GatewayConfigurationEventSender,
 ) -> Receiver<HashMap<ObjectRef, GatewayConfiguration>> {
     let (tx, rx) = channel(HashMap::default());
 
@@ -37,7 +37,7 @@ pub fn generate_gateway_configuration(
                 .iter()
                 .map(|(gateway_ref, _, gateway)| {
                     warn!("Generating configuration for gateway: {}", gateway_ref);
-                    let mut c = GatewayConfigurationBuilder::new();
+                    let mut gateway_configuration = GatewayConfigurationBuilder::new();
 
                     match gateway {
                         ObjectState::Active(gateway) => {
@@ -48,15 +48,19 @@ pub fn generate_gateway_configuration(
                                 .filter_map(|l| l.hostname.as_ref())
                             {
                                 match map_host_match_to_type(&hostname) {
-                                    HostMatchType::Exact(hostname) => c.with_exact_host(hostname),
-                                    HostMatchType::Suffix(hostname) => c.with_host_suffix(hostname),
+                                    HostMatchType::Exact(hostname) => {
+                                        gateway_configuration.with_exact_host(hostname)
+                                    }
+                                    HostMatchType::Suffix(hostname) => {
+                                        gateway_configuration.with_host_suffix(hostname)
+                                    }
                                 };
                             }
                         }
                         ObjectState::Deleted(_) => {}
                     }
 
-                    c.add_http_route(|r| {
+                    gateway_configuration.add_http_route(|r| {
                         r.add_rule("rule", |r| {
                             r.add_match(|m| {
                                 m.with_prefix_path("/hello");
@@ -74,8 +78,9 @@ pub fn generate_gateway_configuration(
                         });
                     });
 
-                    let c = c.build();
-                    (gateway_ref.clone(), c)
+                    let gateway_configuration = gateway_configuration.build();
+                    signal.send(&gateway_ref, &gateway_configuration);
+                    (gateway_ref.clone(), gateway_configuration)
                 })
                 .collect();
 

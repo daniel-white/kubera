@@ -5,7 +5,17 @@ use serde::{Deserialize, Serialize};
 use serde_valid::Validate;
 
 #[derive(
-    Validate, Builder, Getters, Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema,
+    Validate,
+    Builder,
+    Getters,
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    Hash,
+    JsonSchema,
 )]
 pub struct HttpPathMatch {
     #[getset(get = "pub")]
@@ -57,7 +67,9 @@ impl HttpPathMatch {
     }
 }
 
-#[derive(Default, Validate, Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(
+    Default, Validate, Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Hash, JsonSchema,
+)]
 pub enum HttpPathMatchType {
     Exact,
     #[default]
