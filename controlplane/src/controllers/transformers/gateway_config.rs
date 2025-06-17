@@ -1,4 +1,4 @@
-use crate::ipc::gateway_events::GatewayEventSender;
+use crate::ipc::events::EventSender;
 use crate::ipc::IpcServices;
 use crate::objects::{ObjectRef, ObjectState, Objects};
 use anyhow::Result;
@@ -12,15 +12,60 @@ use kubera_api::constants::{
 };
 use kubera_core::config::gateway::serde::write_configuration;
 use kubera_core::config::gateway::types::{GatewayConfiguration, GatewayConfigurationBuilder};
+use kubera_core::ipc::{Event, GatewayEvent};
 use kubera_core::net::Hostname;
 use kubera_core::select_continue;
 use kubera_core::sync::signal::{channel, Receiver};
-use std::collections::{BTreeMap, HashMap};
+use std::collections::hash_map::{Entry, HashMap};
+use std::collections::BTreeMap;
+use std::hash::{DefaultHasher, Hash, Hasher};
 use std::io::BufWriter;
 use std::net::IpAddr;
 use std::sync::Arc;
 use tokio::task::JoinSet;
 use tracing::warn;
+
+fn on_configuration_update(
+    ipc_services: &IpcServices,
+    mut configuration_hashes: &mut HashMap<ObjectRef, u64>,
+    gateway_ref: &ObjectRef,
+    configuration: &GatewayConfiguration,
+) {
+    let configuration_hash = {
+        let mut hasher = DefaultHasher::new();
+        configuration.hash(&mut hasher);
+        hasher.finish()
+    };
+    let gateway_ref = gateway_ref.clone();
+    match configuration_hashes.entry(gateway_ref.clone()) {
+        Entry::Occupied(mut entry) => {
+            if *entry.get() != configuration_hash {
+                entry.insert(configuration_hash);
+                send_configuration_update_event(ipc_services, &gateway_ref);
+            }
+        }
+        Entry::Vacant(entry) => {
+            entry.insert(configuration_hash);
+            send_configuration_update_event(ipc_services, &gateway_ref);
+        }
+    }
+}
+
+fn send_configuration_update_event(ipc_services: &IpcServices, gateway_ref: &ObjectRef) {
+    warn!(
+        "Sending configuration update event for gateway: {}",
+        gateway_ref
+    );
+    ipc_services
+        .events()
+        .send(Event::Gateway(GatewayEvent::ConfigurationUpdate {
+            name: gateway_ref.name().to_string(),
+            namespace: gateway_ref
+                .namespace()
+                .clone()
+                .unwrap_or("default".to_string()),
+        }));
+}
 
 pub fn generate_gateway_configuration(
     join_set: &mut JoinSet<()>,
@@ -30,6 +75,8 @@ pub fn generate_gateway_configuration(
     let (tx, rx) = channel(HashMap::default());
 
     let mut gateways = gateways.clone();
+
+    let mut configuration_hashes = HashMap::default();
 
     join_set.spawn(async move {
         loop {
@@ -80,9 +127,12 @@ pub fn generate_gateway_configuration(
                     });
 
                     let gateway_configuration = gateway_configuration.build();
-                    ipc_services
-                        .gateway_event_sender()
-                        .on_configuration_update(&gateway_ref, &gateway_configuration);
+                    on_configuration_update(
+                        ipc_services.as_ref(),
+                        &mut configuration_hashes,
+                        &gateway_ref,
+                        &gateway_configuration,
+                    );
                     (gateway_ref.clone(), gateway_configuration)
                 })
                 .collect();

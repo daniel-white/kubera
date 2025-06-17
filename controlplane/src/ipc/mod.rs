@@ -1,9 +1,9 @@
 pub mod endpoints;
-pub mod gateway_events;
+pub mod events;
 
 use self::endpoints::router;
-use self::gateway_events::GatewayEventStreamFactory;
-use crate::ipc::gateway_events::GatewayEventSender;
+use self::events::EventStreamFactory;
+use crate::ipc::events::EventSender;
 use anyhow::Result;
 use axum::Router;
 use derive_builder::Builder;
@@ -17,7 +17,7 @@ use tracing::info;
 #[derive(Builder, Getters, Clone)]
 pub struct IpcServiceState {
     #[getset(get = "pub")]
-    gateway_event_stream_factory: GatewayEventStreamFactory,
+    events: EventStreamFactory,
 }
 
 impl IpcServiceState {
@@ -27,13 +27,13 @@ impl IpcServiceState {
 }
 
 #[derive(Debug, Builder, Getters)]
-pub struct IpcConfiguration {
+pub struct IpcServiceConfiguration {
     port: Port,
 }
 
-impl IpcConfiguration {
-    pub fn new_builder() -> IpcConfigurationBuilder {
-        IpcConfigurationBuilder::default()
+impl IpcServiceConfiguration {
+    pub fn new_builder() -> IpcServiceConfigurationBuilder {
+        IpcServiceConfigurationBuilder::default()
     }
 
     fn socket_address(&self) -> SocketAddr {
@@ -44,7 +44,7 @@ impl IpcConfiguration {
 #[derive(Debug, Builder, Getters)]
 pub struct IpcServices {
     #[getset(get = "pub")]
-    gateway_event_sender: GatewayEventSender,
+    events: EventSender,
 }
 
 impl IpcServices {
@@ -53,17 +53,12 @@ impl IpcServices {
     }
 }
 
-pub async fn spawn_ipc_service(ipc_configuration: IpcConfiguration) -> Result<IpcServices> {
-    let (gateway_event_sender, gateway_event_stream_factory) =
-        gateway_events::gateway_events_channel();
+pub async fn spawn_ipc_service(ipc_configuration: IpcServiceConfiguration) -> Result<IpcServices> {
+    let (event_sender, factory) = events::events_channel();
 
-    let services = IpcServices::new_builder()
-        .gateway_event_sender(gateway_event_sender)
-        .build()?;
+    let services = IpcServices::new_builder().events(event_sender).build()?;
 
-    let state = IpcServiceState::new_builder()
-        .gateway_event_stream_factory(gateway_event_stream_factory)
-        .build()?;
+    let state = IpcServiceState::new_builder().events(factory).build()?;
 
     let socket_address = ipc_configuration.socket_address();
     info!("Starting IPC service on {}", socket_address);

@@ -4,7 +4,7 @@ use axum::extract::Path;
 use axum::response::sse::Event;
 use axum::{
     extract::State,
-    response::{IntoResponse, sse::Sse},
+    response::{sse::Sse, IntoResponse},
 };
 use futures::TryStreamExt;
 use gateway_api::apis::standard::gateways::Gateway;
@@ -29,9 +29,9 @@ pub async fn get_gateway_events(
         .unwrap();
 
     let stream = state
-        .gateway_event_stream_factory
-        .for_gateway(gateway_ref)
-        .map_ok(|e| Event::default().event(e.event_type()));
+        .events
+        .named_gateway_events(gateway_ref)
+        .map_ok(|e| Event::default().event(e));
 
     Sse::new(stream).keep_alive(
         axum::response::sse::KeepAlive::new()
