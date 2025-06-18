@@ -1,13 +1,23 @@
 version: v1alpha1
-hosts:
-  - type: Exact
-    value: "api.example.com"
-  - type: Suffix
-    value: ".internal.example.com"
-  - type: Exact
-    value: "shop.example.com"
-  - type: Suffix
-    value: ".beta.example.com"
+listeners:
+  - name: "example-listener"
+    port: 8080
+    protocol: HTTP
+  - name: "secure-listener"
+    port: 443
+    protocol: HTTPS
+  - name: "admin-listener"
+    port: 9100
+    protocol: HTTP
+    hostname:
+      type: Exact
+      value: "admin.internal.example.com"
+  - name: "beta-listener"
+    port: 8443
+    protocol: HTTPS
+    hostname:
+      type: Suffix
+      value: ".beta.example.com"
 
 http_routes:
   - host_headers:

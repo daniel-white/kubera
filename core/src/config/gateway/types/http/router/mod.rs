@@ -93,7 +93,7 @@ impl HttpRouteRuleBuilder {
 pub struct HttpRoute {
     #[getset(get = "pub")]
     #[validate(max_items = 16)]
-    #[serde(rename = "host_headers")]
+    #[serde(rename = "host_headers", skip_serializing_if = "Vec::is_empty")]
     host_header_matches: Vec<HostHeaderMatch>,
 
     #[getset(get = "pub")]

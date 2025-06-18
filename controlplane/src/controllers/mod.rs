@@ -10,8 +10,8 @@ use gateway_api::apis::standard::gateways::Gateway;
 use gateway_api::apis::standard::httproutes::HTTPRoute;
 use k8s_openapi::api::core::v1::ConfigMap;
 use k8s_openapi::api::discovery::v1::EndpointSlice;
-use kube::Client;
 use kube::runtime::watcher::Config;
+use kube::Client;
 use kubera_api::constants::MANAGED_BY_LABEL_QUERY;
 use std::sync::Arc;
 use tokio::task::JoinSet;
@@ -29,6 +29,8 @@ pub async fn run(ipc_services: IpcServices) -> Result<()> {
     let gateways = filters::filter_gateways(&mut join_set, &gateway_classes, &gateways);
     let http_routes = spawn_controller!(HTTPRoute, join_set, client);
     let http_routes = filters::filter_http_routes(&mut join_set, &gateways, &http_routes);
+    let http_routes_by_gateway =
+        transformers::collect_http_routes_by_gateway(&mut join_set, &gateways, &http_routes);
     let service_backends = transformers::collect_http_route_backends(&mut join_set, &http_routes);
     let endpoint_slices = spawn_controller!(EndpointSlice, join_set, client);
     let _service_endpoint_ips =
@@ -38,6 +40,7 @@ pub async fn run(ipc_services: IpcServices) -> Result<()> {
     let gateway_configurations = transformers::generate_gateway_configuration(
         &mut join_set,
         &gateways,
+        &http_routes_by_gateway,
         ipc_services.clone(),
     );
     transformers::sync_gateway_configuration(

@@ -1,13 +1,18 @@
 use crate::objects::{ObjectRef, ObjectState, Objects};
+use clap::ValueHint::Hostname;
 use derive_builder::Builder;
+use gateway_api::apis::standard::gateways::Gateway;
 use gateway_api::apis::standard::httproutes::HTTPRoute;
 use getset::Getters;
+use itertools::Itertools;
 use k8s_openapi::api::core::v1::Service;
 use kubera_core::select_continue;
-use kubera_core::sync::signal::{Receiver, channel};
-use std::collections::BTreeMap;
+use kubera_core::sync::signal::{channel, Receiver};
+use std::collections::hash_map::Entry;
+use std::collections::{BTreeMap, HashMap};
+use std::sync::Arc;
 use tokio::task::JoinSet;
-use tracing::{debug, info};
+use tracing::{debug, error, info};
 
 #[derive(Debug, Builder, Getters, Clone, Hash, PartialEq, Eq)]
 pub struct HttpRouteBackend {
@@ -52,7 +57,7 @@ pub fn collect_http_route_backends(
                                 for backend_ref in rule.backend_refs.iter().flatten() {
                                     if let Some(kind) = backend_ref.kind.as_deref() {
                                         if kind == "Service" {
-                                            let object_ref = ObjectRef::new_builder()
+                                            let service_ref = ObjectRef::new_builder()
                                                 .of_kind::<Service>()
                                                 .namespace(backend_ref.namespace.clone())
                                                 .name(&backend_ref.name)
@@ -61,13 +66,13 @@ pub fn collect_http_route_backends(
 
                                             let http_route_backend =
                                                 HttpRouteBackend::new_builder()
-                                                    .object_ref(object_ref.clone())
+                                                    .object_ref(service_ref.clone())
                                                     .port(backend_ref.port)
                                                     .weight(backend_ref.weight)
                                                     .build()
                                                     .unwrap();
                                             http_route_backends
-                                                .insert(object_ref, http_route_backend);
+                                                .insert(service_ref, http_route_backend);
                                         }
                                     }
                                 }
@@ -83,6 +88,71 @@ pub fn collect_http_route_backends(
             tx.replace(http_route_backends);
 
             select_continue!(http_routes.changed());
+        }
+    });
+
+    rx
+}
+
+pub fn collect_http_routes_by_gateway(
+    join_set: &mut JoinSet<()>,
+    gateways: &Receiver<Objects<Gateway>>,
+    http_routes: &Receiver<Objects<HTTPRoute>>,
+) -> Receiver<HashMap<ObjectRef, Vec<Arc<HTTPRoute>>>> {
+    let (tx, rx) = channel(HashMap::new());
+
+    let mut gateways = gateways.clone();
+    let mut http_routes = http_routes.clone();
+
+    join_set.spawn(async move {
+        loop {
+            let gateway_map: HashMap<_, _> = gateways
+                .current()
+                .iter()
+                .filter_map(|(gateway_ref, _, gateway)| match gateway {
+                    ObjectState::Active(gateway) => Some((gateway_ref, gateway)),
+                    _ => None,
+                })
+                .collect();
+            let mut new_routes: HashMap<ObjectRef, Vec<Arc<HTTPRoute>>> = HashMap::new();
+
+            for (http_route_ref, _, http_route) in http_routes.current().iter() {
+                if let ObjectState::Active(http_route) = http_route {
+                    info!("Collecting HTTPRoute: object.ref={}", http_route_ref);
+                    for parent_ref in http_route.spec.parent_refs.iter().flatten() {
+                        let gateway_ref = ObjectRef::new_builder()
+                            .of_kind::<Gateway>()
+                            .namespace(
+                                parent_ref
+                                    .namespace
+                                    .clone()
+                                    .or_else(|| http_route_ref.namespace().clone()),
+                            )
+                            .name(&parent_ref.name)
+                            .build()
+                            .unwrap();
+
+                        // let gateway: Vec<_> = gateway_map
+                        //     .get(&gateway_ref)
+                        //     .iter()
+                        //     .flat_map(|g| g.spec.listeners)
+                        //     .collect();
+
+                        match new_routes.entry(gateway_ref) {
+                            Entry::Occupied(mut entry) => {
+                                entry.get_mut().push(http_route.clone());
+                            }
+                            Entry::Vacant(entry) => {
+                                entry.insert(vec![http_route.clone()]);
+                            }
+                        }
+                    }
+                }
+            }
+
+            tx.replace(new_routes);
+
+            select_continue!(gateways.changed(), http_routes.changed());
         }
     });
 

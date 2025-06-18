@@ -1,11 +1,11 @@
 use crate::services::proxy::router::HttpRouter;
 use http::HeaderValue;
 
-use kubera_core::config::gateway::types::GatewayConfiguration;
 use kubera_core::config::gateway::types::http::router::*;
-use kubera_core::config::gateway::types::net::HostMatchType;
+use kubera_core::config::gateway::types::net::HostnameMatchType;
+use kubera_core::config::gateway::types::GatewayConfiguration;
 use kubera_core::select_continue;
-use kubera_core::sync::signal::{Receiver, channel};
+use kubera_core::sync::signal::{channel, Receiver};
 use thiserror::Error;
 use tracing::debug;
 
@@ -23,16 +23,16 @@ pub async fn spawn_controller(
             if let Some(gateway_config) = gateway_configuration.current().as_ref() {
                 let mut router = HttpRouter::new_builder();
 
-                for host_match in gateway_config.hosts().iter() {
-                    match host_match.match_type() {
-                        HostMatchType::Exact => {
-                            router.add_exact_host(host_match.value());
-                        }
-                        HostMatchType::Suffix => {
-                            router.add_host_suffix(host_match.value());
-                        }
-                    }
-                }
+                // for host_match in gateway_config.hosts().iter() {
+                //     match host_match.match_type() {
+                //         HostnameMatchType::Exact => {
+                //             router.add_exact_host(host_match.value());
+                //         }
+                //         HostnameMatchType::Suffix => {
+                //             router.add_host_suffix(host_match.value());
+                //         }
+                //     }
+                // }
 
                 for config_route in gateway_config.http_routes() {
                     router.add_route(|route| {

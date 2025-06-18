@@ -1,4 +1,5 @@
 use crate::net::{Hostname, Port};
+use derive_builder::Builder;
 use getset::Getters;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -114,30 +115,97 @@ impl EndpointBuilder {
 #[derive(
     Validate, Getters, Debug, Clone, PartialEq, Hash, Eq, Serialize, Deserialize, JsonSchema,
 )]
-pub struct HostMatch {
+pub struct Listener {
+    #[getset(get = "pub")]
+    name: String,
+
+    #[getset(get = "pub")]
+    host: Option<HostnameMatch>,
+
+    #[getset(get = "pub")]
+    port: Port,
+
+    #[getset(get = "pub")]
+    protocol: String,
+}
+
+impl Listener {
+    pub fn new_builder() -> ListenerBuilder {
+        ListenerBuilder::default()
+    }
+}
+
+#[derive(Debug, Default)]
+pub struct ListenerBuilder {
+    name: Option<String>,
+    host: Option<HostnameMatch>,
+    port: Option<Port>,
+    protocol: Option<String>,
+}
+
+impl ListenerBuilder {
+    pub fn build(self) -> Listener {
+        Listener {
+            name: self.name.expect("Listener name is required"),
+            host: self.host,
+            port: self.port.expect("Listener port is required"),
+            protocol: self.protocol.expect("Listener protocol is required"),
+        }
+    }
+
+    pub fn with_name<S: AsRef<str>>(&mut self, name: S) -> &mut Self {
+        self.name = Some(name.as_ref().to_string());
+        self
+    }
+
+    pub fn with_exact_hostname<S: AsRef<str>>(&mut self, hostname: S) -> &mut Self {
+        self.host = Some(HostnameMatch::exactly(hostname));
+        self
+    }
+
+    pub fn with_hostname_suffix<S: AsRef<str>>(&mut self, suffix: S) -> &mut Self {
+        self.host = Some(HostnameMatch::with_suffix(suffix));
+        self
+    }
+
+    pub fn with_port(&mut self, port: u16) -> &mut Self {
+        self.port = Some(Port::new(port));
+        self
+    }
+
+    pub fn with_protocol<S: AsRef<str>>(&mut self, protocol: S) -> &mut Self {
+        self.protocol = Some(protocol.as_ref().to_string());
+        self
+    }
+}
+
+#[derive(
+    Validate, Getters, Debug, Clone, PartialEq, Hash, Eq, Serialize, Deserialize, JsonSchema,
+)]
+pub struct HostnameMatch {
     #[getset(get = "pub")]
     #[serde(
         default,
         rename = "type",
-        skip_serializing_if = "HostMatchType::is_default"
+        skip_serializing_if = "HostnameMatchType::is_default"
     )]
-    match_type: HostMatchType,
+    match_type: HostnameMatchType,
 
     #[getset(get = "pub")]
     value: Hostname,
 }
 
-impl HostMatch {
+impl HostnameMatch {
     pub fn exactly<S: AsRef<str>>(value: S) -> Self {
         Self {
-            match_type: HostMatchType::Exact,
+            match_type: HostnameMatchType::Exact,
             value: Hostname::new(value),
         }
     }
 
     pub fn with_suffix<S: AsRef<str>>(value: S) -> Self {
         Self {
-            match_type: HostMatchType::Suffix,
+            match_type: HostnameMatchType::Suffix,
             value: Hostname::new(value),
         }
     }
@@ -146,13 +214,13 @@ impl HostMatch {
 #[derive(
     Validate, Default, Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema,
 )]
-pub enum HostMatchType {
+pub enum HostnameMatchType {
     #[default]
     Exact,
     Suffix,
 }
 
-impl HostMatchType {
+impl HostnameMatchType {
     pub fn is_default(&self) -> bool {
         *self == Self::Exact
     }

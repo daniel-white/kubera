@@ -64,12 +64,12 @@ impl HttpRouteRuleMatchesBuilder {
         self
     }
 
-    pub fn with_prefix_path<S: AsRef<str>>(&mut self, prefix: S) -> &mut Self {
+    pub fn with_path_prefix<S: AsRef<str>>(&mut self, prefix: S) -> &mut Self {
         self.path = HttpPathMatch::with_prefix(prefix);
         self
     }
 
-    pub fn with_matching_path<S: AsRef<str>>(&mut self, pattern: S) -> &mut Self {
+    pub fn with_path_matching<S: AsRef<str>>(&mut self, pattern: S) -> &mut Self {
         self.path = HttpPathMatch::matching(pattern);
         self
     }

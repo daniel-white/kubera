@@ -90,6 +90,12 @@ impl ObjectUniqueId {
     }
 }
 
+impl Display for ObjectUniqueId {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
 #[derive(PartialEq, Debug)]
 pub enum ObjectState<K: Resource + ResourceExt> {
     Active(Arc<K>),

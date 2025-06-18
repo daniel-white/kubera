@@ -2,7 +2,7 @@ pub mod http;
 pub mod net;
 
 use crate::config::gateway::types::http::router::{HttpRoute, HttpRouteBuilder};
-use crate::config::gateway::types::net::HostMatch;
+use crate::config::gateway::types::net::{Listener, ListenerBuilder};
 use getset::Getters;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -37,7 +37,7 @@ pub struct GatewayConfiguration {
 
     #[getset(get = "pub")]
     #[validate(max_items = 64)]
-    hosts: Vec<HostMatch>,
+    listeners: Vec<Listener>,
 
     #[getset(get = "pub")]
     #[validate(max_items = 64)]
@@ -47,7 +47,7 @@ pub struct GatewayConfiguration {
 #[derive(Debug, Default)]
 pub struct GatewayConfigurationBuilder {
     version: GatewayConfigurationVersion,
-    hosts: Vec<HostMatch>,
+    listeners: Vec<Listener>,
     http_route_builders: Vec<HttpRouteBuilder>,
 }
 
@@ -59,7 +59,7 @@ impl GatewayConfigurationBuilder {
     pub fn build(self) -> GatewayConfiguration {
         GatewayConfiguration {
             version: self.version,
-            hosts: self.hosts,
+            listeners: self.listeners,
             http_routes: self
                 .http_route_builders
                 .into_iter()
@@ -73,13 +73,14 @@ impl GatewayConfigurationBuilder {
         self
     }
 
-    pub fn with_exact_host<S: AsRef<str>>(&mut self, host: S) -> &mut Self {
-        self.hosts.push(HostMatch::exactly(host));
-        self
-    }
-
-    pub fn with_host_suffix<S: AsRef<str>>(&mut self, suffix: S) -> &mut Self {
-        self.hosts.push(HostMatch::with_suffix(suffix));
+    pub fn add_listener<F>(&mut self, factory: F) -> &mut Self
+    where
+        F: FnOnce(&mut ListenerBuilder),
+    {
+        let mut listener = Listener::new_builder();
+        factory(&mut listener);
+        let listener = listener.build();
+        self.listeners.push(listener);
         self
     }
 

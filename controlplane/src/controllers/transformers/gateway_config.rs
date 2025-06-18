@@ -2,20 +2,24 @@ use crate::ipc::IpcServices;
 use crate::objects::{ObjectRef, ObjectState, Objects};
 use anyhow::Result;
 use gateway_api::apis::standard::gateways::Gateway;
+use gateway_api::apis::standard::httproutes::{
+    HTTPRoute, HTTPRouteRulesMatchesMethod, HTTPRouteRulesMatchesPathType,
+};
 use k8s_openapi::api::core::v1::ConfigMap;
-use kube::Client;
 use kube::api::{Patch, PatchParams, PostParams};
+use kube::Client;
 use kubera_api::constants::{
     CONFIGMAP_ROLE_GATEWAY_CONFIG, CONFIGMAP_ROLE_LABEL, MANAGED_BY_LABEL, MANAGED_BY_VALUE,
 };
 use kubera_core::config::gateway::serde::write_configuration;
+use kubera_core::config::gateway::types::http::router::HttpMethodMatch;
 use kubera_core::config::gateway::types::{GatewayConfiguration, GatewayConfigurationBuilder};
 use kubera_core::ipc::{Event, GatewayEvent};
 use kubera_core::net::Hostname;
 use kubera_core::select_continue;
-use kubera_core::sync::signal::{Receiver, channel};
-use std::collections::BTreeMap;
+use kubera_core::sync::signal::{channel, Receiver};
 use std::collections::hash_map::{Entry, HashMap};
+use std::collections::BTreeMap;
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::io::BufWriter;
 use std::net::IpAddr;
@@ -68,11 +72,13 @@ fn send_configuration_update_event(ipc_services: &IpcServices, gateway_ref: &Obj
 pub fn generate_gateway_configuration(
     join_set: &mut JoinSet<()>,
     gateways: &Receiver<Objects<Gateway>>,
+    http_routes: &Receiver<HashMap<ObjectRef, Vec<Arc<HTTPRoute>>>>,
     ipc_services: Arc<IpcServices>,
 ) -> Receiver<HashMap<ObjectRef, GatewayConfiguration>> {
     let (tx, rx) = channel(HashMap::default());
 
     let mut gateways = gateways.clone();
+    let mut http_routes = http_routes.clone();
 
     let mut configuration_hashes = HashMap::default();
 
@@ -81,26 +87,109 @@ pub fn generate_gateway_configuration(
             let current_gateways = gateways.current();
             let configs: HashMap<_, _> = current_gateways
                 .iter()
-                .map(|(gateway_ref, _, gateway)| {
+                .map(|(gateway_ref, gateway_uid, gateway)| {
                     warn!("Generating configuration for gateway: {}", gateway_ref);
                     let mut gateway_configuration = GatewayConfigurationBuilder::new();
 
                     match gateway {
                         ObjectState::Active(gateway) => {
-                            for hostname in gateway
-                                .spec
-                                .listeners
+                            for listener in &gateway.spec.listeners {
+                                gateway_configuration.add_listener(|l| {
+                                    l.with_name(&listener.name)
+                                        .with_port(listener.port as u16)
+                                        .with_protocol(&listener.protocol);
+
+                                    match map_hostname_match_to_type(&listener.hostname) {
+                                        Some(HostnameMatchType::Exact(hostname)) => {
+                                            l.with_exact_hostname(hostname);
+                                        }
+                                        Some(HostnameMatchType::Suffix(hostname)) => {
+                                            l.with_hostname_suffix(hostname);
+                                        }
+                                        None => {}
+                                    };
+                                });
+                            }
+
+                            warn!(
+                                "Adding Gateway to configuration: {:?}",
+                                http_routes.current().keys()
+                            );
+
+                            for http_route in http_routes
+                                .current()
+                                .get(&gateway_ref)
+                                .unwrap_or(&vec![])
                                 .iter()
-                                .filter_map(|l| l.hostname.as_ref())
                             {
-                                match map_host_match_to_type(hostname) {
-                                    HostMatchType::Exact(hostname) => {
-                                        gateway_configuration.with_exact_host(hostname)
+                                warn!("Adding HTTPRoute to configuration: {:?}", http_route);
+                                gateway_configuration.add_http_route(|r| {
+                                    if let Some(hostnames) = &http_route.spec.hostnames {
+                                        for hostname in hostnames {
+                                            match map_hostname_match_to_type(&Some(hostname)) {
+                                                Some(HostnameMatchType::Exact(hostname)) => {
+                                                    r.add_exact_host_header(hostname);
+                                                }
+                                                Some(HostnameMatchType::Suffix(hostname)) => {
+                                                    r.add_host_header_with_suffix(hostname);
+                                                }
+                                                None => {}
+                                            }
+                                        }
                                     }
-                                    HostMatchType::Suffix(hostname) => {
-                                        gateway_configuration.with_host_suffix(hostname)
+
+                                    if let Some(rules) = &http_route.spec.rules {
+                                        for (index, rule) in rules.iter().enumerate() {
+                                            r.add_rule(
+                                                format!(
+                                                    "{}:{}:{}",
+                                                    gateway_uid,
+                                                    http_route.metadata.uid.clone().unwrap(),
+                                                    index
+                                                ),
+                                                |r| {
+                                                    if let Some(matches) = &rule.matches {
+                                                        for m in matches {
+                                                            r.add_match(|config_m| {
+                                                               if let Some(path) = &m.path {
+                                                                   match path.r#type {
+                                                                       Some(HTTPRouteRulesMatchesPathType::Exact) => {
+                                                                           config_m.with_exact_path(path.value.clone().unwrap());
+                                                                       }
+                                                                       Some(HTTPRouteRulesMatchesPathType::PathPrefix) => {
+                                                                           config_m.with_path_prefix(path.value.clone().unwrap());
+                                                                       }
+                                                                       Some(HTTPRouteRulesMatchesPathType::RegularExpression) => {
+                                                                           config_m.with_path_matching(path.value.clone().unwrap());
+                                                                       }
+                                                                          None => {}
+                                                                   }
+                                                               }
+
+                                                                if let Some(method) = &m.method {
+                                                                    let method = match method {
+                                                                        HTTPRouteRulesMatchesMethod::Get => HttpMethodMatch::Get,
+                                                                        HTTPRouteRulesMatchesMethod::Head => HttpMethodMatch::Head,
+                                                                        HTTPRouteRulesMatchesMethod::Post => HttpMethodMatch::Post,
+                                                                        HTTPRouteRulesMatchesMethod::Put => HttpMethodMatch::Put,
+                                                                        HTTPRouteRulesMatchesMethod::Delete => HttpMethodMatch::Delete,
+                                                                        HTTPRouteRulesMatchesMethod::Connect => HttpMethodMatch::Connect,
+                                                                        HTTPRouteRulesMatchesMethod::Options => HttpMethodMatch::Options,
+                                                                        HTTPRouteRulesMatchesMethod::Trace => HttpMethodMatch::Trace,
+                                                                        HTTPRouteRulesMatchesMethod::Patch => HttpMethodMatch::Patch,
+                                                                    };
+
+                                                                    config_m.with_method(method);
+                                                                }
+                                                            });
+                                                        }
+                                                    }
+
+                                                },
+                                            );
+                                        }
                                     }
-                                };
+                                });
                             }
                         }
                         ObjectState::Deleted(_) => {}
@@ -109,10 +198,10 @@ pub fn generate_gateway_configuration(
                     gateway_configuration.add_http_route(|r| {
                         r.add_rule("rule", |r| {
                             r.add_match(|m| {
-                                m.with_prefix_path("/hello");
+                                m.with_path_prefix("/hello");
                             });
                             r.add_match(|m| {
-                                m.with_prefix_path("/world");
+                                m.with_path_prefix("/world");
                             });
 
                             r.add_backend(|b| {
@@ -137,25 +226,27 @@ pub fn generate_gateway_configuration(
 
             tx.replace(configs);
 
-            select_continue!(gateways.changed());
+            select_continue!(gateways.changed(), http_routes.changed());
         }
     });
 
     rx
 }
 
-enum HostMatchType {
+enum HostnameMatchType {
     Exact(Hostname),
     Suffix(Hostname),
 }
 
-fn map_host_match_to_type<S: AsRef<str>>(host: S) -> HostMatchType {
-    let host = host.as_ref();
-    if host.starts_with('*') {
-        let host = host.trim_start_matches('*');
-        HostMatchType::Suffix(Hostname::new(host))
-    } else {
-        HostMatchType::Exact(Hostname::new(host))
+fn map_hostname_match_to_type<S: AsRef<str>>(hostname: &Option<S>) -> Option<HostnameMatchType> {
+    match hostname.as_ref().map(|hostname| hostname.as_ref()) {
+        Some(hostname) if hostname.is_empty() => None,
+        Some(hostname) if hostname.starts_with('*') => {
+            let hostname = hostname.trim_start_matches('*');
+            Some(HostnameMatchType::Suffix(Hostname::new(hostname)))
+        }
+        Some(hostname) => Some(HostnameMatchType::Exact(Hostname::new(hostname))),
+        None => None,
     }
 }
 
