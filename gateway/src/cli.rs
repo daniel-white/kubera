@@ -31,6 +31,14 @@ pub struct Cli {
         long = "config-file-path"
     )]
     config_file_path: PathBuf,
+
+    #[getset(get = "pub")]
+    #[arg(env = "KUBERNETES_NODE_NAME", long = "kubernetes-node-name")]
+    kubernetes_node_name: Option<String>,
+
+    #[getset(get = "pub")]
+    #[arg(env = "KUBERNETES_ZONE_NAME", long = "kubernetes-zone-name")]
+    kubernetes_zone_name: Option<String>,
 }
 
 fn parse_port(arg: &str) -> Result<Port> {

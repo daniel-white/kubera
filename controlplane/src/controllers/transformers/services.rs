@@ -1,5 +1,5 @@
 use crate::controllers::transformers::http_routes::HttpRouteBackend;
-use crate::objects::{ObjectRef, ObjectState, Objects, Zone};
+use crate::objects::{ObjectRef, ObjectState, Objects, TopologyLocation};
 use derive_builder::Builder;
 use getset::Getters;
 use k8s_openapi::api::core::v1::Service;
@@ -14,7 +14,7 @@ use tracing::{debug, warn};
 #[derive(Debug, Builder, Getters, Clone, Hash, PartialEq, Eq)]
 pub struct Endpoints {
     #[getset(get = "pub")]
-    zone_ref: Zone,
+    location: TopologyLocation,
 
     #[getset(get = "pub")]
     addresses: Vec<IpAddr>,
@@ -119,11 +119,11 @@ fn extract_backend(object_ref: &ObjectRef, endpoint_slice: &EndpointSlice) -> Ba
             },
         )
         .map(|endpoint| {
-            let zone_ref = Zone::new_builder()
+            let location = TopologyLocation::new_builder()
                 .zone(endpoint.zone.clone())
                 .node(endpoint.node_name.clone())
                 .build()
-                .expect("Failed to build Zone");
+                .expect("Failed to build TopologyLocation");
 
             let addresses: Vec<_> = endpoint
                 .addresses
@@ -136,7 +136,7 @@ fn extract_backend(object_ref: &ObjectRef, endpoint_slice: &EndpointSlice) -> Ba
                 .collect();
 
             Endpoints::new_builder()
-                .zone_ref(zone_ref)
+                .location(location)
                 .addresses(addresses)
                 .build()
                 .expect("Failed to build Endpoints")

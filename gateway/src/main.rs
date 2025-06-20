@@ -4,6 +4,7 @@ mod services;
 mod util;
 
 use crate::cli::Cli;
+use crate::config::topology::TopologyLocationBuilder;
 use crate::services::control::spawn_control_server;
 use crate::services::proxy::ProxyBuilder;
 use clap::Parser;
@@ -12,7 +13,7 @@ use once_cell::sync::Lazy;
 use pingora::prelude::*;
 use pingora::server::Server;
 use pingora::services::listening::Service;
-use prometheus::{IntGauge, register_int_gauge};
+use prometheus::{register_int_gauge, IntGauge};
 use tokio::join;
 use tokio::task::spawn_blocking;
 
@@ -24,9 +25,16 @@ async fn main() {
     init_logging();
     let cli = Cli::parse();
 
+    let zone = cli.kubernetes_zone_name().clone().filter(|z| !z.is_empty());
+    let node = cli.kubernetes_node_name().clone().filter(|n| !n.is_empty());
+
+    let mut current_location = TopologyLocationBuilder::default();
+    current_location.in_zone(&zone).on_node(&node);
+    let current_location = current_location.build();
+
     let config = config::config_watcher_controller::spawn_controller("gateway.yaml")
         .expect("Failed to spawn controller");
-    let router = config::router_controller::spawn_controller(config)
+    let router = config::router_controller::spawn_controller(config, current_location)
         .await
         .expect("Failed to spawn router controller");
 

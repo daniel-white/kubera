@@ -1,14 +1,16 @@
 mod matches;
 mod routes;
 
+use crate::config::topology::TopologyLocation;
+use crate::config::topology::TopologyLocationBuilder;
 use crate::services::proxy::router::matches::{HostMatch, HostValueMatch};
+use crate::services::proxy::router::routes::{HttpRoute, HttpRouteBuilder};
 use getset::Getters;
 use http::request::Parts;
+use kubera_core::net::Hostname;
 pub use matches::HttpRouteRuleMatches;
 use std::net::IpAddr;
-
-use crate::services::proxy::router::routes::{HttpRoute, HttpRouteBuilder};
-use kubera_core::net::Hostname;
+use std::sync::Arc;
 
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct HttpRouter {
@@ -16,13 +18,21 @@ pub struct HttpRouter {
     routes: Vec<HttpRoute>,
 }
 
-#[derive(Default)]
 pub struct HttpRouterBuilder {
+    current_location: Arc<TopologyLocation>,
     host_value_matches: Vec<HostValueMatch>,
     routes_builders: Vec<HttpRouteBuilder>,
 }
 
 impl HttpRouterBuilder {
+    pub fn new(current_location: &Arc<TopologyLocation>) -> Self {
+        HttpRouterBuilder {
+            current_location: current_location.clone(),
+            host_value_matches: Vec::new(),
+            routes_builders: Vec::new(),
+        }
+    }
+
     pub fn build(self) -> HttpRouter {
         let hosts = HostMatch {
             host_value_matches: self.host_value_matches,
@@ -42,7 +52,7 @@ impl HttpRouterBuilder {
     where
         F: FnOnce(&mut HttpRouteBuilder),
     {
-        let mut builder = HttpRoute::new_builder();
+        let mut builder = HttpRouteBuilder::new(&self.current_location);
         factory(&mut builder);
         self.routes_builders.push(builder);
 
@@ -63,10 +73,6 @@ impl HttpRouterBuilder {
 }
 
 impl HttpRouter {
-    pub fn new_builder() -> HttpRouterBuilder {
-        HttpRouterBuilder::default()
-    }
-
     pub fn match_route(&self, parts: &Parts) -> Option<&HttpRoute> {
         None
         // self.routes
@@ -102,29 +108,37 @@ pub struct HttpBackend {
     endpoints: Vec<HttpBackendEndpoint>,
 }
 
-impl HttpBackend {
-    pub fn new_builder() -> HttpBackendBuilder {
-        HttpBackendBuilder::default()
-    }
-}
-
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct HttpBackendBuilder {
+    current_location: Arc<TopologyLocation>,
     weight: i32,
     port: Option<u16>,
     endpoint_builders: Vec<HttpBackendEndpointBuilder>,
 }
 
 impl HttpBackendBuilder {
+    pub fn new(current_location: &Arc<TopologyLocation>) -> Self {
+        HttpBackendBuilder {
+            current_location: current_location.clone(),
+            weight: 1,
+            port: None,
+            endpoint_builders: Vec::new(),
+        }
+    }
+
     pub fn build(self) -> HttpBackend {
+        let mut endpoints: Vec<_> = self
+            .endpoint_builders
+            .into_iter()
+            .map(|b| b.build())
+            .collect();
+
+        endpoints.sort_by_cached_key(|e| e.location.score(&self.current_location));
+
         HttpBackend {
             weight: self.weight,
             port: self.port,
-            endpoints: self
-                .endpoint_builders
-                .into_iter()
-                .map(|b| b.build())
-                .collect(),
+            endpoints,
         }
     }
 
@@ -152,10 +166,7 @@ impl HttpBackendBuilder {
 #[derive(Getters, Debug, Clone, PartialEq, Eq)]
 pub struct HttpBackendEndpoint {
     #[getset(get = "pub")]
-    node: Option<String>,
-
-    #[getset(get = "pub")]
-    zone: Option<String>,
+    location: TopologyLocation,
 
     #[getset(get = "pub")]
     address: IpAddr,
@@ -163,35 +174,32 @@ pub struct HttpBackendEndpoint {
 
 #[derive(Debug)]
 pub struct HttpBackendEndpointBuilder {
-    node: Option<String>,
-    zone: Option<String>,
+    location_builder: TopologyLocationBuilder,
     address: IpAddr,
 }
 
 impl HttpBackendEndpointBuilder {
     pub fn build(self) -> HttpBackendEndpoint {
         HttpBackendEndpoint {
-            node: self.node,
-            zone: self.zone,
+            location: self.location_builder.build(),
             address: self.address,
         }
     }
 
     pub fn for_address(address: IpAddr) -> Self {
         HttpBackendEndpointBuilder {
-            node: None,
-            zone: None,
+            location_builder: TopologyLocationBuilder::default(),
             address,
         }
     }
 
-    pub fn on_node(&mut self, node: String) -> &mut Self {
-        self.node = Some(node);
-        self
-    }
-
-    pub fn in_zone(&mut self, zone: String) -> &mut Self {
-        self.zone = Some(zone);
+    pub fn located<F>(&mut self, factory: F) -> &mut Self
+    where
+        F: FnOnce(&mut TopologyLocationBuilder),
+    {
+        let mut builder = TopologyLocationBuilder::default();
+        factory(&mut builder);
+        self.location_builder = builder;
         self
     }
 }

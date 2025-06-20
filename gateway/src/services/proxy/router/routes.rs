@@ -1,3 +1,4 @@
+use crate::config::topology::TopologyLocation;
 use crate::services::proxy::router::matches::{
     HostHeaderMatch, HostHeaderMatchBuilder, HttpRouteRuleMatchesBuilder, HttpRouteRuleMatchesScore,
 };
@@ -5,6 +6,7 @@ use crate::services::proxy::router::{HttpBackend, HttpBackendBuilder, HttpRouteR
 use getset::Getters;
 use http::request::Parts;
 use kubera_core::net::Hostname;
+use std::sync::Arc;
 use tracing::instrument;
 
 pub enum HttpRouteMatchResult<'a> {
@@ -22,10 +24,6 @@ pub struct HttpRoute {
 }
 
 impl HttpRoute {
-    pub fn new_builder() -> HttpRouteBuilder {
-        HttpRouteBuilder::default()
-    }
-
     #[instrument(skip(self, parts), level = "debug", name = "HttpRoute::matches")]
     pub fn matches(&self, parts: &Parts) -> HttpRouteMatchResult {
         if !self.host_header_match.matches(&parts.headers) {
@@ -51,13 +49,21 @@ impl HttpRoute {
     }
 }
 
-#[derive(Default)]
 pub struct HttpRouteBuilder {
+    current_location: Arc<TopologyLocation>,
     host_header_match_builder: HostHeaderMatchBuilder,
     rule_builders: Vec<HttpRouteRuleBuilder>,
 }
 
 impl HttpRouteBuilder {
+    pub fn new(current_location: &Arc<TopologyLocation>) -> Self {
+        HttpRouteBuilder {
+            current_location: current_location.clone(),
+            host_header_match_builder: HostHeaderMatchBuilder::default(),
+            rule_builders: Vec::new(),
+        }
+    }
+
     pub fn build(self) -> HttpRoute {
         HttpRoute {
             host_header_match: self.host_header_match_builder.build(),
@@ -79,7 +85,7 @@ impl HttpRouteBuilder {
     where
         F: FnOnce(&mut HttpRouteRuleBuilder),
     {
-        let mut builder = HttpRouteRuleBuilder::new(unique_id);
+        let mut builder = HttpRouteRuleBuilder::new(unique_id, &self.current_location);
         factory(&mut builder);
         self.rule_builders.push(builder);
         self
@@ -130,14 +136,16 @@ pub struct HttpRouteRule {
 #[derive(Debug)]
 pub struct HttpRouteRuleBuilder {
     unique_id: HttpRouteRuleUniqueId,
+    curent_location: Arc<TopologyLocation>,
     matches_builders: Vec<HttpRouteRuleMatchesBuilder>,
     backend_builders: Vec<HttpBackendBuilder>,
 }
 
 impl HttpRouteRuleBuilder {
-    pub fn new(unique_id: HttpRouteRuleUniqueId) -> Self {
+    pub fn new(unique_id: HttpRouteRuleUniqueId, curent_location: &Arc<TopologyLocation>) -> Self {
         Self {
             unique_id,
+            curent_location: curent_location.clone(),
             matches_builders: Vec::new(),
             backend_builders: Vec::new(),
         }
@@ -173,7 +181,7 @@ impl HttpRouteRuleBuilder {
     where
         F: FnOnce(&mut HttpBackendBuilder),
     {
-        let mut backend_builder = HttpBackend::new_builder();
+        let mut backend_builder = HttpBackendBuilder::new(&self.curent_location);
         factory(&mut backend_builder);
         self.backend_builders.push(backend_builder);
         self

@@ -1,6 +1,8 @@
-use crate::services::proxy::router::HttpRouter;
+use crate::services::proxy::router::{HttpRouter, HttpRouterBuilder};
 use http::HeaderValue;
+use std::sync::Arc;
 
+use crate::config::topology::TopologyLocation;
 use kubera_core::config::gateway::types::http::router::*;
 use kubera_core::config::gateway::types::net::HostnameMatchType;
 use kubera_core::config::gateway::types::GatewayConfiguration;
@@ -14,14 +16,17 @@ pub enum ControllerError {}
 
 pub async fn spawn_controller(
     gateway_configuration: Receiver<Option<GatewayConfiguration>>,
+    current_location: TopologyLocation,
 ) -> Result<Receiver<Option<HttpRouter>>, ControllerError> {
     let mut gateway_configuration = gateway_configuration.clone();
     let (tx, rx) = channel(None);
 
     tokio::spawn(async move {
+        let current_location = Arc::new(current_location);
+
         loop {
             if let Some(gateway_config) = gateway_configuration.current().as_ref() {
-                let mut router = HttpRouter::new_builder();
+                let mut router = HttpRouterBuilder::new(&current_location);
 
                 // for host_match in gateway_config.hosts().iter() {
                 //     match host_match.match_type() {
@@ -129,12 +134,10 @@ pub async fn spawn_controller(
                                             backend.add_endpoint(
                                                 *config_endpoint.address(),
                                                 |endpoint| {
-                                                    if let Some(zone) = config_endpoint.zone() {
-                                                        endpoint.in_zone(zone.clone());
-                                                    }
-                                                    if let Some(node) = config_endpoint.node() {
-                                                        endpoint.on_node(node.clone());
-                                                    }
+                                                    endpoint.located(|l| {
+                                                        l.in_zone(config_endpoint.zone())
+                                                            .on_node(config_endpoint.node());
+                                                    });
                                                 },
                                             );
                                         }

@@ -204,7 +204,7 @@ impl<K: Resource + ResourceExt> FromIterator<(ObjectRef, ObjectUniqueId, ObjectS
 
 #[derive(Builder, Getters, Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[builder(setter(into))]
-pub struct Zone {
+pub struct TopologyLocation {
     #[getset(get = "pub")]
     node: Option<String>,
 
@@ -212,8 +212,8 @@ pub struct Zone {
     zone: Option<String>,
 }
 
-impl Zone {
-    pub fn new_builder() -> ZoneBuilder {
-        ZoneBuilder::default()
+impl TopologyLocation {
+    pub fn new_builder() -> TopologyLocationBuilder {
+        TopologyLocationBuilder::default()
     }
 }

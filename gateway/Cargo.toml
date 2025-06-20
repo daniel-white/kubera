@@ -24,6 +24,9 @@ unicase = { workspace = true }
 url = "2"
 prometheus = "0.14"
 
+[dev-dependencies]
+rstest = { workspace = true }
+
 [[bin]]
 name = "kubera_gateway"
 path = "src/main.rs"
