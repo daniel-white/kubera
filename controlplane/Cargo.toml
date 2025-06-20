@@ -13,6 +13,9 @@ derive_builder = { workspace = true }
 futures = { workspace = true }
 gateway-api = "0.15"
 getset = { workspace = true }
+gtmpl = "0.7"
+gtmpl_derive = "0.5"
+gtmpl_value = "0.5"
 itertools = "0.14"
 k8s-openapi = { workspace = true }
 kube = { workspace = true }
@@ -21,6 +24,7 @@ kubera_core = { path = "../core" }
 problemdetails = { version = "0.6", features = ["axum"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
+serde_yaml = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true }
 tokio-stream = { version = "0.1", features = ["full"] }

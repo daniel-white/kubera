@@ -50,6 +50,7 @@ pub async fn run(ipc_services: IpcServices) -> Result<()> {
         &gateway_config_maps,
         &gateway_configurations,
     );
+    transformers::generate_gateway_services(&mut join_set, &gateways, ipc_services.clone());
 
     // let sources = desired_resources_controller::SourceResourcesReceivers::new_builder()
     //     .gateway_classes(gateway_classes)

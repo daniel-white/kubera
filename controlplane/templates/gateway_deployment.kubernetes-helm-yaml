@@ -1,0 +1,57 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ printf "%s-kubera-gateway" .name }}
+  namespace: {{ .namespace }}
+  annotations:
+    app.kubernetes.io/managed-by: kubera-controlplane
+    app.kubernetes.io/component: gateway
+    app.kubernetes.io/name: {{ printf "%s-kubera-gateway" .name }}
+  labels:
+    app: {{ printf "%s-kubera-gateway" .name }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ printf "%s-kubera-gateway" .name }}
+  template:
+    metadata:
+      labels:
+        app: {{ printf "%s-kubera-gateway" .name }}
+    spec:
+      containers:
+        - name: gateway
+          image: mendhak/http-https-echo:latest
+          imagePullPolicy: Always
+          env:
+            - name: ECHO_INCLUDE_ENV_VARS
+              value: "1"
+            - name: KUBERA_CONTROLPLANE_HOST
+              value: {{ .controlplaneHost }}
+            - name: KUBERNETES_NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: KUBERNETES_NODE_ZONE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.labels['topology.kubernetes.io/zone']
+{{/*          ports:*/}}
+{{/*            - name: http*/}}
+{{/*              containerPort: 8080*/}}
+{{/*              protocol: TCP*/}}
+{{/*          resources:*/}}
+{{/*            limits:*/}}
+{{/*              cpu: 100m*/}}
+{{/*              memory: 128Mi*/}}
+{{/*            requests:*/}}
+{{/*              cpu: 50m*/}}
+{{/*              memory: 64Mi*/}}
+{{/*          livenessProbe:*/}}
+{{/*            httpGet:*/}}
+{{/*              path: /*/}}
+{{/*              port: http*/}}
+{{/*          readinessProbe:*/}}
+{{/*            httpGet:*/}}
+{{/*              path: /*/}}
+{{/*              port: http*/}}
