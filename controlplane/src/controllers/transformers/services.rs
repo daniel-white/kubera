@@ -5,11 +5,11 @@ use getset::Getters;
 use k8s_openapi::api::core::v1::Service;
 use k8s_openapi::api::discovery::v1::EndpointSlice;
 use kubera_core::select_continue;
-use kubera_core::sync::signal::{Receiver, channel};
+use kubera_core::sync::signal::{channel, Receiver};
 use std::collections::BTreeMap;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use tokio::task::JoinSet;
-use tracing::debug;
+use tracing::{debug, warn};
 
 #[derive(Debug, Builder, Getters, Clone, Hash, PartialEq, Eq)]
 pub struct Endpoints {
@@ -55,6 +55,7 @@ pub fn collect_service_backends(
         loop {
             let current_endpoint_slices = endpoint_slices.current();
             let current_http_route_backends = http_route_backends.current();
+
             let endpoint_slices_by_service: BTreeMap<_, _> = current_endpoint_slices
                 .iter()
                 .filter_map(|(_, _, endpoint_slice)| {
@@ -76,11 +77,18 @@ pub fn collect_service_backends(
                         None
                     }
                 })
-                .filter(|(object_ref, _)| current_http_route_backends.contains_key(object_ref))
-                .map(|(object_ref, endpoint_slice)| {
+                .filter(|(service_ref, _)| {
+                    warn!(
+                        "Checking if service_ref {:?} is in current HTTPRoute backends",
+                        service_ref
+                    );
+
+                    current_http_route_backends.contains_key(service_ref)
+                })
+                .map(|(service_ref, endpoint_slice)| {
                     (
-                        object_ref.clone(),
-                        extract_backend(&object_ref, endpoint_slice.as_ref()),
+                        service_ref.clone(),
+                        extract_backend(&service_ref, endpoint_slice.as_ref()),
                     )
                 })
                 .collect();

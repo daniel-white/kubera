@@ -33,7 +33,7 @@ pub async fn run(ipc_services: IpcServices) -> Result<()> {
         transformers::collect_http_routes_by_gateway(&mut join_set, &gateways, &http_routes);
     let service_backends = transformers::collect_http_route_backends(&mut join_set, &http_routes);
     let endpoint_slices = spawn_controller!(EndpointSlice, join_set, client);
-    let _service_endpoint_ips =
+    let backends =
         transformers::collect_service_backends(&mut join_set, &service_backends, &endpoint_slices);
     let config_maps = spawn_controller!(ConfigMap, join_set, client, managed_by_selector);
     let gateway_config_maps = filters::filter_gateway_config_maps(&mut join_set, &config_maps);
@@ -41,6 +41,7 @@ pub async fn run(ipc_services: IpcServices) -> Result<()> {
         &mut join_set,
         &gateways,
         &http_routes_by_gateway,
+        &backends,
         ipc_services.clone(),
     );
     transformers::sync_gateway_configuration(

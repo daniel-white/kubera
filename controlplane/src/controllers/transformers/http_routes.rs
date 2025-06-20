@@ -1,10 +1,8 @@
 use crate::objects::{ObjectRef, ObjectState, Objects};
-use clap::ValueHint::Hostname;
 use derive_builder::Builder;
 use gateway_api::apis::standard::gateways::Gateway;
 use gateway_api::apis::standard::httproutes::HTTPRoute;
 use getset::Getters;
-use itertools::Itertools;
 use k8s_openapi::api::core::v1::Service;
 use kubera_core::select_continue;
 use kubera_core::sync::signal::{channel, Receiver};
@@ -12,7 +10,7 @@ use std::collections::hash_map::Entry;
 use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 use tokio::task::JoinSet;
-use tracing::{debug, error, info};
+use tracing::{debug, info};
 
 #[derive(Debug, Builder, Getters, Clone, Hash, PartialEq, Eq)]
 pub struct HttpRouteBackend {
@@ -59,7 +57,9 @@ pub fn collect_http_route_backends(
                                         if kind == "Service" {
                                             let service_ref = ObjectRef::new_builder()
                                                 .of_kind::<Service>()
-                                                .namespace(backend_ref.namespace.clone())
+                                                .namespace(backend_ref.namespace.clone().or_else(
+                                                    || http_route.metadata.namespace.clone(),
+                                                ))
                                                 .name(&backend_ref.name)
                                                 .build()
                                                 .unwrap();
@@ -131,12 +131,6 @@ pub fn collect_http_routes_by_gateway(
                             .name(&parent_ref.name)
                             .build()
                             .unwrap();
-
-                        // let gateway: Vec<_> = gateway_map
-                        //     .get(&gateway_ref)
-                        //     .iter()
-                        //     .flat_map(|g| g.spec.listeners)
-                        //     .collect();
 
                         match new_routes.entry(gateway_ref) {
                             Entry::Occupied(mut entry) => {

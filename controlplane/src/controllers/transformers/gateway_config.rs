@@ -1,11 +1,13 @@
+use crate::controllers::transformers::Backend;
 use crate::ipc::IpcServices;
 use crate::objects::{ObjectRef, ObjectState, Objects};
 use anyhow::Result;
 use gateway_api::apis::standard::gateways::Gateway;
 use gateway_api::apis::standard::httproutes::{
-    HTTPRoute, HTTPRouteRulesMatchesMethod, HTTPRouteRulesMatchesPathType,
+    HTTPRoute, HTTPRouteRulesMatchesHeadersType, HTTPRouteRulesMatchesMethod,
+    HTTPRouteRulesMatchesPathType, HTTPRouteRulesMatchesQueryParamsType,
 };
-use k8s_openapi::api::core::v1::ConfigMap;
+use k8s_openapi::api::core::v1::{ConfigMap, Service};
 use kube::api::{Patch, PatchParams, PostParams};
 use kube::Client;
 use kubera_api::constants::{
@@ -22,7 +24,6 @@ use std::collections::hash_map::{Entry, HashMap};
 use std::collections::BTreeMap;
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::io::BufWriter;
-use std::net::IpAddr;
 use std::sync::Arc;
 use tokio::task::JoinSet;
 use tracing::warn;
@@ -73,22 +74,24 @@ pub fn generate_gateway_configuration(
     join_set: &mut JoinSet<()>,
     gateways: &Receiver<Objects<Gateway>>,
     http_routes: &Receiver<HashMap<ObjectRef, Vec<Arc<HTTPRoute>>>>,
+    backends: &Receiver<BTreeMap<ObjectRef, Backend>>,
     ipc_services: Arc<IpcServices>,
 ) -> Receiver<HashMap<ObjectRef, GatewayConfiguration>> {
     let (tx, rx) = channel(HashMap::default());
 
     let mut gateways = gateways.clone();
     let mut http_routes = http_routes.clone();
+    let mut backends = backends.clone();
 
     let mut configuration_hashes = HashMap::default();
 
     join_set.spawn(async move {
         loop {
             let current_gateways = gateways.current();
+            let current_backends = backends.current();
             let configs: HashMap<_, _> = current_gateways
                 .iter()
                 .map(|(gateway_ref, gateway_uid, gateway)| {
-                    warn!("Generating configuration for gateway: {}", gateway_ref);
                     let mut gateway_configuration = GatewayConfigurationBuilder::new();
 
                     match gateway {
@@ -111,18 +114,12 @@ pub fn generate_gateway_configuration(
                                 });
                             }
 
-                            warn!(
-                                "Adding Gateway to configuration: {:?}",
-                                http_routes.current().keys()
-                            );
-
                             for http_route in http_routes
                                 .current()
                                 .get(&gateway_ref)
                                 .unwrap_or(&vec![])
                                 .iter()
                             {
-                                warn!("Adding HTTPRoute to configuration: {:?}", http_route);
                                 gateway_configuration.add_http_route(|r| {
                                     if let Some(hostnames) = &http_route.spec.hostnames {
                                         for hostname in hostnames {
@@ -151,20 +148,20 @@ pub fn generate_gateway_configuration(
                                                     if let Some(matches) = &rule.matches {
                                                         for m in matches {
                                                             r.add_match(|config_m| {
-                                                               if let Some(path) = &m.path {
-                                                                   match path.r#type {
-                                                                       Some(HTTPRouteRulesMatchesPathType::Exact) => {
-                                                                           config_m.with_exact_path(path.value.clone().unwrap());
-                                                                       }
-                                                                       Some(HTTPRouteRulesMatchesPathType::PathPrefix) => {
-                                                                           config_m.with_path_prefix(path.value.clone().unwrap());
-                                                                       }
-                                                                       Some(HTTPRouteRulesMatchesPathType::RegularExpression) => {
-                                                                           config_m.with_path_matching(path.value.clone().unwrap());
-                                                                       }
-                                                                          None => {}
-                                                                   }
-                                                               }
+                                                                if let Some(path) = &m.path {
+                                                                    match path.r#type {
+                                                                        Some(HTTPRouteRulesMatchesPathType::Exact) => {
+                                                                            config_m.with_exact_path(path.value.clone().unwrap());
+                                                                        }
+                                                                        Some(HTTPRouteRulesMatchesPathType::PathPrefix) => {
+                                                                            config_m.with_path_prefix(path.value.clone().unwrap());
+                                                                        }
+                                                                        Some(HTTPRouteRulesMatchesPathType::RegularExpression) => {
+                                                                            config_m.with_path_matching(path.value.clone().unwrap());
+                                                                        }
+                                                                        None => {}
+                                                                    }
+                                                                }
 
                                                                 if let Some(method) = &m.method {
                                                                     let method = match method {
@@ -181,10 +178,76 @@ pub fn generate_gateway_configuration(
 
                                                                     config_m.with_method(method);
                                                                 }
+
+                                                                if let Some(headers) = &m.headers {
+                                                                    for header in headers {
+                                                                        match header.r#type.clone().unwrap_or(HTTPRouteRulesMatchesHeadersType::Exact) {
+                                                                            HTTPRouteRulesMatchesHeadersType::Exact => {
+                                                                                config_m.add_exact_header(
+                                                                                    header.name.as_str(),
+                                                                                    header.value.as_str(),
+                                                                                );
+                                                                            }
+                                                                            HTTPRouteRulesMatchesHeadersType::RegularExpression => {
+                                                                                config_m.add_header_matching(
+                                                                                    header.name.as_str(),
+                                                                                    header.value.as_str(),
+                                                                                );
+                                                                            }
+                                                                        }
+                                                                    }
+                                                                }
+
+                                                                if let Some(query_params) = &m.query_params {
+                                                                    for query_param in query_params {
+                                                                        match query_param.r#type.clone().unwrap_or(HTTPRouteRulesMatchesQueryParamsType::Exact) {
+                                                                            HTTPRouteRulesMatchesQueryParamsType::Exact => {
+                                                                                config_m.add_exact_query_param(
+                                                                                    query_param.name.as_str(),
+                                                                                    query_param.value.as_str(),
+                                                                                );
+                                                                            }
+                                                                            HTTPRouteRulesMatchesQueryParamsType::RegularExpression => {
+                                                                                config_m.add_query_param_matching(
+                                                                                    query_param.name.as_str(),
+                                                                                    query_param.value.as_str(),
+                                                                                );
+                                                                            }
+                                                                        }
+                                                                    }
+                                                                }
                                                             });
                                                         }
                                                     }
 
+                                                    if let Some(backend_refs) = &rule.backend_refs {
+                                                        for backend_ref in backend_refs {
+                                                            let backend_ref = ObjectRef::new_builder()
+                                                                .of_kind::<Service>()
+                                                                .namespace(backend_ref.namespace.clone().or_else(|| http_route.metadata.namespace.clone()))
+                                                                .name(&backend_ref.name)
+                                                                .build()
+                                                                .expect("Failed to build Backend reference");
+
+                                                            if let Some(backend) = current_backends.get(&backend_ref) {
+                                                                r.add_backend(|b| {
+                                                                    for endpoint in backend.endpoints() {
+                                                                        for address in endpoint.addresses() {
+                                                                            b.add_endpoint(address, |e| {
+                                                                                let zone_ref = endpoint.zone_ref();
+                                                                                if let Some(node) = zone_ref.node() {
+                                                                                    e.with_node(node);
+                                                                                }
+                                                                                if let Some(zone) = zone_ref.zone() {
+                                                                                    e.with_zone(zone);
+                                                                                }
+                                                                            });
+                                                                        }
+                                                                    }
+                                                                });
+                                                            }
+                                                        }
+                                                    }
                                                 },
                                             );
                                         }
@@ -194,24 +257,6 @@ pub fn generate_gateway_configuration(
                         }
                         ObjectState::Deleted(_) => {}
                     }
-
-                    gateway_configuration.add_http_route(|r| {
-                        r.add_rule("rule", |r| {
-                            r.add_match(|m| {
-                                m.with_path_prefix("/hello");
-                            });
-                            r.add_match(|m| {
-                                m.with_path_prefix("/world");
-                            });
-
-                            r.add_backend(|b| {
-                                b.with_port(80);
-                                b.add_endpoint(IpAddr::from([127, 0, 0, 1]), |e| {
-                                    e.with_node("local");
-                                });
-                            });
-                        });
-                    });
 
                     let gateway_configuration = gateway_configuration.build();
                     on_configuration_update(
@@ -226,7 +271,7 @@ pub fn generate_gateway_configuration(
 
             tx.replace(configs);
 
-            select_continue!(gateways.changed(), http_routes.changed());
+            select_continue!(gateways.changed(), http_routes.changed(), backends.changed());
         }
     });
 
@@ -342,11 +387,6 @@ fn map_gateway_configuration_to_config_map(
         data: Some(BTreeMap::from([("config.yaml".to_string(), file_content)])),
         ..Default::default()
     };
-
-    warn!(
-        "Hello world! Mapping gateway configuration to ConfigMap: {:?}",
-        config_map
-    );
 
     Ok((config_map_ref, config_map))
 }

@@ -9,12 +9,12 @@ spec:
     group: kubera.whitefamily.in
     name: kubera-gateway-class-config
 
----
-apiVersion: kubera.whitefamily.in/v1alpha1
-kind: GatewayClassParameters
-metadata:
-  name: kubera-gateway-class-config
-spec: { }
+#---
+#apiVersion: kubera.whitefamily.in/v1alpha1
+#kind: GatewayClassParameters
+#metadata:
+#  name: kubera-gateway-class-config
+#spec: { }
 
 ---
 apiVersion: gateway.networking.k8s.io/v1
@@ -55,7 +55,24 @@ spec:
   hostnames:
     - "dummy.example.com"
   rules:
-    - backendRefs:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /api
+          method: GET
+        - path:
+            type: Exact
+            value: /admin
+          method: POST
+      filters:
+        - type: RequestHeaderModifier
+          requestHeaderModifier:
+            add:
+              - name: X-Added-Header
+                value: AddedValue
+            remove:
+              - X-Remove-Header
+      backendRefs:
         - name: dummy-service
           port: 80
         - name: kubernetes
@@ -64,3 +81,12 @@ spec:
         - name: kube-dns
           namespace: kube-system
           port: 53
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /static
+      filters:
+        - type: RequestRedirect
+          requestRedirect:
+            scheme: https
+            statusCode: 301
