@@ -1,14 +1,16 @@
 mod matches;
 mod routes;
 
-use crate::config::topology::TopologyLocation;
-use crate::config::topology::TopologyLocationBuilder;
+use crate::config::topology::{TopologyLocation, TopologyLocationBuilder, TopologyLocationMatch};
 use crate::services::proxy::router::matches::{HostMatch, HostValueMatch};
 use crate::services::proxy::router::routes::{HttpRoute, HttpRouteBuilder};
+use enumflags2::BitFlags;
 use getset::Getters;
 use http::request::Parts;
+use itertools::Itertools;
 use kubera_core::net::Hostname;
 pub use matches::HttpRouteRuleMatches;
+use std::collections::HashMap;
 use std::net::IpAddr;
 use std::sync::Arc;
 
@@ -105,7 +107,7 @@ pub struct HttpBackend {
     port: Option<u16>,
 
     #[getset(get = "pub")]
-    endpoints: Vec<HttpBackendEndpoint>,
+    endpoints: HashMap<BitFlags<TopologyLocationMatch>, Vec<HttpBackendEndpoint>>,
 }
 
 #[derive(Debug)]
@@ -127,13 +129,23 @@ impl HttpBackendBuilder {
     }
 
     pub fn build(self) -> HttpBackend {
-        let mut endpoints: Vec<_> = self
+        let mut endpoints: HashMap<_, _> = self
             .endpoint_builders
             .into_iter()
-            .map(|b| b.build())
-            .collect();
+            .map(|b| {
+                let (location, endpoint) = b.build();
+                let score = TopologyLocationMatch::matches(&self.current_location, &location);
+                let score = if score.contains(TopologyLocationMatch::Node) {
+                    BitFlags::from(TopologyLocationMatch::Node)
+                } else if score.contains(TopologyLocationMatch::Zone) {
+                    BitFlags::from(TopologyLocationMatch::Zone)
+                } else {
+                    BitFlags::empty()
+                };
 
-        endpoints.sort_by_cached_key(|e| e.location.score(&self.current_location));
+                (score, endpoint)
+            })
+            .into_group_map();
 
         HttpBackend {
             weight: self.weight,
@@ -166,9 +178,6 @@ impl HttpBackendBuilder {
 #[derive(Getters, Debug, Clone, PartialEq, Eq)]
 pub struct HttpBackendEndpoint {
     #[getset(get = "pub")]
-    location: TopologyLocation,
-
-    #[getset(get = "pub")]
     address: IpAddr,
 }
 
@@ -179,11 +188,13 @@ pub struct HttpBackendEndpointBuilder {
 }
 
 impl HttpBackendEndpointBuilder {
-    pub fn build(self) -> HttpBackendEndpoint {
-        HttpBackendEndpoint {
-            location: self.location_builder.build(),
+    pub fn build(self) -> (TopologyLocation, HttpBackendEndpoint) {
+        let location = self.location_builder.build();
+        let endpoint = HttpBackendEndpoint {
             address: self.address,
-        }
+        };
+
+        (location, endpoint)
     }
 
     pub fn for_address(address: IpAddr) -> Self {

@@ -29,6 +29,12 @@ impl Endpoints {
 #[derive(Debug, Builder, Getters, Clone, Hash, PartialEq, Eq)]
 pub struct Backend {
     #[getset(get = "pub")]
+    weight: Option<i32>,
+
+    #[getset(get = "pub")]
+    port: Option<i32>,
+
+    #[getset(get = "pub")]
     object_ref: ObjectRef,
 
     #[getset(get = "pub")]
@@ -77,19 +83,13 @@ pub fn collect_service_backends(
                         None
                     }
                 })
-                .filter(|(service_ref, _)| {
-                    warn!(
-                        "Checking if service_ref {:?} is in current HTTPRoute backends",
-                        service_ref
-                    );
-
-                    current_http_route_backends.contains_key(service_ref)
-                })
-                .map(|(service_ref, endpoint_slice)| {
-                    (
-                        service_ref.clone(),
-                        extract_backend(&service_ref, endpoint_slice.as_ref()),
-                    )
+                .filter_map(|(service_ref, endpoint_slice)| {
+                    current_http_route_backends.get(&service_ref).map(|h| {
+                        (
+                            service_ref.clone(),
+                            extract_backend(&service_ref, h, endpoint_slice.as_ref()),
+                        )
+                    })
                 })
                 .collect();
 
@@ -102,7 +102,11 @@ pub fn collect_service_backends(
     rx
 }
 
-fn extract_backend(object_ref: &ObjectRef, endpoint_slice: &EndpointSlice) -> Backend {
+fn extract_backend(
+    object_ref: &ObjectRef,
+    http_route_backend: &HttpRouteBackend,
+    endpoint_slice: &EndpointSlice,
+) -> Backend {
     let endpoints = endpoint_slice
         .endpoints
         .iter()
@@ -146,6 +150,8 @@ fn extract_backend(object_ref: &ObjectRef, endpoint_slice: &EndpointSlice) -> Ba
     Backend::new_builder()
         .object_ref(object_ref.clone())
         .endpoints(endpoints)
+        .port(*http_route_backend.port())
+        .weight(*http_route_backend.weight())
         .build()
         .expect("Failed to build Backend")
 }

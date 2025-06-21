@@ -136,16 +136,16 @@ pub struct HttpRouteRule {
 #[derive(Debug)]
 pub struct HttpRouteRuleBuilder {
     unique_id: HttpRouteRuleUniqueId,
-    curent_location: Arc<TopologyLocation>,
+    current_location: Arc<TopologyLocation>,
     matches_builders: Vec<HttpRouteRuleMatchesBuilder>,
     backend_builders: Vec<HttpBackendBuilder>,
 }
 
 impl HttpRouteRuleBuilder {
-    pub fn new(unique_id: HttpRouteRuleUniqueId, curent_location: &Arc<TopologyLocation>) -> Self {
+    pub fn new(unique_id: HttpRouteRuleUniqueId, current_location: &Arc<TopologyLocation>) -> Self {
         Self {
             unique_id,
-            curent_location: curent_location.clone(),
+            current_location: current_location.clone(),
             matches_builders: Vec::new(),
             backend_builders: Vec::new(),
         }
@@ -181,7 +181,7 @@ impl HttpRouteRuleBuilder {
     where
         F: FnOnce(&mut HttpBackendBuilder),
     {
-        let mut backend_builder = HttpBackendBuilder::new(&self.curent_location);
+        let mut backend_builder = HttpBackendBuilder::new(&self.current_location);
         factory(&mut backend_builder);
         self.backend_builders.push(backend_builder);
         self

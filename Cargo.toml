@@ -11,14 +11,16 @@ members = ["api",
 anyhow = "1"
 async-trait = "0.1"
 axum = "0.8"
+enumflags2 = "0.7"
 clap = { version = "4", features = ["derive", "env"] }
 derive_builder = "0.20"
-flexi_logger = "0.30.2"
+flexi_logger = "0.31"
 futures = "0.3"
 getset = "0.1"
 http = "1"
 http-constant = "1"
 http-serde = "2"
+itertools = "0.14"
 k8s-openapi = { version = "0.24", features = ["v1_32"] }
 kube = { version = "0.99", features = ["runtime", "derive"] }
 regex = { version = "1", features = ["perf", "unicode"] }

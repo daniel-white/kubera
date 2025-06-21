@@ -4,26 +4,35 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_valid::Validate;
 use std::net::IpAddr;
+use tracing::error;
 
 #[derive(
     Validate, Getters, Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, Hash,
 )]
 pub struct Backend {
     #[getset(get = "pub")]
-    weight: i32,
+    weight: Option<i32>,
 
     #[getset(get = "pub")]
     #[serde(default, skip_serializing_if = "Option::is_none")]
     port: Option<Port>,
 
     #[getset(get = "pub")]
+    name: String,
+
+    #[getset(get = "pub")]
+    namespace: Option<String>,
+
+    #[getset(get = "pub")]
     endpoints: Vec<Endpoint>,
 }
 
-#[derive(Debug, Default)]
+#[derive(Default, Debug)]
 pub struct BackendBuilder {
-    weight: i32,
+    weight: Option<i32>,
     port: Option<Port>,
+    name: Option<String>,
+    namespace: Option<String>,
     endpoint_builders: Vec<EndpointBuilder>,
 }
 
@@ -32,8 +41,23 @@ impl BackendBuilder {
         Self::default()
     }
 
-    pub fn with_port(&mut self, port: u16) -> &mut Self {
-        self.port = Some(Port::new(port));
+    pub fn named<S: AsRef<str>>(&mut self, name: S) -> &mut Self {
+        self.name = Some(name.as_ref().to_string());
+        self
+    }
+
+    pub fn with_namespace<S: AsRef<str>>(&mut self, namespace: Option<S>) -> &mut Self {
+        self.namespace = namespace.map(|n| n.as_ref().to_string());
+        self
+    }
+
+    pub fn with_port(&mut self, port: Option<u16>) -> &mut Self {
+        self.port = port.map(Port::new);
+        self
+    }
+
+    pub fn with_weight(&mut self, weight: Option<i32>) -> &mut Self {
+        self.weight = weight;
         self
     }
 
@@ -51,6 +75,8 @@ impl BackendBuilder {
         Backend {
             weight: self.weight,
             port: self.port,
+            name: self.name.expect("Backend name is required"),
+            namespace: self.namespace,
             endpoints: self
                 .endpoint_builders
                 .into_iter()

@@ -4,7 +4,6 @@ use std::sync::Arc;
 
 use crate::config::topology::TopologyLocation;
 use kubera_core::config::gateway::types::http::router::*;
-use kubera_core::config::gateway::types::net::HostnameMatchType;
 use kubera_core::config::gateway::types::GatewayConfiguration;
 use kubera_core::select_continue;
 use kubera_core::sync::signal::{channel, Receiver};

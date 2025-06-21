@@ -10,7 +10,7 @@ use std::collections::hash_map::Entry;
 use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 use tokio::task::JoinSet;
-use tracing::{debug, info};
+use tracing::{debug, error, info};
 
 #[derive(Debug, Builder, Getters, Clone, Hash, PartialEq, Eq)]
 pub struct HttpRouteBackend {

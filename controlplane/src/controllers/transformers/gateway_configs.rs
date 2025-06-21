@@ -231,10 +231,16 @@ pub fn generate_gateway_configuration(
 
                                                             if let Some(backend) = current_backends.get(&backend_ref) {
                                                                 r.add_backend(|b| {
+                                                                    let object_ref = backend.object_ref();
+                                                                    b.named(object_ref.name())
+                                                                        .with_namespace(object_ref.namespace().as_ref())
+                                                                        .with_port(backend.port().map(|p| p as u16))
+                                                                        .with_weight(*backend.weight());
+
                                                                     for endpoint in backend.endpoints() {
                                                                         for address in endpoint.addresses() {
                                                                             b.add_endpoint(address, |e| {
-                                                                                let zone_ref = endpoint.zone_ref();
+                                                                                let zone_ref = endpoint.location();
                                                                                 if let Some(node) = zone_ref.node() {
                                                                                     e.with_node(node);
                                                                                 }

@@ -16,7 +16,7 @@ getset = { workspace = true }
 gtmpl = "0.7"
 gtmpl_derive = "0.5"
 gtmpl_value = "0.5"
-itertools = "0.14"
+itertools = { workspace = true }
 k8s-openapi = { workspace = true }
 kube = { workspace = true }
 kubera_api = { path = "../api" }
