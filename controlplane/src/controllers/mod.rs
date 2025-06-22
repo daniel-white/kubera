@@ -1,91 +1,57 @@
 mod filters;
-mod object_controller;
+mod macros;
 mod transformers;
 
+use self::filters::*;
+use self::transformers::*;
 use crate::ipc::IpcServices;
-use crate::spawn_controller;
+use crate::watch_objects;
 use anyhow::Result;
 use gateway_api::apis::standard::gatewayclasses::GatewayClass;
 use gateway_api::apis::standard::gateways::Gateway;
 use gateway_api::apis::standard::httproutes::HTTPRoute;
-use k8s_openapi::api::core::v1::ConfigMap;
+use k8s_openapi::api::apps::v1::Deployment;
+use k8s_openapi::api::core::v1::{ConfigMap, Service};
 use k8s_openapi::api::discovery::v1::EndpointSlice;
 use kube::runtime::watcher::Config;
 use kube::Client;
 use kubera_api::constants::MANAGED_BY_LABEL_QUERY;
 use std::sync::Arc;
-use tokio::task::JoinSet;
+use tokio::signal::ctrl_c;
 
 pub async fn run(ipc_services: IpcServices) -> Result<()> {
     let ipc_services = Arc::new(ipc_services);
-    let mut join_set = JoinSet::new();
     let client = Client::try_default().await?;
 
     let managed_by_selector = Config::default().labels(MANAGED_BY_LABEL_QUERY);
 
-    let gateway_classes = spawn_controller!(GatewayClass, join_set, client);
-    let gateway_classes = filters::filter_gateway_classes(&mut join_set, &gateway_classes);
-    let gateways = spawn_controller!(Gateway, join_set, client);
-    let gateways = filters::filter_gateways(&mut join_set, &gateway_classes, &gateways);
-    let http_routes = spawn_controller!(HTTPRoute, join_set, client);
-    let http_routes = filters::filter_http_routes(&mut join_set, &gateways, &http_routes);
-    let http_routes_by_gateway =
-        transformers::collect_http_routes_by_gateway(&mut join_set, &gateways, &http_routes);
-    let service_backends = transformers::collect_http_route_backends(&mut join_set, &http_routes);
-    let endpoint_slices = spawn_controller!(EndpointSlice, join_set, client);
-    let backends =
-        transformers::collect_service_backends(&mut join_set, &service_backends, &endpoint_slices);
-    let config_maps = spawn_controller!(ConfigMap, join_set, client, managed_by_selector);
-    let gateway_config_maps = filters::filter_gateway_config_maps(&mut join_set, &config_maps);
-    let gateway_configurations = transformers::generate_gateway_configuration(
-        &mut join_set,
+    let gateway_classes = watch_objects!(GatewayClass, client);
+    let gateways = watch_objects!(Gateway, client);
+    let http_routes = watch_objects!(HTTPRoute, client);
+    let endpoint_slices = watch_objects!(EndpointSlice, client);
+    let managed_config_maps = watch_objects!(ConfigMap, client, managed_by_selector);
+    let managed_deployments = watch_objects!(Deployment, client, managed_by_selector);
+    let managed_services = watch_objects!(Service, client, managed_by_selector);
+
+    let gateway_classes = filter_gateway_classes(&gateway_classes);
+    let gateways = filter_gateways(&gateway_classes, &gateways);
+    let http_routes = filter_http_routes(&gateways, &http_routes);
+    let http_routes_by_gateway = collect_http_routes_by_gateway(&gateways, &http_routes);
+    let service_backends = collect_http_route_backends(&http_routes);
+
+    let backends = collect_service_backends(&service_backends, &endpoint_slices);
+
+    let gateway_config_maps = filter_gateway_config_maps(&managed_config_maps);
+    let gateway_configurations = generate_gateway_configuration(
         &gateways,
         &http_routes_by_gateway,
         &backends,
         ipc_services.clone(),
     );
-    transformers::sync_gateway_configuration(
-        &mut join_set,
-        &client,
-        &gateway_config_maps,
-        &gateway_configurations,
-    );
-    transformers::generate_gateway_services(&mut join_set, &gateways, ipc_services.clone());
+    sync_gateway_configuration(&client, &gateway_config_maps, &gateway_configurations);
+    generate_gateway_services(&gateways, ipc_services.clone());
 
-    // let sources = desired_resources_controller::SourceResourcesReceivers::new_builder()
-    //     .gateway_classes(gateway_classes)
-    //     .gateway_class_parameters(spawn_controller!(GatewayClassParameters, join_set, client))
-    //     .gateways(gateways)
-    //     .gateway_parameters(spawn_controller!(GatewayParameters, join_set, client))
-    //     .config_maps(spawn_controller!(
-    //         ConfigMap,
-    //         join_set,
-    //         client,
-    //         managed_by_selector
-    //     ))
-    //     .deployments(spawn_controller!(
-    //         Deployment,
-    //         join_set,
-    //         client,
-    //         managed_by_selector
-    //     ))
-    //     .services(spawn_controller!(
-    //         Service,
-    //         join_set,
-    //         client,
-    //         managed_by_selector
-    //     ))
-    //     .namespaces(spawn_controller!(Namespace, join_set, client))
-    //     .build()
-    //     .expect("Failed to build sources");
-    //
-    // let desired_resources =
-    //     desired_resources_controller::spawn_controller(&mut join_set, sources).await?;
-    //
-    // resulting_resources_controller::spawn_controller(&mut join_set, &client, desired_resources)
-    //     .await?;
-
-    join_set.join_all().await;
+    ctrl_c().await;
 
     Ok(())
 }

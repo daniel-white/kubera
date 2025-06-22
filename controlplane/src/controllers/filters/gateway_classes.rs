@@ -1,19 +1,18 @@
 use crate::objects::{ObjectState, Objects};
 use gateway_api::apis::standard::gatewayclasses::GatewayClass;
 use kubera_api::constants::GATEWAY_CLASS_CONTROLLER_NAME;
-use kubera_core::select_continue;
-use kubera_core::sync::signal::{Receiver, channel};
-use tokio::task::JoinSet;
+use kubera_core::continue_on;
+use kubera_core::sync::signal::{channel, Receiver};
+use tokio::spawn;
 
 pub fn filter_gateway_classes(
-    join_set: &mut JoinSet<()>,
     gateway_classes: &Receiver<Objects<GatewayClass>>,
 ) -> Receiver<Objects<GatewayClass>> {
     let (tx, rx) = channel(Objects::default());
 
     let mut gateway_classes = gateway_classes.clone();
 
-    join_set.spawn(async move {
+    spawn(async move {
         loop {
             let current = gateway_classes.current();
             let filtered: Objects<_> = current
@@ -29,7 +28,7 @@ pub fn filter_gateway_classes(
 
             tx.replace(filtered);
 
-            select_continue!(gateway_classes.changed());
+            continue_on!(gateway_classes.changed());
         }
     });
 

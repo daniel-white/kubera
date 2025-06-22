@@ -2,13 +2,12 @@ use crate::objects::{ObjectRef, ObjectState, Objects};
 use gateway_api::apis::standard::gateways::Gateway;
 use gateway_api::apis::standard::httproutes::HTTPRoute;
 use itertools::*;
-use kubera_core::select_continue;
-use kubera_core::sync::signal::{Receiver, channel};
-use tokio::task::JoinSet;
+use kubera_core::continue_on;
+use kubera_core::sync::signal::{channel, Receiver};
+use tokio::spawn;
 use tracing::{debug, info};
 
 pub fn filter_http_routes(
-    join_set: &mut JoinSet<()>,
     gateways: &Receiver<Objects<Gateway>>,
     http_routes: &Receiver<Objects<HTTPRoute>>,
 ) -> Receiver<Objects<HTTPRoute>> {
@@ -17,7 +16,7 @@ pub fn filter_http_routes(
     let mut gateways = gateways.clone();
     let mut http_routes = http_routes.clone();
 
-    join_set.spawn(async move {
+    spawn(async move {
         loop {
             let current_gateways = gateways.current();
             let current_http_routes = http_routes.current();
@@ -72,7 +71,7 @@ pub fn filter_http_routes(
 
             tx.replace(filtered);
 
-            select_continue!(gateways.changed(), http_routes.changed());
+            continue_on!(gateways.changed(), http_routes.changed());
         }
     });
 

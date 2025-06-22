@@ -17,6 +17,7 @@ gtmpl = "0.7"
 gtmpl_derive = "0.5"
 gtmpl_value = "0.5"
 itertools = { workspace = true }
+lockable = { workspace = true }
 k8s-openapi = { workspace = true }
 kube = { workspace = true }
 kubera_api = { path = "../api" }

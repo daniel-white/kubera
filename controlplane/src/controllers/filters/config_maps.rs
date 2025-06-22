@@ -4,19 +4,18 @@ use kube::ResourceExt;
 use kubera_api::constants::{
     CONFIGMAP_ROLE_GATEWAY_CONFIG, CONFIGMAP_ROLE_LABEL, MANAGED_BY_LABEL, MANAGED_BY_VALUE,
 };
-use kubera_core::select_continue;
-use kubera_core::sync::signal::{Receiver, channel};
-use tokio::task::JoinSet;
+use kubera_core::continue_on;
+use kubera_core::sync::signal::{channel, Receiver};
+use tokio::spawn;
 
 pub fn filter_gateway_config_maps(
-    join_set: &mut JoinSet<()>,
     config_maps: &Receiver<Objects<ConfigMap>>,
 ) -> Receiver<Objects<ConfigMap>> {
     let (tx, rx) = channel(Objects::default());
 
     let mut config_maps = config_maps.clone();
 
-    join_set.spawn(async move {
+    spawn(async move {
         loop {
             let current = config_maps.current();
             let filtered: Objects<_> = current
@@ -41,7 +40,7 @@ pub fn filter_gateway_config_maps(
 
             tx.replace(filtered);
 
-            select_continue!(config_maps.changed());
+            continue_on!(config_maps.changed());
         }
     });
 

@@ -1,9 +1,9 @@
 use anyhow::Result;
 use kubera_core::config::gateway::serde::read_configuration;
 use kubera_core::config::gateway::types::GatewayConfiguration;
+use kubera_core::continue_on;
 use kubera_core::io::file_watcher::spawn_file_watcher;
-use kubera_core::select_continue;
-use kubera_core::sync::signal::{Receiver, channel};
+use kubera_core::sync::signal::{channel, Receiver};
 use std::io::Cursor;
 use std::path::Path;
 use tokio::fs::read;
@@ -25,7 +25,7 @@ pub fn spawn_controller<P: AsRef<Path>>(
                     tx.replace(Some(config));
                 }
             }
-            select_continue!(file_watcher.changed());
+            continue_on!(file_watcher.changed());
         }
     });
 

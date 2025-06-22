@@ -16,16 +16,16 @@ use kubera_api::constants::{
 use kubera_core::config::gateway::serde::write_configuration;
 use kubera_core::config::gateway::types::http::router::HttpMethodMatch;
 use kubera_core::config::gateway::types::{GatewayConfiguration, GatewayConfigurationBuilder};
+use kubera_core::continue_on;
 use kubera_core::ipc::{Event, GatewayEvent};
 use kubera_core::net::Hostname;
-use kubera_core::select_continue;
 use kubera_core::sync::signal::{channel, Receiver};
 use std::collections::hash_map::{Entry, HashMap};
 use std::collections::BTreeMap;
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::io::BufWriter;
 use std::sync::Arc;
-use tokio::task::JoinSet;
+use tokio::spawn;
 use tracing::warn;
 
 fn on_configuration_update(
@@ -71,7 +71,6 @@ fn send_configuration_update_event(ipc_services: &IpcServices, gateway_ref: &Obj
 }
 
 pub fn generate_gateway_configuration(
-    join_set: &mut JoinSet<()>,
     gateways: &Receiver<Objects<Gateway>>,
     http_routes: &Receiver<HashMap<ObjectRef, Vec<Arc<HTTPRoute>>>>,
     backends: &Receiver<BTreeMap<ObjectRef, Backend>>,
@@ -85,7 +84,7 @@ pub fn generate_gateway_configuration(
 
     let mut configuration_hashes = HashMap::default();
 
-    join_set.spawn(async move {
+    spawn(async move {
         loop {
             let current_gateways = gateways.current();
             let current_backends = backends.current();
@@ -277,7 +276,11 @@ pub fn generate_gateway_configuration(
 
             tx.replace(configs);
 
-            select_continue!(gateways.changed(), http_routes.changed(), backends.changed());
+            continue_on!(
+                gateways.changed(),
+                http_routes.changed(),
+                backends.changed()
+            );
         }
     });
 
@@ -302,7 +305,6 @@ fn map_hostname_match_to_type<S: AsRef<str>>(hostname: &Option<S>) -> Option<Hos
 }
 
 pub fn sync_gateway_configuration(
-    join_set: &mut JoinSet<()>,
     client: &Client,
     config_maps: &Receiver<Objects<ConfigMap>>,
     gateway_configurations: &Receiver<HashMap<ObjectRef, GatewayConfiguration>>,
@@ -311,7 +313,7 @@ pub fn sync_gateway_configuration(
     let mut gateway_configuration = gateway_configurations.clone();
     let client = client.clone();
 
-    join_set.spawn(async move {
+    spawn(async move {
         loop {
             let current_config_maps = config_maps.current();
             let current_gateway_configs = gateway_configuration.current();
@@ -356,7 +358,7 @@ pub fn sync_gateway_configuration(
                     }
                 }
             }
-            select_continue!(config_maps.changed(), gateway_configuration.changed());
+            continue_on!(config_maps.changed(), gateway_configuration.changed());
         }
     });
 }

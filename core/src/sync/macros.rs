@@ -1,5 +1,5 @@
 #[macro_export]
-macro_rules! select_continue {
+macro_rules! continue_on {
     ($($fut:expr),+ $(,)?) => {{
         use tokio::signal::ctrl_c;
         use tracing::debug;
@@ -20,7 +20,7 @@ macro_rules! select_continue {
                 },
             )+
             _ = ctrl_c() => {
-                debug!("Interupt signal received, exiting loop");
+                debug!("Interrupt signal received, exiting loop");
                 break;
             }
         };

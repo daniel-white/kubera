@@ -1,9 +1,9 @@
 #[macro_export]
-macro_rules! spawn_controller {
-    ($object_type:ty, $join_set:ident, $client:ident) => {
-        spawn_controller!($object_type, $join_set, $client, Config::default())
+macro_rules! watch_objects {
+    ($object_type:ty, $client:ident) => {
+        watch_objects!($object_type, $client, Config::default())
     };
-    ($object_type:ty, $join_set:ident, $client:ident, $config:expr) => {{
+    ($object_type:ty, $client:ident, $config:expr) => {{
         use futures::StreamExt;
         use kube::Api;
         use kube::runtime::Controller;
@@ -14,6 +14,7 @@ macro_rules! spawn_controller {
         use std::sync::Arc;
         use std::time::Duration;
         use thiserror::Error;
+        use tokio::spawn;
         use tracing::instrument;
         use tracing::{debug, info};
         use $crate::objects::{ObjectRef, Objects};
@@ -44,7 +45,7 @@ macro_rules! spawn_controller {
             let ref_ = ObjectRef::new_builder()
                 .from_object(object.as_ref())
                 .build()
-                .expect("Failed to build Ref");
+                .expect("Failed to build ObjectRef");
 
             let object = object.as_ref().clone();
 
@@ -80,11 +81,11 @@ macro_rules! spawn_controller {
         let (tx, rx) = channel::<Objects<$object_type>>(Objects::default());
 
         debug!(
-            "Spawning controller for object: {}",
+            "Spawning controller for watching {} objects",
             stringify!($object_type)
         );
 
-        $join_set.spawn(async move {
+        spawn(async move {
             let object_api = Api::<$object_type>::all(client);
             Controller::new(object_api, config)
                 .shutdown_on_signal()

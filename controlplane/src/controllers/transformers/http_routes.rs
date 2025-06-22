@@ -4,12 +4,12 @@ use gateway_api::apis::standard::gateways::Gateway;
 use gateway_api::apis::standard::httproutes::HTTPRoute;
 use getset::Getters;
 use k8s_openapi::api::core::v1::Service;
-use kubera_core::select_continue;
+use kubera_core::continue_on;
 use kubera_core::sync::signal::{channel, Receiver};
 use std::collections::hash_map::Entry;
 use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
-use tokio::task::JoinSet;
+use tokio::spawn;
 use tracing::{debug, error, info};
 
 #[derive(Debug, Builder, Getters, Clone, Hash, PartialEq, Eq)]
@@ -31,14 +31,13 @@ impl HttpRouteBackend {
 }
 
 pub fn collect_http_route_backends(
-    join_set: &mut JoinSet<()>,
     http_routes: &Receiver<Objects<HTTPRoute>>,
 ) -> Receiver<BTreeMap<ObjectRef, HttpRouteBackend>> {
     let (tx, rx) = channel(BTreeMap::new());
 
     let mut http_routes = http_routes.clone();
 
-    join_set.spawn(async move {
+    spawn(async move {
         loop {
             let current_http_routes = http_routes.current();
             let mut http_route_backends = BTreeMap::new();
@@ -87,7 +86,7 @@ pub fn collect_http_route_backends(
 
             tx.replace(http_route_backends);
 
-            select_continue!(http_routes.changed());
+            continue_on!(http_routes.changed());
         }
     });
 
@@ -95,7 +94,6 @@ pub fn collect_http_route_backends(
 }
 
 pub fn collect_http_routes_by_gateway(
-    join_set: &mut JoinSet<()>,
     gateways: &Receiver<Objects<Gateway>>,
     http_routes: &Receiver<Objects<HTTPRoute>>,
 ) -> Receiver<HashMap<ObjectRef, Vec<Arc<HTTPRoute>>>> {
@@ -104,7 +102,7 @@ pub fn collect_http_routes_by_gateway(
     let mut gateways = gateways.clone();
     let mut http_routes = http_routes.clone();
 
-    join_set.spawn(async move {
+    spawn(async move {
         loop {
             let gateway_map: HashMap<_, _> = gateways
                 .current()
@@ -146,7 +144,7 @@ pub fn collect_http_routes_by_gateway(
 
             tx.replace(new_routes);
 
-            select_continue!(gateways.changed(), http_routes.changed());
+            continue_on!(gateways.changed(), http_routes.changed());
         }
     });
 

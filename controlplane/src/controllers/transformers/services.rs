@@ -4,11 +4,11 @@ use derive_builder::Builder;
 use getset::Getters;
 use k8s_openapi::api::core::v1::Service;
 use k8s_openapi::api::discovery::v1::EndpointSlice;
-use kubera_core::select_continue;
+use kubera_core::continue_on;
 use kubera_core::sync::signal::{channel, Receiver};
 use std::collections::BTreeMap;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
-use tokio::task::JoinSet;
+use tokio::spawn;
 use tracing::{debug, warn};
 
 #[derive(Debug, Builder, Getters, Clone, Hash, PartialEq, Eq)]
@@ -48,7 +48,6 @@ impl Backend {
 }
 
 pub fn collect_service_backends(
-    join_set: &mut JoinSet<()>,
     http_route_backends: &Receiver<BTreeMap<ObjectRef, HttpRouteBackend>>,
     endpoint_slices: &Receiver<Objects<EndpointSlice>>,
 ) -> Receiver<BTreeMap<ObjectRef, Backend>> {
@@ -57,7 +56,7 @@ pub fn collect_service_backends(
     let mut http_route_backends = http_route_backends.clone();
     let mut endpoint_slices = endpoint_slices.clone();
 
-    join_set.spawn(async move {
+    spawn(async move {
         loop {
             let current_endpoint_slices = endpoint_slices.current();
             let current_http_route_backends = http_route_backends.current();
@@ -95,7 +94,7 @@ pub fn collect_service_backends(
 
             tx.replace(endpoint_slices_by_service);
 
-            select_continue!(http_route_backends.changed(), endpoint_slices.changed());
+            continue_on!(http_route_backends.changed(), endpoint_slices.changed());
         }
     });
 

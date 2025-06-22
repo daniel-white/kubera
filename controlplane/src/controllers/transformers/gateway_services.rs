@@ -17,16 +17,15 @@ use kubera_api::constants::{
 use kubera_core::config::gateway::serde::write_configuration;
 use kubera_core::config::gateway::types::http::router::HttpMethodMatch;
 use kubera_core::config::gateway::types::{GatewayConfiguration, GatewayConfigurationBuilder};
+use kubera_core::continue_on;
 use kubera_core::ipc::{Event, GatewayEvent};
 use kubera_core::net::Hostname;
-use kubera_core::select_continue;
 use kubera_core::sync::signal::{channel, Receiver};
 use std::collections::hash_map::{Entry, HashMap};
 use std::collections::BTreeMap;
-use std::hash::{DefaultHasher, Hash, Hasher};
 use std::io::BufWriter;
 use std::sync::Arc;
-use tokio::task::JoinSet;
+use tokio::spawn;
 use tracing::warn;
 
 const SERVICE_TEMPLATE: &str =
@@ -39,7 +38,6 @@ struct Foo {
 }
 
 pub fn generate_gateway_services(
-    join_set: &mut JoinSet<()>,
     gateways: &Receiver<Objects<Gateway>>,
     ipc_services: Arc<IpcServices>,
 ) -> Receiver<HashMap<ObjectRef, Service>> {
@@ -47,7 +45,7 @@ pub fn generate_gateway_services(
 
     let mut gateways = gateways.clone();
 
-    join_set.spawn(async move {
+    spawn(async move {
         loop {
             let current_gateways = gateways.current();
 
@@ -72,7 +70,7 @@ pub fn generate_gateway_services(
                 }
             }
 
-            select_continue!(gateways.changed());
+            continue_on!(gateways.changed());
         }
     });
 

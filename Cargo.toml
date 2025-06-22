@@ -23,6 +23,7 @@ http-serde = "2"
 itertools = "0.14"
 k8s-openapi = { version = "0.24", features = ["v1_32"] }
 kube = { version = "0.99", features = ["runtime", "derive"] }
+lockable = "0.2"
 regex = { version = "1", features = ["perf", "unicode"] }
 rstest = "0.25"
 schemars = "0.9"
