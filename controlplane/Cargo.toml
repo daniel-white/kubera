@@ -26,6 +26,7 @@ problemdetails = { version = "0.6", features = ["axum"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
 serde_yaml = { workspace = true }
+sprig = "0.3"
 thiserror = { workspace = true }
 tokio = { workspace = true }
 tokio-stream = { version = "0.1", features = ["full"] }

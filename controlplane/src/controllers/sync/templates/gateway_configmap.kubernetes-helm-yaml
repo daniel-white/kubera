@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  labels:
+    kubera.whitefamily.in/configmap-role: gateway-configuration
+    app.kubernetes.io/name: {{ printf "%s-kubera-gateway" .gateway_name }}
+    app: {{ printf "%s-kubera-gateway" .gateway_name }}
+data:
+  config.yaml: |
+    {{- .config_yaml | nindent 4 }}

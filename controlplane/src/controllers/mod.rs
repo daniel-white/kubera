@@ -1,9 +1,11 @@
 mod filters;
 mod macros;
+mod sync;
 mod transformers;
 
 use self::filters::*;
 use self::transformers::*;
+use crate::controllers::sync::sync_gateway_configmaps;
 use crate::ipc::IpcServices;
 use crate::objects::{ObjectRef, SyncObjectAction};
 use crate::{sync_objects, watch_objects};
@@ -52,21 +54,7 @@ pub async fn run(ipc_services: IpcServices) -> Result<()> {
     sync_gateway_configuration(&client, &gateway_config_maps, &gateway_configurations);
     generate_gateway_services(&gateways, ipc_services.clone());
 
-    //  let (tx, rx) = tokio::sync::broadcast::channel(100);
-
-    //  sync_objects!(Service, client, tx, String, test);
-
-    // let r = ObjectRef::new_builder()
-    //     .of_kind::<Service>()
-    //     .namespace(Some("default".to_string()))
-    //     .name("echo-server")
-    //     .build()
-    //     .expect("Failed to build ObjectRef");
-    //
-    // let msg = SyncObjectAction::Upsert((r, "test".to_string()));
-    //
-    // tx.send(msg).expect("Failed to send message");
-
+    sync_gateway_configmaps(&client);
     ctrl_c().await;
 
     Ok(())

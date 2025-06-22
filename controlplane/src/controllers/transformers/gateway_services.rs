@@ -29,7 +29,7 @@ use tokio::spawn;
 use tracing::warn;
 
 const SERVICE_TEMPLATE: &str =
-    include_str!("../../../templates/gateway_service.kubernetes-helm-yaml");
+    include_str!("../sync/templates/gateway_service.kubernetes-helm-yaml");
 
 #[derive(Gtmpl)]
 struct Foo {

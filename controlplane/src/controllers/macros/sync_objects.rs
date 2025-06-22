@@ -1,3 +1,5 @@
+use gtmpl::funcs::println;
+
 #[macro_export]
 macro_rules! sync_objects {
     ($object_type:ty, $client:ident, $queue:ident, $template_value:ty, $template:ident) => {{
@@ -14,6 +16,7 @@ macro_rules! sync_objects {
         use std::collections::BTreeMap;
         use kubera_api::constants::{MANAGED_BY_LABEL, MANAGED_BY_VALUE};
 
+
         const _: () = {
             fn assert_impl<T: Resource + ResourceExt>() {}
             fn assert_type_bounds() {
@@ -25,14 +28,22 @@ macro_rules! sync_objects {
         let mut queue_recv: Receiver<SyncObjectAction<$template_value>> = $queue.subscribe();
 
         let template: Template = {
+            use sprig::{defaults::default, strings::{indent, nindent}};
+
             let mut template = Template::default();
+            template.add_func("default", default);
+            template.add_func("indent", indent);
+            template.add_func("nindent", nindent);
             template.parse($template).expect("Unable to parse template");
+
             template
         };
 
         fn render_object<V: Into<Value>>(template: &Template, object_ref: &ObjectRef, value: V) -> $object_type {
             let context = Context::from(value);
             let yaml = template.render(&context).expect("Unable to render template");
+            
+            println!("{}", &yaml);
             let mut object: $object_type = serde_yaml::from_str(&yaml)
                 .expect("Unable to deserialize rendered template into object");
 
@@ -75,7 +86,7 @@ macro_rules! sync_objects {
                 let object_ref = action.object_ref();
 
                 let api = Api::<$object_type>::namespaced(
-                    $client.clone(),
+                    client.clone(),
                     object_ref.namespace().as_ref().expect("Missing namespace"),
                 );
 
@@ -90,7 +101,7 @@ macro_rules! sync_objects {
 
                 match (&action, exists) {
                     (Upsert((object_ref, value)), false) => {
-                        let object = render_object(&template, object_ref, value);
+                        let object = render_object(&template, object_ref, value.clone());
                         info!("Creating object: {}", object_ref);
                         api.create(&Default::default(), &object)
                             .await
@@ -98,7 +109,7 @@ macro_rules! sync_objects {
                             .ok();
                     }
                     (Upsert((object_ref, value)), true) => {
-                        let object = render_object(&template, object_ref, value);
+                        let object = render_object(&template, object_ref, value.clone());
                         info!("Patching object: {}", object_ref);
                         api.patch(object_ref.name(), &Default::default(), &Patch::Strategic(object))
                             .await

@@ -3,8 +3,8 @@ kind: Service
 metadata:
   labels:
     app.kubernetes.io/component: gateway
-    app.kubernetes.io/name: {{ printf "%s-kubera-gateway" .name }}
-    app: {{ printf "%s-kubera-gateway" .name }}
+    app.kubernetes.io/name: {{ printf "%s-kubera-gateway" .gateway_name }}
+    app: {{ printf "%s-kubera-gateway" .gateway_name }}
 spec:
   type: ClusterIP
   ports:
