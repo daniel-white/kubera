@@ -52,20 +52,20 @@ pub async fn run(ipc_services: IpcServices) -> Result<()> {
     sync_gateway_configuration(&client, &gateway_config_maps, &gateway_configurations);
     generate_gateway_services(&gateways, ipc_services.clone());
 
-    let (tx, rx) = tokio::sync::broadcast::channel(100);
+    //  let (tx, rx) = tokio::sync::broadcast::channel(100);
 
-    sync_objects!(Service, client, tx, String, "service: {{.}}");
+    //  sync_objects!(Service, client, tx, String, test);
 
-    let r = ObjectRef::new_builder()
-        .of_kind::<Service>()
-        .namespace(Some("default".to_string()))
-        .name("echo-server")
-        .build()
-        .expect("Failed to build ObjectRef");
-
-    let msg = SyncObjectAction::Delete(r);
-
-    tx.send(msg).expect("Failed to send message");
+    // let r = ObjectRef::new_builder()
+    //     .of_kind::<Service>()
+    //     .namespace(Some("default".to_string()))
+    //     .name("echo-server")
+    //     .build()
+    //     .expect("Failed to build ObjectRef");
+    //
+    // let msg = SyncObjectAction::Upsert((r, "test".to_string()));
+    //
+    // tx.send(msg).expect("Failed to send message");
 
     ctrl_c().await;
 
