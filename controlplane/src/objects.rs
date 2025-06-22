@@ -1,5 +1,6 @@
 use derive_builder::Builder;
 use getset::Getters;
+use gtmpl_value::Value;
 use kube::runtime::reflector::Lookup;
 use kube::{Resource, ResourceExt};
 use std::collections::HashMap;
@@ -215,5 +216,20 @@ pub struct TopologyLocation {
 impl TopologyLocation {
     pub fn new_builder() -> TopologyLocationBuilder {
         TopologyLocationBuilder::default()
+    }
+}
+
+#[derive(Clone, Debug)]
+pub enum SyncObjectAction<T: Into<Value>> {
+    Upsert((ObjectRef, T)),
+    Delete(ObjectRef),
+}
+
+impl<T: Into<Value>> SyncObjectAction<T> {
+    pub fn object_ref(&self) -> &ObjectRef {
+        match self {
+            SyncObjectAction::Upsert((object_ref, _)) => object_ref,
+            SyncObjectAction::Delete(object_ref) => object_ref,
+        }
     }
 }

@@ -13,7 +13,7 @@ derive_builder = { workspace = true }
 futures = { workspace = true }
 gateway-api = "0.15"
 getset = { workspace = true }
-gtmpl = "0.7"
+gtmpl = { version = "0.7", features = ["gtmpl_dynamic_template"] }
 gtmpl_derive = "0.5"
 gtmpl_value = "0.5"
 itertools = { workspace = true }
