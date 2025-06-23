@@ -3,7 +3,8 @@ use getset::Getters;
 use gtmpl_value::Value;
 use kube::runtime::reflector::Lookup;
 use kube::{Resource, ResourceExt};
-use std::collections::HashMap;
+use std::cell::Cell;
+use std::collections::{HashMap, HashSet};
 use std::fmt::{Display, Formatter, Write};
 use std::sync::Arc;
 
@@ -200,5 +201,30 @@ impl<T: Into<Value>> SyncObjectAction<T> {
             SyncObjectAction::Upsert((object_ref, _)) => object_ref,
             SyncObjectAction::Delete(object_ref) => object_ref,
         }
+    }
+}
+
+pub struct ObjectTracker {
+    object_refs: Cell<HashSet<ObjectRef>>,
+}
+
+impl ObjectTracker {
+    pub fn new() -> Self {
+        Self {
+            object_refs: Cell::new(HashSet::new()),
+        }
+    }
+
+    pub fn reconcile<K: Resource + ResourceExt>(&self, objects: &Objects<K>) -> Vec<ObjectRef>
+    where
+        K::DynamicType: 'static + Default,
+    {
+        let current_refs = self.object_refs.take();
+        let new_refs: HashSet<_> = objects.by_ref.keys().cloned().collect();
+
+        let deleted = current_refs.difference(&new_refs).cloned().collect();
+        self.object_refs.set(new_refs);
+
+        deleted
     }
 }
