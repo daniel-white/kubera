@@ -15,10 +15,20 @@ spec:
       labels:
         app: {{ .gateway_name | quote }}
     spec:
+      volumes:
+        - name: config
+          configMap:
+            name: {{ .configmap_name | quote }}
+            items:
+              - key: config.yaml
+                path: config.yaml
       containers:
         - name: gateway
           image: mendhak/http-https-echo:latest
           imagePullPolicy: Always
+          volumeMounts:
+            - mountPath: /etc/kubera
+              name: config
           env:
             - name: ECHO_INCLUDE_ENV_VARS
               value: "1"

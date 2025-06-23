@@ -18,6 +18,7 @@ const TEMPLATE: &str = include_str!("./templates/gateway_deployment.kubernetes-h
 struct TemplateValues {
     gateway_name: String,
     controlplane_host: String,
+    configmap_name: String,
 }
 
 pub fn sync_gateway_deployments(client: &Client, gateways: &Receiver<Objects<Gateway>>) {
@@ -49,6 +50,7 @@ fn generate_gateway_deployments(
                     let template_values = TemplateValuesBuilder::default()
                         .gateway_name(gateway_ref.name())
                         .controlplane_host("hello world")
+                        .configmap_name(format!("{}-config", gateway_ref.name()))
                         .build()
                         .expect("Failed to build TemplateValues");
 

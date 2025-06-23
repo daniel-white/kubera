@@ -52,7 +52,6 @@ pub async fn run(ipc_services: IpcServices) -> Result<()> {
         &backends,
         ipc_services.clone(),
     );
-    //generate_gateway_services(&gateways, ipc_services.clone());
 
     sync_gateway_configmaps(&client);
     sync_gateway_services(&client, &gateways);

@@ -9,7 +9,7 @@ use tokio::sync::broadcast::channel;
 const TEMPLATE: &str = include_str!("./templates/gateway_configmap.kubernetes-helm-yaml");
 
 #[derive(Clone, Builder, Debug, Gtmpl)]
-struct ConfigMapTemplateValues {
+struct TemplateValues {
     gateway_name: String,
     config_yaml: String,
 }
@@ -17,5 +17,5 @@ struct ConfigMapTemplateValues {
 pub fn sync_gateway_configmaps(client: &Client) {
     let (tx, rx) = channel(1);
 
-    sync_objects!(ConfigMap, client, rx, ConfigMapTemplateValues, TEMPLATE);
+    sync_objects!(ConfigMap, client, rx, TemplateValues, TEMPLATE);
 }
