@@ -1,8 +1,8 @@
 #[macro_export]
 macro_rules! sync_objects {
-    ($object_type:ty, $client:ident, $queue:ident, $template_value:ty, $template:ident) => {{
+    ($object_type:ty, $client:ident, $rx:ident, $template_value:ty, $template:ident) => {{
         use $crate::objects::{ObjectRef, SyncObjectAction, SyncObjectAction::*};
-        use gtmpl::{Context, Template};
+        use gtmpl::{Context, Template, gtmpl_fn, FuncError};
         use gtmpl_value::Value;
         use kube::{ Api, Resource, ResourceExt };
         use kube::api::{ Patch, ObjectMeta };
@@ -14,7 +14,6 @@ macro_rules! sync_objects {
         use std::collections::BTreeMap;
         use kubera_api::constants::{MANAGED_BY_LABEL, MANAGED_BY_VALUE};
 
-
         const _: () = {
             fn assert_impl<T: Resource + ResourceExt>() {}
             fn assert_type_bounds() {
@@ -23,7 +22,13 @@ macro_rules! sync_objects {
         };
 
         let client = $client.clone();
-        let mut queue_recv: Receiver<SyncObjectAction<$template_value>> = $queue.subscribe();
+        let mut rx: Receiver<SyncObjectAction<$template_value>> = $rx;
+
+        gtmpl_fn!(
+            fn quote(s: String) -> Result<String, FuncError> {
+                Ok(format!("\"{}\"", s.replace("\"", "\\\"")))
+            }
+        );
 
         let template: Template = {
             use sprig::{defaults::default, strings::{indent, nindent}};
@@ -32,6 +37,7 @@ macro_rules! sync_objects {
             template.add_func("default", default);
             template.add_func("indent", indent);
             template.add_func("nindent", nindent);
+            template.add_func("quote", quote);
             template.parse($template).expect("Unable to parse template");
 
             template
@@ -41,7 +47,6 @@ macro_rules! sync_objects {
             let context = Context::from(value);
             let yaml = template.render(&context).expect("Unable to render template");
 
-            println!("{}", &yaml);
             let mut object: $object_type = serde_yaml::from_str(&yaml)
                 .expect("Unable to deserialize rendered template into object");
 
@@ -68,7 +73,7 @@ macro_rules! sync_objects {
         spawn(async move {
             loop {
                 let action = select! {
-                    action = queue_recv.recv() => match action {
+                    action = rx.recv() => match action {
                         Ok(action) => action,
                         Err(_) => {
                             debug!("Queue closed, shutting down controller for {} objects", stringify!($object_type));
@@ -98,30 +103,30 @@ macro_rules! sync_objects {
                 );
 
                 match (&action, exists) {
-                    (Upsert((object_ref, value)), false) => {
-                        let object = render_object(&template, object_ref, value.clone());
+                    (Upsert(_, value), false) => {
+                        let object = render_object(&template, &object_ref, value.clone());
                         info!("Creating object: {}", object_ref);
                         api.create(&Default::default(), &object)
                             .await
                             .map_err(|e| warn!("Failed to create object: {}: {}", object_ref, e))
                             .ok();
                     }
-                    (Upsert((object_ref, value)), true) => {
-                        let object = render_object(&template, object_ref, value.clone());
+                    (Upsert(_, value), true) => {
+                        let object = render_object(&template, &object_ref, value.clone());
                         info!("Patching object: {}", object_ref);
                         api.patch(object_ref.name(), &Default::default(), &Patch::Strategic(object))
                             .await
                             .map_err(|e| warn!("Failed to patch object: {}: {}", object_ref, e))
                             .ok();
                     }
-                    (SyncObjectAction::Delete(object_ref), true) => {
+                    (Delete(_), true) => {
                         info!("Deleting object: {}", object_ref);
                         api.delete(object_ref.name(), &Default::default())
                             .await
                             .map_err(|e| warn!("Failed to delete object: {}: {}", object_ref, e))
                             .ok();
                     }
-                    _ => info!("Skipping action for object: {}", object_ref),
+                    _ => info!("Skipping action for object: {}", &object_ref),
                 };
             }
         });

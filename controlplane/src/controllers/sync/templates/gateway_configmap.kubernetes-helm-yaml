@@ -3,8 +3,8 @@ kind: ConfigMap
 metadata:
   labels:
     kubera.whitefamily.in/configmap-role: gateway-configuration
-    app.kubernetes.io/name: {{ printf "%s-kubera-gateway" .gateway_name }}
-    app: {{ printf "%s-kubera-gateway" .gateway_name }}
+    app.kubernetes.io/name: {{ .gateway_name | quote }}
+    app: {{ .gateway_name | quote }}
 data:
   config.yaml: |
     {{- .config_yaml | nindent 4 }}

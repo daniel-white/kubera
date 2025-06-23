@@ -154,6 +154,10 @@ where
         self.by_unique_id.contains_key(unique_id)
     }
 
+    pub fn cloned_refs(&self) -> HashSet<ObjectRef> {
+        self.by_ref.keys().cloned().collect()
+    }
+
     pub fn iter(&self) -> impl Iterator<Item = (ObjectRef, ObjectUniqueId, Arc<K>)> {
         self.by_ref.iter().map(|(r, s)| {
             let uid = ObjectUniqueId::new(s.as_ref().uid().unwrap());
@@ -191,14 +195,14 @@ impl TopologyLocation {
 
 #[derive(Clone, Debug)]
 pub enum SyncObjectAction<T: Into<Value>> {
-    Upsert((ObjectRef, T)),
+    Upsert(ObjectRef, T),
     Delete(ObjectRef),
 }
 
 impl<T: Into<Value>> SyncObjectAction<T> {
     pub fn object_ref(&self) -> &ObjectRef {
         match self {
-            SyncObjectAction::Upsert((object_ref, _)) => object_ref,
+            SyncObjectAction::Upsert(object_ref, _) => object_ref,
             SyncObjectAction::Delete(object_ref) => object_ref,
         }
     }
@@ -215,13 +219,8 @@ impl ObjectTracker {
         }
     }
 
-    pub fn reconcile<K: Resource + ResourceExt>(&self, objects: &Objects<K>) -> Vec<ObjectRef>
-    where
-        K::DynamicType: 'static + Default,
-    {
+    pub fn reconcile(&self, new_refs: HashSet<ObjectRef>) -> Vec<ObjectRef> {
         let current_refs = self.object_refs.take();
-        let new_refs: HashSet<_> = objects.by_ref.keys().cloned().collect();
-
         let deleted = current_refs.difference(&new_refs).cloned().collect();
         self.object_refs.set(new_refs);
 

@@ -15,23 +15,7 @@ struct ConfigMapTemplateValues {
 }
 
 pub fn sync_gateway_configmaps(client: &Client) {
-    let (tx, _) = channel(1);
+    let (tx, rx) = channel(1);
 
-    sync_objects!(ConfigMap, client, tx, ConfigMapTemplateValues, TEMPLATE);
-
-    let or = ObjectRef::new_builder()
-        .of_kind::<ConfigMap>()
-        .name("gateway-configmap")
-        .namespace(Some("default".to_string()))
-        .build()
-        .expect("Failed to build ObjectRef");
-
-    let v = ConfigMapTemplateValuesBuilder::default()
-        .gateway_name("example-gateway".to_string())
-        .config_yaml("example: value".to_string())
-        .build()
-        .expect("Failed to build ConfigMapTemplateValues");
-
-    tx.send(SyncObjectAction::Upsert((or, v)))
-        .expect("Failed to send SyncObjectAction");
+    sync_objects!(ConfigMap, client, rx, ConfigMapTemplateValues, TEMPLATE);
 }

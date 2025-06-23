@@ -4,6 +4,7 @@ mod sync;
 mod transformers;
 
 use self::filters::*;
+use self::sync::*;
 use self::transformers::*;
 use crate::controllers::sync::sync_gateway_configmaps;
 use crate::ipc::IpcServices;
@@ -16,8 +17,8 @@ use gateway_api::apis::standard::httproutes::HTTPRoute;
 use k8s_openapi::api::apps::v1::Deployment;
 use k8s_openapi::api::core::v1::{ConfigMap, Service};
 use k8s_openapi::api::discovery::v1::EndpointSlice;
-use kube::Client;
 use kube::runtime::watcher::Config;
+use kube::Client;
 use kubera_api::constants::MANAGED_BY_LABEL_QUERY;
 use std::sync::Arc;
 use tokio::signal::ctrl_c;
@@ -51,9 +52,11 @@ pub async fn run(ipc_services: IpcServices) -> Result<()> {
         &backends,
         ipc_services.clone(),
     );
-    generate_gateway_services(&gateways, ipc_services.clone());
+    //generate_gateway_services(&gateways, ipc_services.clone());
 
     sync_gateway_configmaps(&client);
+    sync_gateway_services(&client, &gateways);
+    sync_gateway_deployments(&client, &gateways);
     ctrl_c().await;
 
     Ok(())
