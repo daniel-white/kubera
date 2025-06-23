@@ -3,11 +3,12 @@ use crate::sync_objects;
 use derive_builder::Builder;
 use gateway_api::apis::standard::gateways::Gateway;
 use gtmpl_derive::Gtmpl;
-use k8s_openapi::api::core::v1::{ConfigMap, Service};
+use k8s_openapi::api::core::v1::Service;
 use kube::Client;
-use kubera_core::continue_on;
 use kubera_core::sync::signal::Receiver;
+use kubera_core::{continue_after, continue_on};
 use std::collections::HashSet;
+use std::time::Duration;
 use tokio::spawn;
 use tokio::sync::broadcast::{channel, Sender};
 
@@ -20,7 +21,7 @@ struct TemplateValues {
 }
 
 pub fn sync_gateway_services(client: &Client, gateways: &Receiver<Objects<Gateway>>) {
-    let (tx, mut rx) = channel(1);
+    let (tx, rx) = channel(1);
     sync_objects!(Service, client, rx, TemplateValues, TEMPLATE);
     generate_gateway_services(tx, gateways);
 }
@@ -67,7 +68,7 @@ fn generate_gateway_services(
                     .expect("Failed to send upsert action");
             }
 
-            continue_on!(gateways.changed());
+            continue_after!(Duration::from_secs(60), gateways.changed());
         }
     });
 }

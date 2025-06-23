@@ -33,30 +33,19 @@ pub async fn run(ipc_services: IpcServices) -> Result<()> {
     let gateways = watch_objects!(Gateway, client);
     let http_routes = watch_objects!(HTTPRoute, client);
     let endpoint_slices = watch_objects!(EndpointSlice, client);
-    let managed_config_maps = watch_objects!(ConfigMap, client, managed_by_selector);
-    let managed_deployments = watch_objects!(Deployment, client, managed_by_selector);
-    let managed_services = watch_objects!(Service, client, managed_by_selector);
 
     let gateway_classes = filter_gateway_classes(&gateway_classes);
     let gateways = filter_gateways(&gateway_classes, &gateways);
     let http_routes = filter_http_routes(&gateways, &http_routes);
     let http_routes_by_gateway = collect_http_routes_by_gateway(&gateways, &http_routes);
     let service_backends = collect_http_route_backends(&http_routes);
-
     let backends = collect_service_backends(&service_backends, &endpoint_slices);
 
-    let gateway_config_maps = filter_gateway_config_maps(&managed_config_maps);
-    let gateway_configurations = generate_gateway_configuration(
-        &gateways,
-        &http_routes_by_gateway,
-        &backends,
-        ipc_services.clone(),
-    );
-
-    sync_gateway_configmaps(&client);
+    sync_gateway_configmaps(&client, &gateways, &http_routes_by_gateway, &backends);
     sync_gateway_services(&client, &gateways);
     sync_gateway_deployments(&client, &gateways);
-    ctrl_c().await;
+
+    let _ = ctrl_c().await;
 
     Ok(())
 }

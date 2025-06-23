@@ -22,7 +22,6 @@ macro_rules! sync_objects {
         };
 
         let client = $client.clone();
-        let mut rx: Receiver<SyncObjectAction<$template_value>> = $rx;
 
         gtmpl_fn!(
             fn quote(s: String) -> Result<String, FuncError> {
@@ -71,6 +70,7 @@ macro_rules! sync_objects {
         );
 
         spawn(async move {
+            let mut rx: Receiver<SyncObjectAction<$template_value>> = $rx;
             loop {
                 let action = select! {
                     action = rx.recv() => match action {

@@ -73,7 +73,7 @@ spec:
             remove:
               - X-Remove-Header
       backendRefs:
-        - name: dummy-service
+        - name: echo-server
           port: 80
         - name: kubernetes
           namespace: default
