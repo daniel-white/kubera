@@ -1,9 +1,9 @@
-use crate::objects::{ObjectRef, ObjectState, Objects};
+use crate::objects::{ObjectRef, Objects};
 use gateway_api::apis::standard::gateways::Gateway;
 use gateway_api::apis::standard::httproutes::HTTPRoute;
 use itertools::*;
 use kubera_core::continue_on;
-use kubera_core::sync::signal::{channel, Receiver};
+use kubera_core::sync::signal::{Receiver, channel};
 use tokio::spawn;
 use tracing::{debug, info};
 
@@ -23,49 +23,40 @@ pub fn filter_http_routes(
             let filtered = current_http_routes
                 .iter()
                 .filter(|(http_route_ref, _, http_route)| {
-                    if let ObjectState::Active(http_route) = http_route {
-                        let result = http_route
-                            .spec
-                            .parent_refs
-                            .iter()
-                            .flat_map(|parent_ref| parent_ref.iter())
-                            .map(|parent_ref| {
-                                ObjectRef::new_builder()
-                                    .of_kind::<Gateway>() // Assuming v1 for simplicity, adjust as needed
-                                    .namespace(
-                                        parent_ref
-                                            .namespace
-                                            .clone()
-                                            .or_else(|| http_route_ref.namespace().clone()),
-                                    )
-                                    .name(parent_ref.name.clone())
-                                    .build()
-                                    .unwrap()
-                            })
-                            .unique()
-                            .any(|r| {
-                                current_gateways
-                                    .get_by_ref(&r)
-                                    .map(|o| o.is_active())
-                                    .unwrap_or(false)
-                            });
+                    let result = http_route
+                        .spec
+                        .parent_refs
+                        .iter()
+                        .flat_map(|parent_ref| parent_ref.iter())
+                        .map(|parent_ref| {
+                            ObjectRef::new_builder()
+                                .of_kind::<Gateway>() // Assuming v1 for simplicity, adjust as needed
+                                .namespace(
+                                    parent_ref
+                                        .namespace
+                                        .clone()
+                                        .or_else(|| http_route_ref.namespace().clone()),
+                                )
+                                .name(parent_ref.name.clone())
+                                .build()
+                                .unwrap()
+                        })
+                        .unique()
+                        .any(|r| current_gateways.contains_by_ref(&r));
 
-                        if result {
-                            info!(
-                                "HTTPRoute object.ref={} matches an active Kubera Gateway",
-                                http_route_ref
-                            );
-                        } else {
-                            debug!(
-                                "HTTPRoute object.ref={} does not match any active Kubera Gateway",
-                                http_route_ref
-                            );
-                        }
-
-                        result
+                    if result {
+                        info!(
+                            "HTTPRoute object.ref={} matches an active Kubera Gateway",
+                            http_route_ref
+                        );
                     } else {
-                        false
+                        debug!(
+                            "HTTPRoute object.ref={} does not match any active Kubera Gateway",
+                            http_route_ref
+                        );
                     }
+
+                    result
                 })
                 .collect();
 

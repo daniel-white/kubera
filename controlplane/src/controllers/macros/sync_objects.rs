@@ -1,5 +1,3 @@
-use gtmpl::funcs::println;
-
 #[macro_export]
 macro_rules! sync_objects {
     ($object_type:ty, $client:ident, $queue:ident, $template_value:ty, $template:ident) => {{
@@ -42,7 +40,7 @@ macro_rules! sync_objects {
         fn render_object<V: Into<Value>>(template: &Template, object_ref: &ObjectRef, value: V) -> $object_type {
             let context = Context::from(value);
             let yaml = template.render(&context).expect("Unable to render template");
-            
+
             println!("{}", &yaml);
             let mut object: $object_type = serde_yaml::from_str(&yaml)
                 .expect("Unable to deserialize rendered template into object");

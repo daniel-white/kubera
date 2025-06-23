@@ -42,26 +42,19 @@ macro_rules! watch_objects {
 
             let metadata = &object.metadata;
 
-            let ref_ = ObjectRef::new_builder()
-                .from_object(object.as_ref())
-                .build()
-                .expect("Failed to build ObjectRef");
-
-            let object = object.as_ref().clone();
-
-            match &metadata.deletion_timestamp {
-                None => {
-                    info!("reconciled object; object.ref={} object.state=active", ref_);
-                    new_objects.set_active(ref_, object)
-                }
-                _ => {
-                    info!(
-                        "reconciled object; object.ref={} object.state=deleted",
-                        ref_
-                    );
-                    new_objects.set_deleted(ref_, object)
-                }
-            };
+            if metadata.deletion_timestamp.is_none() {
+                debug!(
+                    "reconciled object; object.namespace={:?} object.name={:?} object.state=active",
+                    metadata.namespace, metadata.name
+                );
+                new_objects.insert(object);
+            } else {
+                debug!(
+                    "reconciled object; object.namespace={:?} object.name={:?} object.state=deleted",
+                    metadata.namespace, metadata.name
+                );
+                new_objects.remove(object);
+            }
 
             ctx.tx.replace(new_objects);
 

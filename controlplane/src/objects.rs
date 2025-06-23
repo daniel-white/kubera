@@ -97,107 +97,76 @@ impl Display for ObjectUniqueId {
     }
 }
 
-#[derive(PartialEq, Debug)]
-pub enum ObjectState<K: Resource + ResourceExt> {
-    Active(Arc<K>),
-    Deleted(Arc<K>),
-}
-
-impl<K: Resource + ResourceExt> ObjectState<K> {
-    pub fn is_active(&self) -> bool {
-        matches!(self, ObjectState::Active(_))
-    }
-
-    pub fn is_deleted(&self) -> bool {
-        matches!(self, ObjectState::Deleted(_))
-    }
-
-    pub fn cloned(&self) -> ObjectState<K> {
-        match self {
-            ObjectState::Active(object) => ObjectState::Active(object.clone()),
-            ObjectState::Deleted(object) => ObjectState::Deleted(object.clone()),
-        }
-    }
-}
-
-impl<K: Resource + ResourceExt> AsRef<K> for ObjectState<K> {
-    fn as_ref(&self) -> &K {
-        match self {
-            ObjectState::Active(object) => object.as_ref(),
-            ObjectState::Deleted(object) => object.as_ref(),
-        }
-    }
-}
-
-impl<K: Resource + ResourceExt> Clone for ObjectState<K> {
-    fn clone(&self) -> Self {
-        match self {
-            ObjectState::Active(object) => ObjectState::Active(object.clone()),
-            ObjectState::Deleted(object) => ObjectState::Deleted(object.clone()),
-        }
-    }
-}
-
 #[derive(Clone, PartialEq, Debug)]
 pub struct Objects<K: Resource + ResourceExt> {
-    objects_by_ref: HashMap<ObjectRef, ObjectState<K>>,
-    objects_by_unique_id: HashMap<ObjectUniqueId, ObjectState<K>>,
+    by_ref: HashMap<ObjectRef, Arc<K>>,
+    by_unique_id: HashMap<ObjectUniqueId, Arc<K>>,
 }
 
 impl<K: Resource + ResourceExt> Default for Objects<K> {
     fn default() -> Self {
         Self {
-            objects_by_ref: HashMap::new(),
-            objects_by_unique_id: HashMap::new(),
+            by_ref: HashMap::new(),
+            by_unique_id: HashMap::new(),
         }
     }
 }
 
-impl<K: Resource + ResourceExt> Objects<K> {
-    pub fn set_active(&mut self, object_ref: ObjectRef, object: K) {
-        let uid = ObjectUniqueId::new(object.uid().unwrap());
-        let object = ObjectState::Active(Arc::new(object));
-        self.objects_by_ref.insert(object_ref, object.cloned());
-        self.objects_by_unique_id.insert(uid, object);
+impl<K: Resource + ResourceExt> Objects<K>
+where
+    K::DynamicType: 'static + Default,
+{
+    fn keys(object: &K) -> (ObjectRef, ObjectUniqueId) {
+        let object_ref = ObjectRefBuilder::default()
+            .from_object(object)
+            .build()
+            .expect("Failed to build ObjectRef");
+        let unique_id = ObjectUniqueId::new(object.uid().expect("Object must have a UID"));
+        (object_ref, unique_id)
     }
 
-    pub fn set_deleted(&mut self, object_ref: ObjectRef, object: K) {
-        let uid = ObjectUniqueId::new(object.uid().unwrap());
-        let object = ObjectState::Deleted(Arc::new(object));
-        self.objects_by_ref.insert(object_ref, object.cloned());
-        self.objects_by_unique_id.insert(uid, object);
+    pub fn insert(&mut self, object: Arc<K>) {
+        let (object_ref, unique_id) = Self::keys(&object);
+        self.by_ref.insert(object_ref, object.clone());
+        self.by_unique_id.insert(unique_id, object);
     }
 
-    pub fn get_by_ref(&self, object_ref: &ObjectRef) -> Option<ObjectState<K>> {
-        self.objects_by_ref.get(object_ref).cloned()
+    pub fn remove(&mut self, object: Arc<K>) {
+        let (object_ref, unique_id) = Self::keys(&object);
+        self.by_ref.remove(&object_ref);
+        self.by_unique_id.remove(&unique_id);
     }
 
-    pub fn get_by_unique_id(&self, unique_id: &ObjectUniqueId) -> Option<ObjectState<K>> {
-        self.objects_by_unique_id.get(unique_id).cloned()
+    pub fn get_by_ref(&self, object_ref: &ObjectRef) -> Option<Arc<K>> {
+        self.by_ref.get(object_ref).cloned()
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = (ObjectRef, ObjectUniqueId, ObjectState<K>)> {
-        self.objects_by_ref.iter().map(|(r, s)| {
+    pub fn get_by_unique_id(&self, unique_id: &ObjectUniqueId) -> Option<Arc<K>> {
+        self.by_unique_id.get(unique_id).cloned()
+    }
+
+    pub fn contains_by_ref(&self, object_ref: &ObjectRef) -> bool {
+        self.by_ref.contains_key(object_ref)
+    }
+
+    pub fn contains_by_unique_id(&self, unique_id: &ObjectUniqueId) -> bool {
+        self.by_unique_id.contains_key(unique_id)
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = (ObjectRef, ObjectUniqueId, Arc<K>)> {
+        self.by_ref.iter().map(|(r, s)| {
             let uid = ObjectUniqueId::new(s.as_ref().uid().unwrap());
-            (r.clone(), uid, s.cloned())
+            (r.clone(), uid, s.clone())
         })
     }
 }
 
-impl<K: Resource + ResourceExt> FromIterator<(ObjectRef, ObjectUniqueId, ObjectState<K>)>
-    for Objects<K>
-{
-    fn from_iter<I: IntoIterator<Item = (ObjectRef, ObjectUniqueId, ObjectState<K>)>>(
-        iter: I,
-    ) -> Self {
+impl<K: Resource + ResourceExt> FromIterator<(ObjectRef, ObjectUniqueId, Arc<K>)> for Objects<K> {
+    fn from_iter<I: IntoIterator<Item = (ObjectRef, ObjectUniqueId, Arc<K>)>>(iter: I) -> Self {
         let mut objects = Objects::default();
         for (object_ref, unique_id, state) in iter {
-            objects
-                .objects_by_ref
-                .insert(object_ref.clone(), state.clone());
-            objects
-                .objects_by_unique_id
-                .insert(unique_id.clone(), state);
+            objects.by_ref.insert(object_ref.clone(), state.clone());
+            objects.by_unique_id.insert(unique_id.clone(), state);
         }
         objects
     }

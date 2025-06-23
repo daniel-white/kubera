@@ -1,8 +1,8 @@
-use crate::objects::{ObjectRef, ObjectState, Objects};
+use crate::objects::{ObjectRef, Objects};
 use gateway_api::apis::standard::gatewayclasses::GatewayClass;
 use gateway_api::apis::standard::gateways::Gateway;
 use kubera_core::continue_on;
-use kubera_core::sync::signal::{channel, Receiver};
+use kubera_core::sync::signal::{Receiver, channel};
 use tokio::spawn;
 
 pub fn filter_gateways(
@@ -21,20 +21,13 @@ pub fn filter_gateways(
             let filtered = current_gateways
                 .iter()
                 .filter(|(_, _, gateway)| {
-                    if let ObjectState::Active(gateway) = gateway {
-                        let gateway_class_ref = ObjectRef::new_builder()
-                            .of_kind::<GatewayClass>()
-                            .namespace(None)
-                            .name(&gateway.spec.gateway_class_name)
-                            .build()
-                            .unwrap();
-                        current_gateway_classes
-                            .get_by_ref(&gateway_class_ref)
-                            .map(|o| o.is_active())
-                            .unwrap_or_default()
-                    } else {
-                        false
-                    }
+                    let gateway_class_ref = ObjectRef::new_builder()
+                        .of_kind::<GatewayClass>()
+                        .namespace(None)
+                        .name(&gateway.spec.gateway_class_name)
+                        .build()
+                        .unwrap();
+                    current_gateway_classes.contains_by_ref(&gateway_class_ref)
                 })
                 .collect();
 

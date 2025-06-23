@@ -1,11 +1,11 @@
 use crate::controllers::transformers::http_routes::HttpRouteBackend;
-use crate::objects::{ObjectRef, ObjectState, Objects, TopologyLocation};
+use crate::objects::{ObjectRef, Objects, TopologyLocation};
 use derive_builder::Builder;
 use getset::Getters;
 use k8s_openapi::api::core::v1::Service;
 use k8s_openapi::api::discovery::v1::EndpointSlice;
 use kubera_core::continue_on;
-use kubera_core::sync::signal::{channel, Receiver};
+use kubera_core::sync::signal::{Receiver, channel};
 use std::collections::BTreeMap;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use tokio::spawn;
@@ -64,23 +64,19 @@ pub fn collect_service_backends(
             let endpoint_slices_by_service: BTreeMap<_, _> = current_endpoint_slices
                 .iter()
                 .filter_map(|(_, _, endpoint_slice)| {
-                    if let ObjectState::Active(endpoint_slice) = endpoint_slice {
-                        let metadata = &endpoint_slice.metadata;
-                        let labels = metadata.labels.as_ref()?;
-                        labels
-                            .get("kubernetes.io/service-name")
-                            .map(|service_name| {
-                                ObjectRef::new_builder()
-                                    .of_kind::<Service>()
-                                    .namespace(endpoint_slice.metadata.namespace.clone())
-                                    .name(service_name)
-                                    .build()
-                                    .expect("Failed to build ObjectRef for Service")
-                            })
-                            .map(|service_ref| (service_ref, endpoint_slice.clone()))
-                    } else {
-                        None
-                    }
+                    let metadata = &endpoint_slice.metadata;
+                    let labels = metadata.labels.as_ref()?;
+                    labels
+                        .get("kubernetes.io/service-name")
+                        .map(|service_name| {
+                            ObjectRef::new_builder()
+                                .of_kind::<Service>()
+                                .namespace(endpoint_slice.metadata.namespace.clone())
+                                .name(service_name)
+                                .build()
+                                .expect("Failed to build ObjectRef for Service")
+                        })
+                        .map(|service_ref| (service_ref, endpoint_slice.clone()))
                 })
                 .filter_map(|(service_ref, endpoint_slice)| {
                     current_http_route_backends.get(&service_ref).map(|h| {
