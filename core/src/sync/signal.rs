@@ -40,6 +40,15 @@ where
     }
 }
 
+impl<T> Drop for Sender<T>
+where
+    T: PartialEq,
+{
+    fn drop(&mut self) {
+        trace!("Sender dropped");
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct Receiver<T>
 where
@@ -61,5 +70,14 @@ where
             trace!("Sender dropped");
             RecvError
         })
+    }
+}
+
+impl<T> Drop for Receiver<T>
+where
+    T: PartialEq,
+{
+    fn drop(&mut self) {
+        trace!("Receiver dropped");
     }
 }

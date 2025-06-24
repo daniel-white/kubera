@@ -9,8 +9,7 @@ use kubera_core::sync::signal::Receiver;
 use kubera_core::{continue_after, continue_on};
 use std::collections::HashSet;
 use std::time::Duration;
-use tokio::spawn;
-use tokio::sync::broadcast::{channel, Sender};
+use tokio::sync::broadcast::Sender;
 use tokio::task::JoinSet;
 
 const TEMPLATE: &str = include_str!("./templates/gateway_service.kubernetes-helm-yaml");
@@ -38,7 +37,7 @@ fn generate_gateway_services(
     let mut gateways = gateways.clone();
     let tracker = ObjectTracker::new();
 
-    spawn(async move {
+    join_set.spawn(async move {
         loop {
             let services: Vec<_> = gateways
                 .current()
