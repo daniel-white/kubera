@@ -9,9 +9,8 @@ use kubera_core::sync::signal::{channel, Receiver};
 use std::collections::hash_map::Entry;
 use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
-use tokio::spawn;
-use tokio::task::{JoinHandle, JoinSet};
-use tracing::{debug, error, info};
+use tokio::task::JoinSet;
+use tracing::{debug, info};
 
 #[derive(Debug, Builder, Getters, Clone, Hash, PartialEq, Eq)]
 pub struct HttpRouteBackend {

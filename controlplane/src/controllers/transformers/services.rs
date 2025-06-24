@@ -5,7 +5,7 @@ use getset::Getters;
 use k8s_openapi::api::core::v1::Service;
 use k8s_openapi::api::discovery::v1::EndpointSlice;
 use kubera_core::continue_on;
-use kubera_core::sync::signal::{Receiver, channel};
+use kubera_core::sync::signal::{channel, Receiver};
 use std::collections::BTreeMap;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use tokio::spawn;
@@ -78,7 +78,7 @@ pub fn collect_service_backends(
                                 .build()
                                 .expect("Failed to build ObjectRef for Service")
                         })
-                        .map(|service_ref| (service_ref, endpoint_slice.clone()))
+                        .map(|service_ref| (service_ref, endpoint_slice))
                 })
                 .filter_map(|(service_ref, endpoint_slice)| {
                     current_http_route_backends.get(&service_ref).map(|h| {
