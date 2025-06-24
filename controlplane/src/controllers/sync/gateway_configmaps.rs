@@ -15,13 +15,13 @@ use kubera_core::config::gateway::types::{GatewayConfiguration, GatewayConfigura
 use kubera_core::net::Hostname;
 use kubera_core::sync::signal;
 use kubera_core::sync::signal::Receiver;
+use kubera_core::utils::DropTracker;
 use kubera_core::{continue_after, continue_on};
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::spawn;
 use tokio::sync::broadcast::{channel, Sender};
-use tokio::task::{JoinHandle, JoinSet};
+use tokio::task::JoinSet;
 use tracing::{error, info};
 
 const TEMPLATE: &str = include_str!("./templates/gateway_configmap.kubernetes-helm-yaml");

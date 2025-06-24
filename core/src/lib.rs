@@ -12,6 +12,7 @@ pub mod io;
 pub mod ipc;
 pub mod net;
 pub mod sync;
+pub mod utils;
 
 #[derive(Validate, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct CaseInsensitiveString(UniCase<String>);

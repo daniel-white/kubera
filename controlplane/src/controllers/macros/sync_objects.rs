@@ -8,7 +8,7 @@ macro_rules! sync_objects {
         use kube::api::{ Patch, ObjectMeta };
         use k8s_openapi::DeepMerge;
         use tokio::select;
-        use tokio::sync::broadcast::channel;
+        use tokio::sync::broadcast::{channel, error::RecvError};
         use tokio::signal::ctrl_c;
         use tracing::{debug, info, warn, trace};
         use std::collections::BTreeMap;
@@ -76,8 +76,12 @@ macro_rules! sync_objects {
                 let action = select! {
                     action = rx.recv() => match action {
                         Ok(action) => action,
-                        Err(_) => {
-                            debug!("Queue closed, shutting down controller for {} objects", stringify!($object_type));
+                        Err(RecvError::Lagged(_)) => {
+                            debug!("Queue lagged for {} objects", stringify!($object_type));
+                            continue;
+                        }
+                        Err(err) => {
+                            debug!("Queue closed, shutting down controller for {} objects: {}", stringify!($object_type), err);
                             break;
                         }
                     },
