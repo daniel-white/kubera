@@ -6,11 +6,10 @@ use k8s_openapi::api::core::v1::Service;
 use k8s_openapi::api::discovery::v1::EndpointSlice;
 use kubera_core::continue_on;
 use kubera_core::sync::signal::{channel, Receiver};
-use std::collections::BTreeMap;
+use std::collections::HashMap;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
-use tokio::spawn;
-use tokio::task::{JoinHandle, JoinSet};
-use tracing::{debug, warn};
+use tokio::task::JoinSet;
+use tracing::debug;
 
 #[derive(Debug, Builder, Getters, Clone, Hash, PartialEq, Eq)]
 pub struct Endpoints {
@@ -50,10 +49,10 @@ impl Backend {
 
 pub fn collect_service_backends(
     join_set: &mut JoinSet<()>,
-    http_route_backends: &Receiver<BTreeMap<ObjectRef, HttpRouteBackend>>,
+    http_route_backends: &Receiver<HashMap<ObjectRef, HttpRouteBackend>>,
     endpoint_slices: &Receiver<Objects<EndpointSlice>>,
-) -> Receiver<BTreeMap<ObjectRef, Backend>> {
-    let (tx, rx) = channel(BTreeMap::new());
+) -> Receiver<HashMap<ObjectRef, Backend>> {
+    let (tx, rx) = channel(HashMap::new());
 
     let mut http_route_backends = http_route_backends.clone();
     let mut endpoint_slices = endpoint_slices.clone();
@@ -63,7 +62,7 @@ pub fn collect_service_backends(
             let current_endpoint_slices = endpoint_slices.current();
             let current_http_route_backends = http_route_backends.current();
 
-            let endpoint_slices_by_service: BTreeMap<_, _> = current_endpoint_slices
+            let endpoint_slices_by_service: HashMap<_, _> = current_endpoint_slices
                 .iter()
                 .filter_map(|(_, _, endpoint_slice)| {
                     let metadata = &endpoint_slice.metadata;

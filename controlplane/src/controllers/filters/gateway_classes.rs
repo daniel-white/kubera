@@ -3,7 +3,6 @@ use gateway_api::apis::standard::gatewayclasses::GatewayClass;
 use kubera_api::constants::GATEWAY_CLASS_CONTROLLER_NAME;
 use kubera_core::continue_on;
 use kubera_core::sync::signal::{Receiver, channel};
-use tokio::spawn;
 use tokio::task::JoinSet;
 
 pub fn filter_gateway_classes(

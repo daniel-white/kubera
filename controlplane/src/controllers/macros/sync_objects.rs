@@ -6,13 +6,13 @@ macro_rules! sync_objects {
         use gtmpl_value::Value;
         use kube::{ Api, Resource, ResourceExt };
         use kube::api::{ Patch, ObjectMeta };
-        use k8s_openapi::DeepMerge;
-        use tokio::select;
-        use tokio::sync::broadcast::{channel, error::RecvError};
-        use tokio::signal::ctrl_c;
-        use tracing::{debug, info, warn, trace};
-        use std::collections::BTreeMap;
         use kubera_api::constants::{MANAGED_BY_LABEL, MANAGED_BY_VALUE};
+        use k8s_openapi::DeepMerge;
+        use std::collections::BTreeMap;
+        use tokio::select;
+        use tokio::signal::ctrl_c;
+        use tokio::sync::broadcast::{channel, error::RecvError};
+        use tracing::{debug, info, trace, warn};
 
         let (tx, mut rx) = channel::<SyncObjectAction<$template_value_type>>(1);
 

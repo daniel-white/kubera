@@ -4,8 +4,7 @@ use gateway_api::apis::standard::httproutes::HTTPRoute;
 use itertools::*;
 use kubera_core::continue_on;
 use kubera_core::sync::signal::{channel, Receiver};
-use tokio::spawn;
-use tokio::task::{JoinHandle, JoinSet};
+use tokio::task::JoinSet;
 use tracing::{debug, info};
 
 pub fn filter_http_routes(

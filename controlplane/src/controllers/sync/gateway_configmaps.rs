@@ -15,14 +15,15 @@ use kubera_core::config::gateway::types::{GatewayConfiguration, GatewayConfigura
 use kubera_core::net::Hostname;
 use kubera_core::sync::signal;
 use kubera_core::sync::signal::Receiver;
-use kubera_core::utils::DropTracker;
 use kubera_core::{continue_after, continue_on};
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::sync::broadcast::{channel, Sender};
+use tokio::select;
+use tokio::sync::broadcast::Sender;
 use tokio::task::JoinSet;
 use tracing::{error, info};
+use crate::ipc::IpcServices;
 
 const TEMPLATE: &str = include_str!("./templates/gateway_configmap.kubernetes-helm-yaml");
 
@@ -36,12 +37,16 @@ struct TemplateValues {
 pub fn sync_gateway_configmaps(
     join_set: &mut JoinSet<()>,
     client: &Client,
+    ipc_services: Arc<IpcServices>,
     gateways: &Receiver<Objects<Gateway>>,
     http_routes: &Receiver<HashMap<ObjectRef, Vec<Arc<HTTPRoute>>>>,
-    backends: &Receiver<BTreeMap<ObjectRef, Backend>>,
+    backends: &Receiver<HashMap<ObjectRef, Backend>>,
 ) {
     let tx = sync_objects!(join_set, ConfigMap, client, TemplateValues, TEMPLATE);
+    
     generate_gateway_configmaps(join_set, tx, gateways, http_routes, backends);
+    
+    
 }
 
 fn generate_gateway_configmaps(
@@ -49,7 +54,7 @@ fn generate_gateway_configmaps(
     tx: Sender<SyncObjectAction<TemplateValues>>,
     gateways: &Receiver<Objects<Gateway>>,
     http_routes: &Receiver<HashMap<ObjectRef, Vec<Arc<HTTPRoute>>>>,
-    backends: &Receiver<BTreeMap<ObjectRef, Backend>>,
+    backends: &Receiver<HashMap<ObjectRef, Backend>>,
 ) {
     let mut configs = generate_gateway_configurations(join_set, gateways, http_routes, backends);
 
@@ -109,7 +114,7 @@ fn generate_gateway_configurations(
     join_set: &mut JoinSet<()>,
     gateways: &Receiver<Objects<Gateway>>,
     http_routes: &Receiver<HashMap<ObjectRef, Vec<Arc<HTTPRoute>>>>,
-    backends: &Receiver<BTreeMap<ObjectRef, Backend>>,
+    backends: &Receiver<HashMap<ObjectRef, Backend>>,
 ) -> Receiver<HashMap<ObjectRef, GatewayConfiguration>> {
     let (tx, rx) = signal::channel(HashMap::default());
 

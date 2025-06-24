@@ -6,7 +6,7 @@ use gtmpl_derive::Gtmpl;
 use k8s_openapi::api::core::v1::Service;
 use kube::Client;
 use kubera_core::sync::signal::Receiver;
-use kubera_core::{continue_after, continue_on};
+use kubera_core::continue_after;
 use std::collections::HashSet;
 use std::time::Duration;
 use tokio::sync::broadcast::Sender;

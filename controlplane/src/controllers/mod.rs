@@ -6,7 +6,6 @@ mod transformers;
 use self::filters::*;
 use self::sync::*;
 use self::transformers::*;
-use crate::controllers::sync::sync_gateway_configmaps;
 use crate::ipc::IpcServices;
 use crate::watch_objects;
 use anyhow::Result;
@@ -17,7 +16,6 @@ use k8s_openapi::api::discovery::v1::EndpointSlice;
 use kube::runtime::watcher::Config;
 use kube::Client;
 use std::sync::Arc;
-use tokio::join;
 use tokio::task::JoinSet;
 
 pub async fn run(ipc_services: IpcServices) -> Result<()> {
@@ -42,11 +40,12 @@ pub async fn run(ipc_services: IpcServices) -> Result<()> {
     sync_gateway_configmaps(
         &mut join_set,
         &client,
+        ipc_services,
         &gateways,
         &http_routes_by_gateway,
         &backends,
     );
-    // sync_gateway_services(&mut join_set, &client, &gateways);
+    sync_gateway_services(&mut join_set, &client, &gateways);
     sync_gateway_deployments(&mut join_set, &client, &gateways);
 
     join_set.join_all().await;

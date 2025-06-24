@@ -7,7 +7,7 @@ use k8s_openapi::api::core::v1::Service;
 use kubera_core::continue_on;
 use kubera_core::sync::signal::{channel, Receiver};
 use std::collections::hash_map::Entry;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::task::JoinSet;
 use tracing::{debug, info};
@@ -33,15 +33,15 @@ impl HttpRouteBackend {
 pub fn collect_http_route_backends(
     join_set: &mut JoinSet<()>,
     http_routes: &Receiver<Objects<HTTPRoute>>,
-) -> Receiver<BTreeMap<ObjectRef, HttpRouteBackend>> {
-    let (tx, rx) = channel(BTreeMap::new());
+) -> Receiver<HashMap<ObjectRef, HttpRouteBackend>> {
+    let (tx, rx) = channel(HashMap::new());
 
     let mut http_routes = http_routes.clone();
 
     join_set.spawn(async move {
         loop {
             let current_http_routes = http_routes.current();
-            let mut http_route_backends = BTreeMap::new();
+            let mut http_route_backends = HashMap::new();
 
             for (http_route_ref, _, http_route) in current_http_routes.iter() {
                 info!(
