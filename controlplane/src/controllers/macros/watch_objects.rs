@@ -1,9 +1,9 @@
 #[macro_export]
 macro_rules! watch_objects {
-    ($object_type:ty, $client:ident) => {
-        watch_objects!($object_type, $client, Config::default())
+    ($join_set:ident, $object_type:ty, $client:ident) => {
+        watch_objects!($join_set, $object_type, $client, Config::default())
     };
-    ($object_type:ty, $client:ident, $config:expr) => {{
+    ($join_set:ident, $object_type:ty, $client:ident, $config:expr) => {{
         use futures::StreamExt;
         use kube::Api;
         use kube::runtime::Controller;
@@ -14,10 +14,9 @@ macro_rules! watch_objects {
         use std::sync::Arc;
         use std::time::Duration;
         use thiserror::Error;
-        use tokio::spawn;
         use tracing::instrument;
-        use tracing::{debug, info};
-        use $crate::objects::{ObjectRef, Objects};
+        use tracing::debug;
+        use $crate::objects::Objects;
 
         struct ControllerContext {
             tx: Sender<Objects<$object_type>>,
@@ -78,7 +77,7 @@ macro_rules! watch_objects {
             stringify!($object_type)
         );
 
-        spawn(async move {
+        $join_set.spawn(async move {
             let object_api = Api::<$object_type>::all(client);
             Controller::new(object_api, config)
                 .shutdown_on_signal()

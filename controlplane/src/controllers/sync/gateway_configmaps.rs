@@ -21,6 +21,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::spawn;
 use tokio::sync::broadcast::{channel, Sender};
+use tokio::task::{JoinHandle, JoinSet};
 use tracing::{error, info};
 
 const TEMPLATE: &str = include_str!("./templates/gateway_configmap.kubernetes-helm-yaml");
@@ -33,28 +34,27 @@ struct TemplateValues {
 }
 
 pub fn sync_gateway_configmaps(
+    join_set: &mut JoinSet<()>,
     client: &Client,
     gateways: &Receiver<Objects<Gateway>>,
     http_routes: &Receiver<HashMap<ObjectRef, Vec<Arc<HTTPRoute>>>>,
     backends: &Receiver<BTreeMap<ObjectRef, Backend>>,
 ) {
-    let (tx, rx) = channel(1);
-
-    sync_objects!(ConfigMap, client, rx, TemplateValues, TEMPLATE);
-    generate_gateway_configmaps(tx, gateways, http_routes, backends);
+    let tx = sync_objects!(join_set, ConfigMap, client, TemplateValues, TEMPLATE);
+    generate_gateway_configmaps(join_set, tx, gateways, http_routes, backends);
 }
 
 fn generate_gateway_configmaps(
+    join_set: &mut JoinSet<()>,
     tx: Sender<SyncObjectAction<TemplateValues>>,
     gateways: &Receiver<Objects<Gateway>>,
     http_routes: &Receiver<HashMap<ObjectRef, Vec<Arc<HTTPRoute>>>>,
     backends: &Receiver<BTreeMap<ObjectRef, Backend>>,
 ) {
-    let mut configs = generate_gateway_configurations(gateways, http_routes, backends);
+    let mut configs = generate_gateway_configurations(join_set, gateways, http_routes, backends);
 
     let tracker = ObjectTracker::new();
-
-    spawn(async move {
+    join_set.spawn(async move {
         loop {
             info!("Reconciling Gateway ConfigMaps");
             let config_values: Vec<_> = configs
@@ -106,6 +106,7 @@ fn generate_gateway_configmaps(
 }
 
 fn generate_gateway_configurations(
+    join_set: &mut JoinSet<()>,
     gateways: &Receiver<Objects<Gateway>>,
     http_routes: &Receiver<HashMap<ObjectRef, Vec<Arc<HTTPRoute>>>>,
     backends: &Receiver<BTreeMap<ObjectRef, Backend>>,
@@ -116,7 +117,7 @@ fn generate_gateway_configurations(
     let mut http_routes = http_routes.clone();
     let mut backends = backends.clone();
 
-    spawn(async move {
+    join_set.spawn(async move {
         loop {
             let current_gateways = gateways.current();
             let current_backends = backends.current();

@@ -9,6 +9,7 @@ use kubera_core::sync::signal::{Receiver, channel};
 use std::collections::BTreeMap;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use tokio::spawn;
+use tokio::task::{JoinHandle, JoinSet};
 use tracing::{debug, warn};
 
 #[derive(Debug, Builder, Getters, Clone, Hash, PartialEq, Eq)]
@@ -48,6 +49,7 @@ impl Backend {
 }
 
 pub fn collect_service_backends(
+    join_set: &mut JoinSet<()>,
     http_route_backends: &Receiver<BTreeMap<ObjectRef, HttpRouteBackend>>,
     endpoint_slices: &Receiver<Objects<EndpointSlice>>,
 ) -> Receiver<BTreeMap<ObjectRef, Backend>> {
@@ -56,7 +58,7 @@ pub fn collect_service_backends(
     let mut http_route_backends = http_route_backends.clone();
     let mut endpoint_slices = endpoint_slices.clone();
 
-    spawn(async move {
+    join_set.spawn(async move {
         loop {
             let current_endpoint_slices = endpoint_slices.current();
             let current_http_route_backends = http_route_backends.current();

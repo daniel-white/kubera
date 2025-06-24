@@ -11,6 +11,7 @@ use std::collections::HashSet;
 use std::time::Duration;
 use tokio::spawn;
 use tokio::sync::broadcast::{channel, Sender};
+use tokio::task::JoinSet;
 
 const TEMPLATE: &str = include_str!("./templates/gateway_deployment.kubernetes-helm-yaml");
 
@@ -22,20 +23,24 @@ struct TemplateValues {
     configmap_name: String,
 }
 
-pub fn sync_gateway_deployments(client: &Client, gateways: &Receiver<Objects<Gateway>>) {
-    let (tx, rx) = channel(1);
-    sync_objects!(Deployment, client, rx, TemplateValues, TEMPLATE);
-    generate_gateway_deployments(tx, gateways);
+pub fn sync_gateway_deployments(
+    join_set: &mut JoinSet<()>,
+    client: &Client,
+    gateways: &Receiver<Objects<Gateway>>,
+) {
+    let tx = sync_objects!(join_set, Deployment, client, TemplateValues, TEMPLATE);
+    generate_gateway_deployments(join_set, tx, gateways);
 }
 
 fn generate_gateway_deployments(
+    join_set: &mut JoinSet<()>,
     tx: Sender<SyncObjectAction<TemplateValues>>,
     gateways: &Receiver<Objects<Gateway>>,
 ) {
     let mut gateways = gateways.clone();
     let tracker = ObjectTracker::new();
 
-    spawn(async move {
+    join_set.spawn(async move {
         loop {
             let deployments: Vec<_> = gateways
                 .current()

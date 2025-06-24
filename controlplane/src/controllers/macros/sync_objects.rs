@@ -1,18 +1,20 @@
 #[macro_export]
 macro_rules! sync_objects {
-    ($object_type:ty, $client:ident, $rx:ident, $template_value:ty, $template:ident) => {{
+    ($join_set:ident, $object_type:ty, $client:ident, $template_value_type:ty, $template:ident) => {{
         use $crate::objects::{ObjectRef, SyncObjectAction, SyncObjectAction::*};
         use gtmpl::{Context, Template, gtmpl_fn, FuncError};
         use gtmpl_value::Value;
         use kube::{ Api, Resource, ResourceExt };
         use kube::api::{ Patch, ObjectMeta };
         use k8s_openapi::DeepMerge;
-        use tokio::{select, spawn};
-        use tokio::sync::broadcast::Receiver;
+        use tokio::select;
+        use tokio::sync::broadcast::channel;
         use tokio::signal::ctrl_c;
         use tracing::{debug, info, warn, trace};
         use std::collections::BTreeMap;
         use kubera_api::constants::{MANAGED_BY_LABEL, MANAGED_BY_VALUE};
+
+        let (tx, mut rx) = channel::<SyncObjectAction<$template_value_type>>(1);
 
         const _: () = {
             fn assert_impl<T: Resource + ResourceExt>() {}
@@ -69,8 +71,7 @@ macro_rules! sync_objects {
             stringify!($object_type)
         );
 
-        spawn(async move {
-            let mut rx: Receiver<SyncObjectAction<$template_value>> = $rx;
+        $join_set.spawn(async move {
             loop {
                 let action = select! {
                     action = rx.recv() => match action {
@@ -130,5 +131,7 @@ macro_rules! sync_objects {
                 };
             }
         });
+
+        tx
     }};
 }

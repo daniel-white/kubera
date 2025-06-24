@@ -2,10 +2,12 @@ use crate::objects::{ObjectRef, Objects};
 use gateway_api::apis::standard::gatewayclasses::GatewayClass;
 use gateway_api::apis::standard::gateways::Gateway;
 use kubera_core::continue_on;
-use kubera_core::sync::signal::{Receiver, channel};
+use kubera_core::sync::signal::{channel, Receiver};
 use tokio::spawn;
+use tokio::task::JoinSet;
 
 pub fn filter_gateways(
+    join_set: &mut JoinSet<()>,
     gateway_classes: &Receiver<Objects<GatewayClass>>,
     gateways: &Receiver<Objects<Gateway>>,
 ) -> Receiver<Objects<Gateway>> {
@@ -14,7 +16,7 @@ pub fn filter_gateways(
     let mut gateway_classes = gateway_classes.clone();
     let mut gateways = gateways.clone();
 
-    spawn(async move {
+    join_set.spawn(async move {
         loop {
             let current_gateway_classes = gateway_classes.current();
             let current_gateways = gateways.current();

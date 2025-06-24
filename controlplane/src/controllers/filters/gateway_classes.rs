@@ -4,15 +4,17 @@ use kubera_api::constants::GATEWAY_CLASS_CONTROLLER_NAME;
 use kubera_core::continue_on;
 use kubera_core::sync::signal::{Receiver, channel};
 use tokio::spawn;
+use tokio::task::JoinSet;
 
 pub fn filter_gateway_classes(
+    join_set: &mut JoinSet<()>,
     gateway_classes: &Receiver<Objects<GatewayClass>>,
 ) -> Receiver<Objects<GatewayClass>> {
     let (tx, rx) = channel(Objects::default());
 
     let mut gateway_classes = gateway_classes.clone();
 
-    spawn(async move {
+    join_set.spawn(async move {
         loop {
             let current = gateway_classes.current();
             let filtered: Objects<_> = current

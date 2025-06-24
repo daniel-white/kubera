@@ -1,5 +1,5 @@
 pub fn init_logging() {
-    flexi_logger::Logger::try_with_env_or_str("info")
+    flexi_logger::Logger::try_with_env_or_str("debug")
         .expect("Failed to initialize logger")
         .start()
         .expect("Failed to start logger");
