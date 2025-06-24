@@ -195,14 +195,14 @@ impl TopologyLocation {
 
 #[derive(Clone, Debug)]
 pub enum SyncObjectAction<T: Into<Value>> {
-    Upsert(ObjectRef, T),
+    Upsert(ObjectRef, ObjectRef, T),
     Delete(ObjectRef),
 }
 
 impl<T: Into<Value>> SyncObjectAction<T> {
     pub fn object_ref(&self) -> &ObjectRef {
         match self {
-            SyncObjectAction::Upsert(object_ref, _) => object_ref,
+            SyncObjectAction::Upsert(object_ref, _, _) => object_ref,
             SyncObjectAction::Delete(object_ref) => object_ref,
         }
     }

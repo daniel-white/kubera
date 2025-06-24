@@ -59,12 +59,12 @@ fn generate_gateway_deployments(
                         .build()
                         .expect("Failed to build TemplateValues");
 
-                    (deployment_ref, template_values)
+                    (deployment_ref, gateway_ref, template_values)
                 })
                 .collect();
 
             let deployment_refs: HashSet<_> =
-                deployments.iter().map(|(ref_, _)| ref_.clone()).collect();
+                deployments.iter().map(|(ref_, _, _)| ref_.clone()).collect();
 
             let deleted_refs = tracker.reconcile(deployment_refs);
             for deleted_ref in deleted_refs {
@@ -72,8 +72,8 @@ fn generate_gateway_deployments(
                     .expect("Failed to send delete action");
             }
 
-            for (deployment_ref, template_values) in deployments.into_iter() {
-                tx.send(SyncObjectAction::Upsert(deployment_ref, template_values))
+            for (deployment_ref, gateway_ref, template_values) in deployments.into_iter() {
+                tx.send(SyncObjectAction::Upsert(deployment_ref, gateway_ref, template_values))
                     .expect("Failed to send upsert action");
             }
 

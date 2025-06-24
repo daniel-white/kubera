@@ -6,7 +6,7 @@ macro_rules! sync_objects {
         use gtmpl_value::Value;
         use kube::{ Api, Resource, ResourceExt };
         use kube::api::{ Patch, ObjectMeta };
-        use kubera_api::constants::{MANAGED_BY_LABEL, MANAGED_BY_VALUE};
+        use kubera_api::constants::{MANAGED_BY_LABEL, MANAGED_BY_VALUE, PART_OF_LABEL};
         use k8s_openapi::DeepMerge;
         use std::collections::BTreeMap;
         use tokio::select;
@@ -44,7 +44,7 @@ macro_rules! sync_objects {
             template
         };
 
-        fn render_object<V: Into<Value>>(template: &Template, object_ref: &ObjectRef, value: V) -> $object_type {
+        fn render_object<V: Into<Value>>(template: &Template, object_ref: &ObjectRef, parent_ref: &ObjectRef, value: V) -> $object_type {
             let context = Context::from(value);
             let yaml = template.render(&context).expect("Unable to render template");
 
@@ -55,7 +55,8 @@ macro_rules! sync_objects {
                 name: Some(object_ref.name().to_string()),
                 namespace: object_ref.namespace().as_ref().cloned(),
                 labels: Some(BTreeMap::from([
-                    (MANAGED_BY_LABEL.to_string(), MANAGED_BY_VALUE.to_string())
+                    (MANAGED_BY_LABEL.to_string(), MANAGED_BY_VALUE.to_string()),
+                    (PART_OF_LABEL.to_string(), parent_ref.name().to_string())
                 ])),
                 ..Default::default()
             };
@@ -108,16 +109,16 @@ macro_rules! sync_objects {
                 );
 
                 match (&action, exists) {
-                    (Upsert(_, value), false) => {
-                        let object = render_object(&template, &object_ref, value.clone());
+                    (Upsert(_, parent_ref, value), false) => {
+                        let object = render_object(&template, &object_ref, parent_ref, value.clone());
                         info!("Creating object: {}", object_ref);
                         api.create(&Default::default(), &object)
                             .await
                             .map_err(|e| warn!("Failed to create object: {}: {}", object_ref, e))
                             .ok();
                     }
-                    (Upsert(_, value), true) => {
-                        let object = render_object(&template, &object_ref, value.clone());
+                    (Upsert(_, parent_ref, value), true) => {
+                        let object = render_object(&template, &object_ref, parent_ref, value.clone());
                         info!("Patching object: {}", object_ref);
                         api.patch(object_ref.name(), &Default::default(), &Patch::Strategic(object))
                             .await

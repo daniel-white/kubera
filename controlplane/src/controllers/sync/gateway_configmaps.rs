@@ -62,8 +62,8 @@ fn generate_gateway_configmaps(
     join_set.spawn(async move {
         loop {
             info!("Reconciling Gateway ConfigMaps");
-            let config_values: Vec<_> = configs
-                .current()
+            let current_configs = configs.current().clone();
+            let config_values: Vec<_> = current_configs
                 .iter()
                 .map(|(gateway_ref, config)| {
                     let configmap_ref = ObjectRef::new_builder()
@@ -81,12 +81,12 @@ fn generate_gateway_configmaps(
                         .build()
                         .expect("Failed to build TemplateValues");
 
-                    (configmap_ref, template_values)
+                    (configmap_ref, gateway_ref, template_values)
                 })
                 .collect();
 
             let configmaps_refs: HashSet<_> =
-                config_values.iter().map(|(ref_, _)| ref_.clone()).collect();
+                config_values.iter().map(|(ref_, _, _)| ref_.clone()).collect();
 
             let deleted_refs = tracker.reconcile(configmaps_refs);
             for deleted_ref in deleted_refs {
@@ -97,9 +97,9 @@ fn generate_gateway_configmaps(
                     });
             }
 
-            for (service_ref, template_values) in config_values.into_iter() {
+            for (service_ref, gateway_ref, template_values) in config_values.into_iter() {
                 let _ = tx
-                    .send(SyncObjectAction::Upsert(service_ref, template_values))
+                    .send(SyncObjectAction::Upsert(service_ref, gateway_ref.clone(), template_values))
                     .inspect_err(|err| {
                         error!("Failed to send upsert action: {}", err);
                     });

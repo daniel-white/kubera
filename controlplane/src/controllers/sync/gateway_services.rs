@@ -55,11 +55,11 @@ fn generate_gateway_services(
                         .build()
                         .expect("Failed to build TemplateValues");
 
-                    (service_ref, template_values)
+                    (service_ref, gateway_ref, template_values)
                 })
                 .collect();
 
-            let service_refs: HashSet<_> = services.iter().map(|(ref_, _)| ref_.clone()).collect();
+            let service_refs: HashSet<_> = services.iter().map(|(ref_, _, _)| ref_.clone()).collect();
 
             let deleted_refs = tracker.reconcile(service_refs);
             for deleted_ref in deleted_refs {
@@ -67,8 +67,8 @@ fn generate_gateway_services(
                     .expect("Failed to send delete action");
             }
 
-            for (service_ref, template_values) in services.into_iter() {
-                tx.send(SyncObjectAction::Upsert(service_ref, template_values))
+            for (service_ref, gateway_ref,  template_values) in services.into_iter() {
+                tx.send(SyncObjectAction::Upsert(service_ref, gateway_ref, template_values))
                     .expect("Failed to send upsert action");
             }
 
