@@ -11,3 +11,7 @@ kube = { workspace = true }
 schemars = { version = "0.8" }
 serde = { workspace = true }
 serde_json = { workspace = true }
+
+[lib]
+name = "kubera_api"
+path = "src/lib.rs"

@@ -1,2 +1,2 @@
 target/
-helm/crds/
+helm/crds/generated/

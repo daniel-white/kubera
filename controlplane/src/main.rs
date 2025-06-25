@@ -4,7 +4,7 @@ pub mod objects;
 
 pub mod ipc;
 
-use crate::ipc::{IpcServiceConfiguration, spawn_ipc_service};
+use crate::ipc::{spawn_ipc_service, IpcServiceConfiguration};
 use anyhow::Result;
 use clap::Parser;
 use cli::Cli;
@@ -20,6 +20,10 @@ async fn main() -> Result<()> {
     };
 
     init_logging();
+
+    rustls::crypto::ring::default_provider()
+        .install_default()
+        .expect("Failed to install rustls crypto provider");
 
     let _cli = Cli::parse();
 

@@ -1,0 +1,30 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "controlplane.name" . }}
+  namespace: {{ .Release.Namespace }}
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: {{ include "controlplane.name" . }}
+  template:
+    metadata:
+      {{- if .Values.podAnnotations }}
+      annotations: {{ toYaml .Values.podAnnotations | nindent 8 }}
+      {{- end }}
+      labels: {{ (include "labels" .) | nindent 8 }}
+        app: {{ include "controlplane.name" . }}
+    spec:
+      serviceAccountName: {{ include "controlplane.name" . }}
+      containers:
+        - name: controlplane
+          image: {{ default .Values.controlplane.image.repository "kubera-controlplane" }}:{{ default .Values.controlplane.image.tag "latest" }}
+          imagePullPolicy: {{ default .Values.controlplane.image.pullPolicy .Values.images.pullPolicy "Always" }}
+          env:
+            - name: RUST_LOG
+              value: {{ default .Values.controlplane.logLevel .Values.logLevel "warn" }}
+          resources: {{ toYaml .Values.controlplane.resources | nindent 12 }}
+

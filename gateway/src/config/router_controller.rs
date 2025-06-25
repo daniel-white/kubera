@@ -123,7 +123,9 @@ pub async fn spawn_controller(
 
                                 for config_backend in config_rule.backends() {
                                     rule.add_backend(|backend| {
-                                        backend.with_weight(*config_backend.weight());
+                                        if let Some(weight) = config_backend.weight() {
+                                            backend.with_weight(*weight);
+                                        }
 
                                         if let Some(port) = config_backend.port() {
                                             backend.with_port(*port.get());
