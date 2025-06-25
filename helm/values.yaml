@@ -9,6 +9,10 @@ gatewayclass:
 controlplane:
   name: ""
   logLevel: ""
+  deployment:
+    replicas: 2
+    strategy:
+      type: Recreate
   image:
     repository: kubera-controlplane
     pullPolicy: ""
@@ -20,6 +24,15 @@ controlplane:
     requests:
       cpu: "500m"
       memory: "256Mi"
+
+gateway:
+  deployment:
+    replicas: 4
+    strategy:
+      type: RollingUpdate
+      rollingUpdate:
+        maxSurge: 1
+        maxUnavailable: 1
 
 
 

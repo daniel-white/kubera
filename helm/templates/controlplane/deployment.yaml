@@ -4,9 +4,11 @@ metadata:
   name: {{ include "controlplane.name" . }}
   namespace: {{ .Release.Namespace }}
 spec:
-  replicas: 1
+  replicas: {{ .Values.controlplane.deployment.replicas | default 2 }}
+  {{- if .Values.gateway.deployment.strategy }}
   strategy:
-    type: Recreate
+    {{- toYaml .Values.controlplane.deployment.strategy | nindent 4 -}}
+  {{- end }}
   selector:
     matchLabels:
       app: {{ include "controlplane.name" . }}

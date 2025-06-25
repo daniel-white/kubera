@@ -28,7 +28,7 @@ pub fn watch_role(
         namespace,
         LeaseLockParams {
             holder_id: pod_name.to_string(),
-            lease_name: format!("{}-primary-lock", instance_name),
+            lease_name: format!("{}-primary", instance_name),
             lease_ttl: Duration::from_secs(30),
         },
     );
