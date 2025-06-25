@@ -7,10 +7,11 @@ use k8s_openapi::api::core::v1::Service;
 use kube::Client;
 use kubera_core::sync::signal::Receiver;
 use kubera_core::continue_after;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::time::Duration;
 use tokio::sync::broadcast::Sender;
 use tokio::task::JoinSet;
+use crate::controllers::transformers::GatewayInstanceConfiguration;
 
 const TEMPLATE: &str = include_str!("./templates/gateway_service.kubernetes-helm-yaml");
 
@@ -23,26 +24,26 @@ struct TemplateValues {
 pub fn sync_gateway_services(
     join_set: &mut JoinSet<()>,
     client: &Client,
-    gateways: &Receiver<Objects<Gateway>>,
+    gateway_instances: &Receiver<HashMap<ObjectRef, GatewayInstanceConfiguration>>,
 ) {
     let tx = sync_objects!(join_set, Service, client, TemplateValues, TEMPLATE);
-    generate_gateway_services(join_set, tx, gateways);
+    generate_gateway_services(join_set, tx, gateway_instances);
 }
 
 fn generate_gateway_services(
     join_set: &mut JoinSet<()>,
     tx: Sender<SyncObjectAction<TemplateValues>>,
-    gateways: &Receiver<Objects<Gateway>>,
+    gateway_instances: &Receiver<HashMap<ObjectRef, GatewayInstanceConfiguration>>,
 ) {
-    let mut gateways = gateways.clone();
+    let mut gateway_instances = gateway_instances.clone();
     let tracker = ObjectTracker::new();
 
     join_set.spawn(async move {
         loop {
-            let services: Vec<_> = gateways
-                .current()
+            let current_instances = gateway_instances.current();
+            let services: Vec<_> = current_instances
                 .iter()
-                .map(|(gateway_ref, _, _)| {
+                .map(|(gateway_ref, _)| {
                     let service_ref = ObjectRef::new_builder()
                         .of_kind::<Service>()
                         .namespace(gateway_ref.namespace().clone())
@@ -68,11 +69,11 @@ fn generate_gateway_services(
             }
 
             for (service_ref, gateway_ref,  template_values) in services.into_iter() {
-                tx.send(SyncObjectAction::Upsert(service_ref, gateway_ref, template_values))
+                tx.send(SyncObjectAction::Upsert(service_ref, gateway_ref.clone(), template_values))
                     .expect("Failed to send upsert action");
             }
 
-            continue_after!(Duration::from_secs(60), gateways.changed());
+            continue_after!(Duration::from_secs(60), gateway_instances.changed());
         }
     });
 }

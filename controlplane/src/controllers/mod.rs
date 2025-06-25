@@ -85,8 +85,8 @@ pub async fn run(params: ControllerRunParams) -> Result<()> {
         &http_routes_by_gateway,
         &backends,
     );
-    sync_gateway_services(&mut join_set, &client, &gateways);
-    sync_gateway_deployments(&mut join_set, &client, &gateways);
+    sync_gateway_services(&mut join_set, &client, &gateway_instances);
+    sync_gateway_deployments(&mut join_set, &client, &gateway_instances);
 
     join_set.join_all().await;
 

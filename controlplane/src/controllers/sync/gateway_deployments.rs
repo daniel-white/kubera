@@ -7,10 +7,11 @@ use k8s_openapi::api::apps::v1::Deployment;
 use kube::Client;
 use kubera_core::sync::signal::Receiver;
 use kubera_core::continue_after;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::time::Duration;
 use tokio::sync::broadcast::Sender;
 use tokio::task::JoinSet;
+use crate::controllers::transformers::GatewayInstanceConfiguration;
 
 const TEMPLATE: &str = include_str!("./templates/gateway_deployment.kubernetes-helm-yaml");
 
@@ -25,26 +26,26 @@ struct TemplateValues {
 pub fn sync_gateway_deployments(
     join_set: &mut JoinSet<()>,
     client: &Client,
-    gateways: &Receiver<Objects<Gateway>>,
+    gateway_instances: &Receiver<HashMap<ObjectRef, GatewayInstanceConfiguration>>,
 ) {
     let tx = sync_objects!(join_set, Deployment, client, TemplateValues, TEMPLATE);
-    generate_gateway_deployments(join_set, tx, gateways);
+    generate_gateway_deployments(join_set, tx, gateway_instances);
 }
 
 fn generate_gateway_deployments(
     join_set: &mut JoinSet<()>,
     tx: Sender<SyncObjectAction<TemplateValues>>,
-    gateways: &Receiver<Objects<Gateway>>,
+    gateway_instances: &Receiver<HashMap<ObjectRef, GatewayInstanceConfiguration>>,
 ) {
-    let mut gateways = gateways.clone();
+    let mut gateway_instances = gateway_instances.clone();
     let tracker = ObjectTracker::new();
 
     join_set.spawn(async move {
         loop {
-            let deployments: Vec<_> = gateways
-                .current()
+            let current_instances = gateway_instances.current();
+            let deployments: Vec<_> = current_instances
                 .iter()
-                .map(|(gateway_ref, _, _)| {
+                .map(|(gateway_ref, _)| {
                     let deployment_ref = ObjectRef::new_builder()
                         .of_kind::<Deployment>()
                         .namespace(gateway_ref.namespace().clone())
@@ -73,11 +74,11 @@ fn generate_gateway_deployments(
             }
 
             for (deployment_ref, gateway_ref, template_values) in deployments.into_iter() {
-                tx.send(SyncObjectAction::Upsert(deployment_ref, gateway_ref, template_values))
+                tx.send(SyncObjectAction::Upsert(deployment_ref, gateway_ref.clone(), template_values))
                     .expect("Failed to send upsert action");
             }
 
-            continue_after!(Duration::from_secs(60), gateways.changed());
+            continue_after!(Duration::from_secs(60), gateway_instances.changed());
         }
     });
 }
