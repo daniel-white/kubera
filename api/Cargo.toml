@@ -5,7 +5,7 @@ edition = "2024"
 
 [dependencies]
 derive_builder = { workspace = true }
-gateway-api = "0.15"
+gateway-api = "0.16"
 k8s-openapi = { workspace = true, features = ["v1_32"] }
 kube = { workspace = true }
 schemars = { version = "0.8" }

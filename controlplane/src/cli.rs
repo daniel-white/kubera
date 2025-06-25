@@ -1,16 +1,12 @@
 use anyhow::Result;
-use clap::{Parser, Subcommand};
-use getset::Getters;
+use clap::Parser;
+use getset::{CopyGetters, Getters};
 use kubera_core::net::Port;
 
-#[derive(Parser, Getters)]
+#[derive(Parser, Getters, CopyGetters)]
 #[command(name = "kubera-controlplane")]
 #[command(about = "A Kubernetes control plane for Kubera", long_about = None)]
 pub struct Cli {
-    #[command(subcommand)]
-    #[getset(get = "pub")]
-    command: Option<Commands>,
-
     #[getset(get_copy = "pub")]
     #[arg(default_value ="8081",
           env = "KUBERA_CONTROL_SERVICE_PORT",
@@ -18,15 +14,18 @@ pub struct Cli {
           value_parser = parse_port,
     )]
     control_service_port: Port,
-}
 
-#[derive(Subcommand)]
-pub enum Commands {
-    Run,
-    WriteCrds {
-        #[arg(short, long)]
-        output_path: Option<String>,
-    },
+    #[getset(get = "pub")]
+    #[arg(env = "POD_NAMESPACE", long = "namespace")]
+    pod_namespace: String,
+
+    #[getset(get = "pub")]
+    #[arg(env = "POD_NAME", long = "pod-name")]
+    pod_name: String,
+
+    #[getset(get = "pub")]
+    #[arg(env = "KUBERA_INSTANCE", long = "instance")]
+    instance_name: String,
 }
 
 fn parse_port(arg: &str) -> Result<Port> {

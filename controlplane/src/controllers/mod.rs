@@ -1,17 +1,21 @@
 mod filters;
 mod macros;
+mod role;
 mod sync;
 mod transformers;
 
 use self::filters::*;
 use self::sync::*;
 use self::transformers::*;
+use crate::controllers::role::watch_role;
 use crate::ipc::IpcServices;
 use crate::watch_objects;
 use anyhow::Result;
+use derive_builder::Builder;
 use gateway_api::apis::standard::gatewayclasses::GatewayClass;
 use gateway_api::apis::standard::gateways::Gateway;
 use gateway_api::apis::standard::httproutes::HTTPRoute;
+use getset::Getters;
 use k8s_openapi::api::discovery::v1::EndpointSlice;
 use kube::runtime::watcher::Config;
 use kube::Client;
@@ -19,11 +23,34 @@ use kubera_api::v1alpha1::{GatewayClassParameters, GatewayParameters};
 use std::sync::Arc;
 use tokio::task::JoinSet;
 
-pub async fn run(ipc_services: IpcServices) -> Result<()> {
-    let ipc_services = Arc::new(ipc_services);
+#[derive(Builder, Debug, Getters, Clone)]
+#[builder(setter(into))]
+pub struct ControllerRunParams {
+    #[getset(get = "pub")]
+    ipc_services: Arc<IpcServices>,
+
+    #[getset(get = "pub")]
+    pod_namespace: String,
+
+    #[getset(get = "pub")]
+    pod_name: String,
+
+    #[getset(get = "pub")]
+    instance_name: String,
+}
+
+pub async fn run(params: ControllerRunParams) -> Result<()> {
     let client = Client::try_default().await?;
 
     let mut join_set: JoinSet<_> = JoinSet::new();
+
+    let role = watch_role(
+        &mut join_set,
+        &client,
+        params.pod_namespace(),
+        params.instance_name(),
+        params.pod_name(),
+    );
 
     let gateway_classes = watch_objects!(join_set, GatewayClass, client);
     let gateways = watch_objects!(join_set, Gateway, client);
@@ -53,7 +80,7 @@ pub async fn run(ipc_services: IpcServices) -> Result<()> {
     sync_gateway_configmaps(
         &mut join_set,
         &client,
-        ipc_services,
+        params.ipc_services,
         &gateway_instances,
         &http_routes_by_gateway,
         &backends,

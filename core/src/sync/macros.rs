@@ -1,5 +1,25 @@
 #[macro_export]
 macro_rules! continue_after {
+    ($duration:expr) => {{
+        use tokio::signal::ctrl_c;
+        use tokio::time;
+        use tracing::debug;
+
+        let sleep = time::sleep($duration);
+        tokio::pin!(sleep);
+
+        tokio::select! {
+                _ = &mut sleep => {
+                    debug!("Sleep duration of {:?} elapsed, continuing loop", $duration);
+                    continue;
+                },
+            _ = ctrl_c() => {
+                debug!("Interrupt signal received, exiting loop");
+                break;
+            }
+        };
+    }};
+
     ($duration:expr, $($fut:expr),+ $(,)?) => {{
         use tokio::signal::ctrl_c;
         use tokio::time;
@@ -9,24 +29,22 @@ macro_rules! continue_after {
         tokio::pin!(sleep);
 
         tokio::select! {
-            $(
-                _ = &mut sleep => {
-                    debug!("Sleep duration of {:?} elapsed, continuing loop", $duration);
-                    continue;
-                },
-                res = $fut => {
-                    match res {
-                        Ok(_) =>{
-                            debug!("Future {} advanced, continuing loop", stringify!($fut));
-                            continue;
-                        }
-                        Err(_) => {
-                            debug!("Future {} advanced with err, exiting loop", stringify!($fut));
-                            break;
-                        }
+            _ = &mut sleep => {
+                debug!("Sleep duration of {:?} elapsed, continuing loop", $duration);
+                continue;
+            },
+            $(res = $fut => {
+                match res {
+                    Ok(_) =>{
+                        debug!("Future {} advanced, continuing loop", stringify!($fut));
+                        continue;
                     }
-                },
-            )+
+                    Err(_) => {
+                        debug!("Future {} advanced with err, exiting loop", stringify!($fut));
+                        break;
+                    }
+                }
+            },)+
             _ = ctrl_c() => {
                 debug!("Interrupt signal received, exiting loop");
                 break;
