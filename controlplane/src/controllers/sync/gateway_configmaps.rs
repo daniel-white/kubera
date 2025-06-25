@@ -1,4 +1,4 @@
-use crate::controllers::transformers::Backend;
+use crate::controllers::transformers::{Backend, GatewayInstanceConfiguration};
 use crate::objects::{ObjectRef, ObjectTracker, Objects, SyncObjectAction};
 use crate::sync_objects;
 use derive_builder::Builder;
@@ -38,13 +38,13 @@ pub fn sync_gateway_configmaps(
     join_set: &mut JoinSet<()>,
     client: &Client,
     ipc_services: Arc<IpcServices>,
-    gateways: &Receiver<Objects<Gateway>>,
+    gateway_instances: &Receiver<HashMap<ObjectRef, GatewayInstanceConfiguration>>,
     http_routes: &Receiver<HashMap<ObjectRef, Vec<Arc<HTTPRoute>>>>,
     backends: &Receiver<HashMap<ObjectRef, Backend>>,
 ) {
     let tx = sync_objects!(join_set, ConfigMap, client, TemplateValues, TEMPLATE);
     
-    generate_gateway_configmaps(join_set, tx, gateways, http_routes, backends);
+    generate_gateway_configmaps(join_set, tx, gateway_instances, http_routes, backends);
     
     
 }
@@ -52,11 +52,11 @@ pub fn sync_gateway_configmaps(
 fn generate_gateway_configmaps(
     join_set: &mut JoinSet<()>,
     tx: Sender<SyncObjectAction<TemplateValues>>,
-    gateways: &Receiver<Objects<Gateway>>,
+    gateway_instances: &Receiver<HashMap<ObjectRef, GatewayInstanceConfiguration>>,
     http_routes: &Receiver<HashMap<ObjectRef, Vec<Arc<HTTPRoute>>>>,
     backends: &Receiver<HashMap<ObjectRef, Backend>>,
 ) {
-    let mut configs = generate_gateway_configurations(join_set, gateways, http_routes, backends);
+    let mut configs = generate_gateway_configurations(join_set, gateway_instances, http_routes, backends);
 
     let tracker = ObjectTracker::new();
     join_set.spawn(async move {
@@ -112,27 +112,27 @@ fn generate_gateway_configmaps(
 
 fn generate_gateway_configurations(
     join_set: &mut JoinSet<()>,
-    gateways: &Receiver<Objects<Gateway>>,
+    gateway_instances: &Receiver<HashMap<ObjectRef, GatewayInstanceConfiguration>>,
     http_routes: &Receiver<HashMap<ObjectRef, Vec<Arc<HTTPRoute>>>>,
     backends: &Receiver<HashMap<ObjectRef, Backend>>,
 ) -> Receiver<HashMap<ObjectRef, GatewayConfiguration>> {
     let (tx, rx) = signal::channel(HashMap::default());
 
-    let mut gateways = gateways.clone();
+    let mut gateway_instances = gateway_instances.clone();
     let mut http_routes = http_routes.clone();
     let mut backends = backends.clone();
 
     join_set.spawn(async move {
         loop {
-            let current_gateways = gateways.current();
+            let current_instances = gateway_instances.current();
             let current_backends = backends.current();
-            let configs: HashMap<_, _> = current_gateways
+            let configs: HashMap<_, _> = current_instances
                 .iter()
-                .map(|(gateway_ref, gateway_uid, gateway)| {
+                .map(|(gateway_ref, instance)| {
                     let mut gateway_configuration = GatewayConfigurationBuilder::new();
 
 
-                    for listener in &gateway.spec.listeners {
+                    for listener in &instance.gateway().spec.listeners {
                         gateway_configuration.add_listener(|l| {
                             l.with_name(&listener.name)
                                 .with_port(listener.port as u16)
@@ -173,10 +173,11 @@ fn generate_gateway_configurations(
 
                             if let Some(rules) = &http_route.spec.rules {
                                 for (index, rule) in rules.iter().enumerate() {
+                                    let gateway = instance.gateway().as_ref();
                                     r.add_rule(
                                         format!(
                                             "{}:{}:{}",
-                                            gateway_uid,
+                                            gateway.metadata.uid.clone().unwrap(),
                                             http_route.metadata.uid.clone().unwrap(),
                                             index
                                         ),
@@ -306,7 +307,7 @@ fn generate_gateway_configurations(
             tx.replace(configs);
 
             continue_on!(
-                gateways.changed(),
+                gateway_instances.changed(),
                 http_routes.changed(),
                 backends.changed()
             );

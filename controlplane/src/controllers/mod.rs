@@ -54,7 +54,7 @@ pub async fn run(ipc_services: IpcServices) -> Result<()> {
         &mut join_set,
         &client,
         ipc_services,
-        &gateways,
+        &gateway_instances,
         &http_routes_by_gateway,
         &backends,
     );
