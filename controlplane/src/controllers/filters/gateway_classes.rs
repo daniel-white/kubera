@@ -77,6 +77,7 @@ pub fn filter_gateway_class_parameters(
                             .kind(parameters_ref.kind.clone())
                             .namespace(parameters_ref.namespace.clone())
                             .name(&parameters_ref.name)
+                            .version("v1alpha1")
                             .build()
                             .expect("Failed to build parameters reference from GatewayClass");
 

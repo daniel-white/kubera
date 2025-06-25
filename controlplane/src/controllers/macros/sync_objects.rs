@@ -14,7 +14,7 @@ macro_rules! sync_objects {
         use tokio::sync::broadcast::{channel, error::RecvError};
         use tracing::{debug, info, trace, warn};
 
-        let (tx, mut rx) = channel::<SyncObjectAction<$template_value_type>>(1);
+        let (tx, mut rx) = channel::<SyncObjectAction<$template_value_type, $object_type>>(1);
 
         const _: () = {
             fn assert_impl<T: Resource + ResourceExt>() {}
@@ -44,7 +44,13 @@ macro_rules! sync_objects {
             template
         };
 
-        fn render_object<V: Into<Value>>(template: &Template, object_ref: &ObjectRef, parent_ref: &ObjectRef, value: V) -> $object_type {
+        fn render_object<V: Into<Value>>(
+            template: &Template,
+            object_ref: &ObjectRef,
+            parent_ref: ObjectRef,
+            value: V,
+            object_overrides: Option<$object_type>
+        ) -> $object_type {
             let context = Context::from(value);
             let yaml = template.render(&context).expect("Unable to render template");
 
@@ -63,6 +69,10 @@ macro_rules! sync_objects {
             let mut existing_metadata = object.metadata;
             existing_metadata.merge_from(new_metadata);
             object.metadata = existing_metadata;
+
+            if let Some(object_overrides) = object_overrides {
+                object.merge_from(object_overrides);
+            }
 
             object
         }
@@ -108,17 +118,17 @@ macro_rules! sync_objects {
                     exists
                 );
 
-                match (&action, exists) {
-                    (Upsert(_, parent_ref, value), false) => {
-                        let object = render_object(&template, &object_ref, parent_ref, value.clone());
+                match (action.clone(), exists) {
+                    (Upsert(_, parent_ref, value, object_overrides), false) => {
+                        let object = render_object(&template, &object_ref, parent_ref, value, object_overrides);
                         info!("Creating object: {}", object_ref);
                         api.create(&Default::default(), &object)
                             .await
                             .map_err(|e| warn!("Failed to create object: {}: {}", object_ref, e))
                             .ok();
                     }
-                    (Upsert(_, parent_ref, value), true) => {
-                        let object = render_object(&template, &object_ref, parent_ref, value.clone());
+                    (Upsert(_, parent_ref, value, object_overrides), true) => {
+                        let object = render_object(&template, &object_ref, parent_ref, value, object_overrides);
                         info!("Patching object: {}", object_ref);
                         api.patch(object_ref.name(), &Default::default(), &Patch::Strategic(object))
                             .await

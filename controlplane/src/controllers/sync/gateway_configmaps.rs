@@ -1,8 +1,8 @@
 use crate::controllers::transformers::{Backend, GatewayInstanceConfiguration};
-use crate::objects::{ObjectRef, ObjectTracker, Objects, SyncObjectAction};
+use crate::ipc::IpcServices;
+use crate::objects::{ObjectRef, ObjectTracker, SyncObjectAction};
 use crate::sync_objects;
 use derive_builder::Builder;
-use gateway_api::apis::standard::gateways::Gateway;
 use gateway_api::apis::standard::httproutes::{
     HTTPRoute, HTTPRouteRulesMatchesHeadersType, HTTPRouteRulesMatchesMethod,
     HTTPRouteRulesMatchesPathType, HTTPRouteRulesMatchesQueryParamsType,
@@ -23,7 +23,6 @@ use tokio::select;
 use tokio::sync::broadcast::Sender;
 use tokio::task::JoinSet;
 use tracing::{error, info};
-use crate::ipc::IpcServices;
 
 const TEMPLATE: &str = include_str!("./templates/gateway_configmap.kubernetes-helm-yaml");
 
@@ -43,20 +42,19 @@ pub fn sync_gateway_configmaps(
     backends: &Receiver<HashMap<ObjectRef, Backend>>,
 ) {
     let tx = sync_objects!(join_set, ConfigMap, client, TemplateValues, TEMPLATE);
-    
+
     generate_gateway_configmaps(join_set, tx, gateway_instances, http_routes, backends);
-    
-    
 }
 
 fn generate_gateway_configmaps(
     join_set: &mut JoinSet<()>,
-    tx: Sender<SyncObjectAction<TemplateValues>>,
+    tx: Sender<SyncObjectAction<TemplateValues, ConfigMap>>,
     gateway_instances: &Receiver<HashMap<ObjectRef, GatewayInstanceConfiguration>>,
     http_routes: &Receiver<HashMap<ObjectRef, Vec<Arc<HTTPRoute>>>>,
     backends: &Receiver<HashMap<ObjectRef, Backend>>,
 ) {
-    let mut configs = generate_gateway_configurations(join_set, gateway_instances, http_routes, backends);
+    let mut configs =
+        generate_gateway_configurations(join_set, gateway_instances, http_routes, backends);
 
     let tracker = ObjectTracker::new();
     join_set.spawn(async move {
@@ -85,8 +83,10 @@ fn generate_gateway_configmaps(
                 })
                 .collect();
 
-            let configmaps_refs: HashSet<_> =
-                config_values.iter().map(|(ref_, _, _)| ref_.clone()).collect();
+            let configmaps_refs: HashSet<_> = config_values
+                .iter()
+                .map(|(ref_, _, _)| ref_.clone())
+                .collect();
 
             let deleted_refs = tracker.reconcile(configmaps_refs);
             for deleted_ref in deleted_refs {
@@ -99,7 +99,12 @@ fn generate_gateway_configmaps(
 
             for (service_ref, gateway_ref, template_values) in config_values.into_iter() {
                 let _ = tx
-                    .send(SyncObjectAction::Upsert(service_ref, gateway_ref.clone(), template_values))
+                    .send(SyncObjectAction::Upsert(
+                        service_ref,
+                        gateway_ref.clone(),
+                        template_values,
+                        None,
+                    ))
                     .inspect_err(|err| {
                         error!("Failed to send upsert action: {}", err);
                     });

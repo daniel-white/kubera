@@ -120,11 +120,11 @@ where
     pub fn size(&self) -> usize {
         self.by_ref.len()
     }
-    
+
     pub fn is_empty(&self) -> bool {
         self.by_ref.is_empty()
     }
-    
+
     fn keys(object: &K) -> (ObjectRef, ObjectUniqueId) {
         let object_ref = ObjectRefBuilder::default()
             .from_object(object)
@@ -202,15 +202,15 @@ impl TopologyLocation {
 }
 
 #[derive(Clone, Debug)]
-pub enum SyncObjectAction<T: Into<Value>> {
-    Upsert(ObjectRef, ObjectRef, T),
+pub enum SyncObjectAction<T: Into<Value>, K: Resource + ResourceExt> {
+    Upsert(ObjectRef, ObjectRef, T, Option<K>),
     Delete(ObjectRef),
 }
 
-impl<T: Into<Value>> SyncObjectAction<T> {
+impl<T: Into<Value>, K: Resource + ResourceExt> SyncObjectAction<T, K> {
     pub fn object_ref(&self) -> &ObjectRef {
         match self {
-            SyncObjectAction::Upsert(object_ref, _, _) => object_ref,
+            SyncObjectAction::Upsert(object_ref, _, _, _) => object_ref,
             SyncObjectAction::Delete(object_ref) => object_ref,
         }
     }

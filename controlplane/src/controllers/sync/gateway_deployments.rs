@@ -1,17 +1,16 @@
-use crate::objects::{ObjectRef, ObjectTracker, Objects, SyncObjectAction};
+use crate::controllers::transformers::GatewayInstanceConfiguration;
+use crate::objects::{ObjectRef, ObjectTracker, SyncObjectAction};
 use crate::sync_objects;
 use derive_builder::Builder;
-use gateway_api::apis::standard::gateways::Gateway;
 use gtmpl_derive::Gtmpl;
 use k8s_openapi::api::apps::v1::Deployment;
 use kube::Client;
-use kubera_core::sync::signal::Receiver;
 use kubera_core::continue_after;
+use kubera_core::sync::signal::Receiver;
 use std::collections::{HashMap, HashSet};
 use std::time::Duration;
 use tokio::sync::broadcast::Sender;
 use tokio::task::JoinSet;
-use crate::controllers::transformers::GatewayInstanceConfiguration;
 
 const TEMPLATE: &str = include_str!("./templates/gateway_deployment.kubernetes-helm-yaml");
 
@@ -34,7 +33,7 @@ pub fn sync_gateway_deployments(
 
 fn generate_gateway_deployments(
     join_set: &mut JoinSet<()>,
-    tx: Sender<SyncObjectAction<TemplateValues>>,
+    tx: Sender<SyncObjectAction<TemplateValues, Deployment>>,
     gateway_instances: &Receiver<HashMap<ObjectRef, GatewayInstanceConfiguration>>,
 ) {
     let mut gateway_instances = gateway_instances.clone();
@@ -45,7 +44,7 @@ fn generate_gateway_deployments(
             let current_instances = gateway_instances.current();
             let deployments: Vec<_> = current_instances
                 .iter()
-                .map(|(gateway_ref, _)| {
+                .map(|(gateway_ref, instance)| {
                     let deployment_ref = ObjectRef::new_builder()
                         .of_kind::<Deployment>()
                         .namespace(gateway_ref.namespace().clone())
@@ -60,12 +59,19 @@ fn generate_gateway_deployments(
                         .build()
                         .expect("Failed to build TemplateValues");
 
-                    (deployment_ref, gateway_ref, template_values)
+                    (
+                        deployment_ref,
+                        gateway_ref,
+                        template_values,
+                        instance.deployment_overrides(),
+                    )
                 })
                 .collect();
 
-            let deployment_refs: HashSet<_> =
-                deployments.iter().map(|(ref_, _, _)| ref_.clone()).collect();
+            let deployment_refs: HashSet<_> = deployments
+                .iter()
+                .map(|(ref_, _, _, _)| ref_.clone())
+                .collect();
 
             let deleted_refs = tracker.reconcile(deployment_refs);
             for deleted_ref in deleted_refs {
@@ -73,9 +79,16 @@ fn generate_gateway_deployments(
                     .expect("Failed to send delete action");
             }
 
-            for (deployment_ref, gateway_ref, template_values) in deployments.into_iter() {
-                tx.send(SyncObjectAction::Upsert(deployment_ref, gateway_ref.clone(), template_values))
-                    .expect("Failed to send upsert action");
+            for (deployment_ref, gateway_ref, template_values, deployment_overrides) in
+                deployments.into_iter()
+            {
+                tx.send(SyncObjectAction::Upsert(
+                    deployment_ref,
+                    gateway_ref.clone(),
+                    template_values,
+                    Some(deployment_overrides.clone()),
+                ))
+                .expect("Failed to send upsert action");
             }
 
             continue_after!(Duration::from_secs(60), gateway_instances.changed());
