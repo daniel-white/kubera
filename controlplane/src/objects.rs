@@ -117,6 +117,14 @@ impl<K: Resource + ResourceExt> Objects<K>
 where
     K::DynamicType: 'static + Default,
 {
+    pub fn size(&self) -> usize {
+        self.by_ref.len()
+    }
+    
+    pub fn is_empty(&self) -> bool {
+        self.by_ref.is_empty()
+    }
+    
     fn keys(object: &K) -> (ObjectRef, ObjectUniqueId) {
         let object_ref = ObjectRefBuilder::default()
             .from_object(object)
