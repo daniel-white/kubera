@@ -89,15 +89,15 @@ pub fn watch_leader_instance_ip_addr(
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub enum InstanceRole {
     Undetermined,
-    Primary(ObjectRef),
-    Redundant(ObjectRef),
+    Primary(Option<ObjectRef>),
+    Redundant(Option<ObjectRef>),
 }
 
 impl InstanceRole {
     pub fn primary_pod_ref(&self) -> Option<&ObjectRef> {
         match self {
-            InstanceRole::Primary(pod_ref) => Some(pod_ref),
-            InstanceRole::Redundant(pod_ref) => Some(pod_ref),
+            InstanceRole::Primary(pod_ref) => pod_ref.as_ref(),
+            InstanceRole::Redundant(pod_ref) => pod_ref.as_ref(),
             InstanceRole::Undetermined => None,
         }
     }
@@ -160,10 +160,9 @@ pub fn determine_instance_role(
     rx
 }
 
-fn get_pod_ref(namespace: &str, lease_lock_result: LeaseLockResult) -> ObjectRef {
+fn get_pod_ref(namespace: &str, lease_lock_result: LeaseLockResult) -> Option<ObjectRef> {
     let holder_id = lease_lock_result
-        .lease
-        .unwrap()
+        .lease?
         .spec
         .unwrap()
         .holder_identity
@@ -174,5 +173,5 @@ fn get_pod_ref(namespace: &str, lease_lock_result: LeaseLockResult) -> ObjectRef
         .namespace(Some(namespace.to_string()))
         .name(holder_id)
         .build()
-        .expect("Failed to build ObjectRef for Pod")
+        .ok()
 }
