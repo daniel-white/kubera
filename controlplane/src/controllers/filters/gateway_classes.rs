@@ -4,7 +4,7 @@ use itertools::Itertools;
 use kubera_api::constants::GATEWAY_CLASS_CONTROLLER_NAME;
 use kubera_api::v1alpha1::GatewayClassParameters;
 use kubera_core::continue_on;
-use kubera_core::sync::signal::{Receiver, channel};
+use kubera_core::sync::signal::{channel, Receiver};
 use std::sync::Arc;
 use tokio::task::JoinSet;
 use tracing::{debug, info, warn};
@@ -15,7 +15,7 @@ pub fn filter_gateway_classes(
 ) -> Receiver<Option<(ObjectRef, Arc<GatewayClass>)>> {
     let (tx, rx) = channel(None);
 
-    let mut gateway_classes = gateway_classes.clone();
+    let gateway_classes = gateway_classes.clone();
 
     join_set.spawn(async move {
         loop {
@@ -64,8 +64,8 @@ pub fn filter_gateway_class_parameters(
 ) -> Receiver<Option<Arc<GatewayClassParameters>>> {
     let (tx, rx) = channel(None);
 
-    let mut gateway_class = gateway_class.clone();
-    let mut gateway_class_parameters = gateway_class_parameters.clone();
+    let gateway_class = gateway_class.clone();
+    let gateway_class_parameters = gateway_class_parameters.clone();
 
     join_set.spawn(async move {
         loop {

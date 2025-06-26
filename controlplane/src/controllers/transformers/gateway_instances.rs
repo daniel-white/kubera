@@ -33,9 +33,9 @@ pub fn collect_gateway_instances(
 ) -> Receiver<HashMap<ObjectRef, GatewayInstanceConfiguration>> {
     let (tx, rx) = channel(HashMap::new());
 
-    let mut gateways = gateways.clone();
-    let mut gateway_class_parameters = gateway_class_parameters.clone();
-    let mut gateway_parameters = gateway_parameters.clone();
+    let gateways = gateways.clone();
+    let gateway_class_parameters = gateway_class_parameters.clone();
+    let gateway_parameters = gateway_parameters.clone();
 
     join_set.spawn(async move {
         loop {

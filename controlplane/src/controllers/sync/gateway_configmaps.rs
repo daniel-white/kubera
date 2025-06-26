@@ -74,7 +74,7 @@ fn generate_gateway_configmaps(
     http_routes: &Receiver<HashMap<ObjectRef, Vec<Arc<HTTPRoute>>>>,
     backends: &Receiver<HashMap<ObjectRef, Backend>>,
 ) {
-    let mut configs = generate_gateway_configurations(
+    let configs = generate_gateway_configurations(
         join_set,
         ipc_services,
         primary_instance_ip_addr,
@@ -153,10 +153,10 @@ fn generate_gateway_configurations(
     let (tx, rx) = signal::channel(HashMap::default());
 
     let ipc_services = ipc_services.clone();
-    let mut primary_instance_ip_addr = primary_instance_ip_addr.clone();
-    let mut gateway_instances = gateway_instances.clone();
-    let mut http_routes = http_routes.clone();
-    let mut backends = backends.clone();
+    let primary_instance_ip_addr = primary_instance_ip_addr.clone();
+    let gateway_instances = gateway_instances.clone();
+    let http_routes = http_routes.clone();
+    let backends = backends.clone();
 
     join_set.spawn(async move {
         loop {

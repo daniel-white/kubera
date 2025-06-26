@@ -45,7 +45,7 @@ fn generate_gateway_deployments(
     tx: Sender<SyncObjectAction<TemplateValues, Deployment>>,
     gateway_instances: &Receiver<HashMap<ObjectRef, GatewayInstanceConfiguration>>,
 ) {
-    let mut gateway_instances = gateway_instances.clone();
+    let gateway_instances = gateway_instances.clone();
     let tracker = ObjectTracker::new();
 
     join_set.spawn(async move {

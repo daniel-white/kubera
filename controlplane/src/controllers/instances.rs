@@ -50,7 +50,7 @@ pub fn watch_leader_instance_ip_addr(
         Action::requeue(Duration::from_secs(5))
     }
 
-    let mut instance_role = instance_role.clone();
+    let instance_role = instance_role.clone();
     let client = client.clone();
     let (tx, rx) = channel(None);
 

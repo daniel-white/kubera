@@ -5,9 +5,9 @@ use gateway_api::apis::standard::httproutes::HTTPRoute;
 use getset::Getters;
 use k8s_openapi::api::core::v1::Service;
 use kubera_core::continue_on;
-use kubera_core::sync::signal::{Receiver, channel};
-use std::collections::HashMap;
+use kubera_core::sync::signal::{channel, Receiver};
 use std::collections::hash_map::Entry;
+use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::task::JoinSet;
 use tracing::{debug, info};
@@ -36,7 +36,7 @@ pub fn collect_http_route_backends(
 ) -> Receiver<HashMap<ObjectRef, HttpRouteBackend>> {
     let (tx, rx) = channel(HashMap::new());
 
-    let mut http_routes = http_routes.clone();
+    let http_routes = http_routes.clone();
 
     join_set.spawn(async move {
         loop {
@@ -95,8 +95,8 @@ pub fn collect_http_routes_by_gateway(
 ) -> Receiver<HashMap<ObjectRef, Vec<Arc<HTTPRoute>>>> {
     let (tx, rx) = channel(HashMap::new());
 
-    let mut gateways = gateways.clone();
-    let mut http_routes = http_routes.clone();
+    let gateways = gateways.clone();
+    let http_routes = http_routes.clone();
 
     join_set.spawn(async move {
         loop {

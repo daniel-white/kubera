@@ -5,7 +5,7 @@ use getset::Getters;
 use k8s_openapi::api::core::v1::Service;
 use k8s_openapi::api::discovery::v1::EndpointSlice;
 use kubera_core::continue_on;
-use kubera_core::sync::signal::{Receiver, channel};
+use kubera_core::sync::signal::{channel, Receiver};
 use std::collections::HashMap;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use tokio::task::JoinSet;
@@ -54,8 +54,8 @@ pub fn collect_service_backends(
 ) -> Receiver<HashMap<ObjectRef, Backend>> {
     let (tx, rx) = channel(HashMap::new());
 
-    let mut http_route_backends = http_route_backends.clone();
-    let mut endpoint_slices = endpoint_slices.clone();
+    let http_route_backends = http_route_backends.clone();
+    let endpoint_slices = endpoint_slices.clone();
 
     join_set.spawn(async move {
         loop {

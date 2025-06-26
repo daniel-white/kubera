@@ -24,7 +24,7 @@ macro_rules! sync_objects {
         };
 
         let client = $client.clone();
-        let mut instance_role: Receiver<InstanceRole> = $instance_role.clone();
+        let instance_role: Receiver<InstanceRole> = $instance_role.clone();
 
         gtmpl_fn!(
             fn quote(s: String) -> Result<String, FuncError> {

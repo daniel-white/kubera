@@ -5,6 +5,7 @@ edition = "2024"
 
 [dependencies]
 anyhow = { workspace = true }
+atomic_refcell = "0.1.13"
 derive_builder = { workspace = true }
 flexi_logger = { workspace = true }
 getset = { workspace = true }

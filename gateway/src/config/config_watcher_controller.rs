@@ -3,7 +3,7 @@ use kubera_core::config::gateway::serde::read_configuration;
 use kubera_core::config::gateway::types::GatewayConfiguration;
 use kubera_core::continue_on;
 use kubera_core::io::file_watcher::spawn_file_watcher;
-use kubera_core::sync::signal::{Receiver, channel};
+use kubera_core::sync::signal::{channel, Receiver};
 use std::io::Cursor;
 use std::path::Path;
 use tokio::fs::read;
@@ -14,7 +14,7 @@ pub fn spawn_controller<P: AsRef<Path>>(
 ) -> Result<Receiver<Option<GatewayConfiguration>>> {
     let (tx, rx) = channel(None);
 
-    let mut file_watcher = spawn_file_watcher(&config_path)?;
+    let file_watcher = spawn_file_watcher(&config_path)?;
     let config_path = config_path.as_ref().to_owned();
 
     tokio::spawn(async move {

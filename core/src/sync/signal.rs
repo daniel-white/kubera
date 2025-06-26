@@ -1,7 +1,8 @@
 use anyhow::Result;
+use atomic_refcell::AtomicRefCell;
 use std::sync::Arc;
 use tokio::sync::watch::{
-    Receiver as WatchReceiver, Sender as WatchSender, channel as watch_channel,
+    channel as watch_channel, Receiver as WatchReceiver, Sender as WatchSender,
 };
 use tracing::trace;
 
@@ -13,7 +14,12 @@ where
     T: PartialEq,
 {
     let (tx, rx) = watch_channel(Arc::new(value));
-    (Sender { tx }, Receiver { rx })
+    (
+        Sender { tx },
+        Receiver {
+            rx: AtomicRefCell::new(rx),
+        },
+    )
 }
 
 #[derive(Clone)]
@@ -54,7 +60,7 @@ pub struct Receiver<T>
 where
     T: PartialEq,
 {
-    rx: WatchReceiver<Arc<T>>,
+    rx: AtomicRefCell<WatchReceiver<Arc<T>>>,
 }
 
 impl<T> Receiver<T>
@@ -62,11 +68,11 @@ where
     T: PartialEq + Clone,
 {
     pub fn current(&self) -> Arc<T> {
-        self.rx.borrow().clone()
+        self.rx.borrow().borrow().clone()
     }
 
-    pub async fn changed(&mut self) -> Result<(), RecvError> {
-        self.rx.changed().await.map_err(|_| {
+    pub async fn changed(&self) -> Result<(), RecvError> {
+        self.rx.borrow_mut().changed().await.map_err(|_| {
             trace!("Sender dropped");
             RecvError
         })

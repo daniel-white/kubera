@@ -3,7 +3,7 @@ use gateway_api::apis::standard::gatewayclasses::GatewayClass;
 use gateway_api::apis::standard::gateways::Gateway;
 use kubera_api::v1alpha1::GatewayParameters;
 use kubera_core::continue_on;
-use kubera_core::sync::signal::{Receiver, channel};
+use kubera_core::sync::signal::{channel, Receiver};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::task::JoinSet;
@@ -16,8 +16,8 @@ pub fn filter_gateways(
 ) -> Receiver<Objects<Gateway>> {
     let (tx, rx) = channel(Objects::default());
 
-    let mut gateway_class = gateway_class.clone();
-    let mut gateways = gateways.clone();
+    let gateway_class = gateway_class.clone();
+    let gateways = gateways.clone();
 
     join_set.spawn(async move {
         loop {
@@ -58,8 +58,8 @@ pub fn filter_gateway_parameters(
 ) -> Receiver<HashMap<ObjectRef, Arc<GatewayParameters>>> {
     let (tx, rx) = channel(HashMap::default());
 
-    let mut gateways = gateways.clone();
-    let mut gateway_parameters = gateway_parameters.clone();
+    let gateways = gateways.clone();
+    let gateway_parameters = gateway_parameters.clone();
 
     join_set.spawn(async move {
         loop {

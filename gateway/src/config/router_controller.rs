@@ -3,10 +3,10 @@ use http::HeaderValue;
 use std::sync::Arc;
 
 use crate::config::topology::TopologyLocation;
-use kubera_core::config::gateway::types::GatewayConfiguration;
 use kubera_core::config::gateway::types::http::router::*;
+use kubera_core::config::gateway::types::GatewayConfiguration;
 use kubera_core::continue_on;
-use kubera_core::sync::signal::{Receiver, channel};
+use kubera_core::sync::signal::{channel, Receiver};
 use thiserror::Error;
 use tracing::debug;
 
@@ -17,8 +17,9 @@ pub async fn spawn_controller(
     gateway_configuration: Receiver<Option<GatewayConfiguration>>,
     current_location: TopologyLocation,
 ) -> Result<Receiver<Option<HttpRouter>>, ControllerError> {
-    let mut gateway_configuration = gateway_configuration.clone();
     let (tx, rx) = channel(None);
+
+    let gateway_configuration = gateway_configuration.clone();
 
     tokio::spawn(async move {
         let current_location = Arc::new(current_location);
