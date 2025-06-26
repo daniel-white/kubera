@@ -5,7 +5,7 @@ pub mod objects;
 pub mod ipc;
 
 use crate::controllers::ControllerRunParamsBuilder;
-use crate::ipc::{IpcServiceConfiguration, spawn_ipc_service};
+use crate::ipc::{spawn_ipc_service, IpcServiceConfiguration};
 use anyhow::Result;
 use clap::Parser;
 use cli::Cli;
@@ -29,7 +29,7 @@ async fn main() -> Result<()> {
     let _cli = Cli::parse();
 
     let ipc_configuration = IpcServiceConfiguration::new_builder()
-        .port(_cli.control_service_port())
+        .port(_cli.port())
         .build()?;
     let ipc_services = spawn_ipc_service(ipc_configuration).await?;
 

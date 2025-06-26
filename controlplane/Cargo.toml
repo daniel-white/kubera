@@ -30,7 +30,7 @@ tokio = { workspace = true }
 tokio-stream = { version = "0.1", features = ["full"] }
 tracing = { workspace = true }
 rustls = { version = "0.23.28", features = ["ring"] }
-kube-leader-election = "0.41"
+kube-leader-election = { git = "https://github.com/daniel-white/kube-leader-election.git", branch = "feat/change-result-type" }
 
 [[bin]]
 name = "kubera_controlplane"

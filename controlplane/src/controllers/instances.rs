@@ -1,5 +1,6 @@
 use crate::objects::ObjectRef;
 use futures::StreamExt;
+use k8s_openapi::api::coordination::v1::Lease;
 use k8s_openapi::api::core::v1::Pod;
 use kube::runtime::controller::Action;
 use kube::runtime::watcher::Config;
@@ -89,15 +90,15 @@ pub fn watch_leader_instance_ip_addr(
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub enum InstanceRole {
     Undetermined,
-    Primary(Option<ObjectRef>),
-    Redundant(Option<ObjectRef>),
+    Primary(ObjectRef),
+    Redundant(ObjectRef),
 }
 
 impl InstanceRole {
     pub fn primary_pod_ref(&self) -> Option<&ObjectRef> {
         match self {
-            InstanceRole::Primary(pod_ref) => pod_ref.as_ref(),
-            InstanceRole::Redundant(pod_ref) => pod_ref.as_ref(),
+            InstanceRole::Primary(pod_ref) => Some(pod_ref),
+            InstanceRole::Redundant(pod_ref) => Some(pod_ref),
             InstanceRole::Undetermined => None,
         }
     }
@@ -131,12 +132,12 @@ pub fn determine_instance_role(
     join_set.spawn(async move {
         loop {
             let new_role = match lock.try_acquire_or_renew().await {
-                Ok(lease) if lease.acquired_lease => {
+                Ok(LeaseLockResult::Acquired(lease)) => {
                     debug!("Acquired lease, assuming primary role");
                     let pod_ref = get_pod_ref(&namespace, lease);
                     Some(InstanceRole::Primary(pod_ref))
                 }
-                Ok(lease) => {
+                Ok(LeaseLockResult::NotAcquired(lease)) => {
                     debug!("Lease renewed, assuming redundant role");
                     let pod_ref = get_pod_ref(&namespace, lease);
                     Some(InstanceRole::Redundant(pod_ref))
@@ -160,18 +161,20 @@ pub fn determine_instance_role(
     rx
 }
 
-fn get_pod_ref(namespace: &str, lease_lock_result: LeaseLockResult) -> Option<ObjectRef> {
-    let holder_id = lease_lock_result
-        .lease?
+fn get_pod_ref(namespace: &str, lease: Lease) -> ObjectRef {
+    let lease = lease
         .spec
-        .unwrap()
+        .as_ref()
+        .expect("Lease spec should be present when determining pod reference");
+    let holder_id = lease
         .holder_identity
-        .unwrap();
+        .clone()
+        .expect("Holder identity should be present in lease spec");
 
     ObjectRef::new_builder()
         .of_kind::<Pod>()
         .namespace(Some(namespace.to_string()))
         .name(holder_id)
         .build()
-        .ok()
+        .expect("Failed to build ObjectRef for Pod")
 }

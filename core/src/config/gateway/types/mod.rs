@@ -1,6 +1,7 @@
 pub mod http;
 pub mod net;
 
+use std::net::{IpAddr, SocketAddr};
 use crate::config::gateway::types::http::router::{HttpRoute, HttpRouteBuilder};
 use crate::config::gateway::types::net::{Listener, ListenerBuilder};
 use getset::Getters;
@@ -8,6 +9,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_valid::Validate;
 use strum::EnumString;
+use crate::net::Port;
 
 #[derive(
     Validate,
@@ -29,11 +31,14 @@ pub enum GatewayConfigurationVersion {
 }
 
 #[derive(
-    Validate, Getters, Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Hash, JsonSchema,
+    Validate, Getters, Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema,
 )]
 pub struct GatewayConfiguration {
     #[getset(get = "pub")]
     version: GatewayConfigurationVersion,
+    
+    #[getset(get = "pub")]
+    controlplane: Option<ControlplaneConfiguration>,
 
     #[getset(get = "pub")]
     #[validate(max_items = 64)]
@@ -47,6 +52,7 @@ pub struct GatewayConfiguration {
 #[derive(Debug, Default)]
 pub struct GatewayConfigurationBuilder {
     version: GatewayConfigurationVersion,
+    controlplane_configuration_builder: Option<ControlplaneConfigurationBuilder>,
     listeners: Vec<Listener>,
     http_route_builders: Vec<HttpRouteBuilder>,
 }
@@ -59,6 +65,7 @@ impl GatewayConfigurationBuilder {
     pub fn build(self) -> GatewayConfiguration {
         GatewayConfiguration {
             version: self.version,
+            controlplane: self.controlplane_configuration_builder.map(|b| b.build()),
             listeners: self.listeners,
             http_routes: self
                 .http_route_builders
@@ -70,6 +77,16 @@ impl GatewayConfigurationBuilder {
 
     pub fn with_version(&mut self, version: GatewayConfigurationVersion) -> &mut Self {
         self.version = version;
+        self
+    }
+    
+    pub fn with_controlplane<F>(&mut self, factory: F) -> &mut Self
+    where
+        F: FnOnce(&mut ControlplaneConfigurationBuilder),
+    {
+        let mut builder = ControlplaneConfigurationBuilder::new();
+        factory(&mut builder);
+        self.controlplane_configuration_builder = Some(builder);
         self
     }
 
@@ -94,3 +111,36 @@ impl GatewayConfigurationBuilder {
         self
     }
 }
+
+#[derive(
+    Validate, Getters, Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema,
+)]
+pub struct ControlplaneConfiguration {
+    primary_endpoint: Option<SocketAddr>
+}
+
+#[derive(Debug, Default)]
+pub struct ControlplaneConfigurationBuilder {
+    primary_endpoint: Option<SocketAddr>,
+}
+
+impl ControlplaneConfigurationBuilder {
+    pub fn new() -> Self {
+        Self {
+            primary_endpoint: None,
+        }
+    }
+
+    pub fn with_primary_endpoint(&mut self, ip_addr: &IpAddr, port: &Port) -> &mut Self {
+        let socket_addr = SocketAddr::new(ip_addr.clone(), (*port).into());
+        self.primary_endpoint = Some(socket_addr);
+        self
+    }
+
+    pub fn build(self) -> ControlplaneConfiguration {
+        ControlplaneConfiguration {
+            primary_endpoint: self.primary_endpoint,
+        }
+    }
+}
+

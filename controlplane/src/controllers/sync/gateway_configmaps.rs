@@ -38,9 +38,9 @@ struct TemplateValues {
 pub fn sync_gateway_configmaps(
     join_set: &mut JoinSet<()>,
     client: &Client,
+    ipc_services: Arc<IpcServices>,
     instance_role: &Receiver<InstanceRole>,
     primary_instance_ip_addr: &Receiver<Option<IpAddr>>,
-    ipc_services: Arc<IpcServices>,
     gateway_instances: &Receiver<HashMap<ObjectRef, GatewayInstanceConfiguration>>,
     http_routes: &Receiver<HashMap<ObjectRef, Vec<Arc<HTTPRoute>>>>,
     backends: &Receiver<HashMap<ObjectRef, Backend>>,
@@ -54,18 +54,34 @@ pub fn sync_gateway_configmaps(
         TEMPLATE
     );
 
-    generate_gateway_configmaps(join_set, tx, gateway_instances, http_routes, backends);
+    generate_gateway_configmaps(
+        join_set,
+        tx,
+        ipc_services,
+        primary_instance_ip_addr,
+        gateway_instances,
+        http_routes,
+        backends,
+    );
 }
 
 fn generate_gateway_configmaps(
     join_set: &mut JoinSet<()>,
     tx: Sender<SyncObjectAction<TemplateValues, ConfigMap>>,
+    ipc_services: Arc<IpcServices>,
+    primary_instance_ip_addr: &Receiver<Option<IpAddr>>,
     gateway_instances: &Receiver<HashMap<ObjectRef, GatewayInstanceConfiguration>>,
     http_routes: &Receiver<HashMap<ObjectRef, Vec<Arc<HTTPRoute>>>>,
     backends: &Receiver<HashMap<ObjectRef, Backend>>,
 ) {
-    let mut configs =
-        generate_gateway_configurations(join_set, gateway_instances, http_routes, backends);
+    let mut configs = generate_gateway_configurations(
+        join_set,
+        ipc_services,
+        primary_instance_ip_addr,
+        gateway_instances,
+        http_routes,
+        backends,
+    );
 
     let tracker = ObjectTracker::new();
     join_set.spawn(async move {
@@ -128,12 +144,16 @@ fn generate_gateway_configmaps(
 
 fn generate_gateway_configurations(
     join_set: &mut JoinSet<()>,
+    ipc_services: Arc<IpcServices>,
+    primary_instance_ip_addr: &Receiver<Option<IpAddr>>,
     gateway_instances: &Receiver<HashMap<ObjectRef, GatewayInstanceConfiguration>>,
     http_routes: &Receiver<HashMap<ObjectRef, Vec<Arc<HTTPRoute>>>>,
     backends: &Receiver<HashMap<ObjectRef, Backend>>,
 ) -> Receiver<HashMap<ObjectRef, GatewayConfiguration>> {
     let (tx, rx) = signal::channel(HashMap::default());
 
+    let ipc_services = ipc_services.clone();
+    let mut primary_instance_ip_addr = primary_instance_ip_addr.clone();
     let mut gateway_instances = gateway_instances.clone();
     let mut http_routes = http_routes.clone();
     let mut backends = backends.clone();
@@ -147,6 +167,11 @@ fn generate_gateway_configurations(
                 .map(|(gateway_ref, instance)| {
                     let mut gateway_configuration = GatewayConfigurationBuilder::new();
 
+                    if let Some(ip_addr) = primary_instance_ip_addr.current().as_ref() {
+                        gateway_configuration.with_controlplane(|cp| {
+                            cp.with_primary_endpoint(ip_addr, &ipc_services.port());
+                        });
+                    }
 
                     for listener in &instance.gateway().spec.listeners {
                         gateway_configuration.add_listener(|l| {
@@ -323,6 +348,7 @@ fn generate_gateway_configurations(
             tx.replace(configs);
 
             continue_on!(
+                primary_instance_ip_addr.changed(),
                 gateway_instances.changed(),
                 http_routes.changed(),
                 backends.changed()

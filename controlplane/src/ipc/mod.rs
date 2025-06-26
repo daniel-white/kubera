@@ -41,9 +41,13 @@ impl IpcServiceConfiguration {
 }
 
 #[derive(Debug, Builder, Getters)]
+#[builder(setter(into))]
 pub struct IpcServices {
     #[getset(get = "pub")]
     events: EventSender,
+
+    #[getset(get = "pub")]
+    port: Port,
 }
 
 impl IpcServices {
@@ -54,12 +58,15 @@ impl IpcServices {
 
 pub async fn spawn_ipc_service(ipc_configuration: IpcServiceConfiguration) -> Result<IpcServices> {
     let (event_sender, factory) = events::events_channel();
+    let socket_address = ipc_configuration.socket_address();
 
-    let services = IpcServices::new_builder().events(event_sender).build()?;
+    let services = IpcServices::new_builder()
+        .events(event_sender)
+        .port(Port::new(socket_address.port()))
+        .build()?;
 
     let state = IpcServiceState::new_builder().events(factory).build()?;
 
-    let socket_address = ipc_configuration.socket_address();
     info!("Starting IPC service on {}", socket_address);
 
     let tcp_listener = TcpListener::bind(socket_address).await?;

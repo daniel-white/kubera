@@ -82,9 +82,9 @@ pub async fn run(params: ControllerRunParams) -> Result<()> {
     sync_gateway_configmaps(
         &mut join_set,
         &client,
+        params.ipc_services,
         &instance_role,
         &leader_instance_ip_addr,
-        params.ipc_services,
         &gateway_instances,
         &http_routes_by_gateway,
         &backends,

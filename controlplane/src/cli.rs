@@ -8,12 +8,12 @@ use kubera_core::net::Port;
 #[command(about = "A Kubernetes control plane for Kubera", long_about = None)]
 pub struct Cli {
     #[getset(get_copy = "pub")]
-    #[arg(default_value ="8081",
-          env = "KUBERA_CONTROL_SERVICE_PORT",
-          long = "control-service-port",
+    #[arg(default_value ="8080",
+          env = "PORT",
+          long = "port",
           value_parser = parse_port,
     )]
-    control_service_port: Port,
+    port: Port,
 
     #[getset(get = "pub")]
     #[arg(env = "POD_NAMESPACE", long = "namespace")]

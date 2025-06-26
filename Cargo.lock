@@ -1961,8 +1961,7 @@ dependencies = [
 [[package]]
 name = "kube-leader-election"
 version = "0.41.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1136a5235fa784f01cba80f6af4de5aa7796c13bc3b86e59ff77d19dc59e3f6a"
+source = "git+https://github.com/daniel-white/kube-leader-election.git?branch=feat%2Fchange-result-type#85afa84e09cd813f02d05dba5ba7e0741f68c918"
 dependencies = [
  "chrono",
  "k8s-openapi",
