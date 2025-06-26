@@ -1,8 +1,8 @@
+use crate::controllers::instances::InstanceRole;
 use crate::controllers::transformers::GatewayInstanceConfiguration;
-use crate::objects::{ObjectRef, ObjectTracker, Objects, SyncObjectAction};
+use crate::objects::{ObjectRef, ObjectTracker, SyncObjectAction};
 use crate::sync_objects;
 use derive_builder::Builder;
-use gateway_api::apis::standard::gateways::Gateway;
 use gtmpl_derive::Gtmpl;
 use k8s_openapi::api::core::v1::Service;
 use kube::Client;
@@ -24,9 +24,17 @@ struct TemplateValues {
 pub fn sync_gateway_services(
     join_set: &mut JoinSet<()>,
     client: &Client,
+    instance_role: &Receiver<InstanceRole>,
     gateway_instances: &Receiver<HashMap<ObjectRef, GatewayInstanceConfiguration>>,
 ) {
-    let tx = sync_objects!(join_set, Service, client, TemplateValues, TEMPLATE);
+    let tx = sync_objects!(
+        join_set,
+        Service,
+        client,
+        instance_role,
+        TemplateValues,
+        TEMPLATE
+    );
     generate_gateway_services(join_set, tx, gateway_instances);
 }
 

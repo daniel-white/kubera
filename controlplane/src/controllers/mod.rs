@@ -1,15 +1,13 @@
-mod current_pod;
 mod filters;
+mod instances;
 mod macros;
-mod role;
 mod sync;
 mod transformers;
 
 use self::filters::*;
 use self::sync::*;
 use self::transformers::*;
-use crate::controllers::current_pod::watch_current_pod_ip_address;
-use crate::controllers::role::watch_role;
+use crate::controllers::instances::{determine_instance_role, watch_leader_instance_ip_addr};
 use crate::ipc::IpcServices;
 use crate::watch_objects;
 use anyhow::Result;
@@ -46,19 +44,15 @@ pub async fn run(params: ControllerRunParams) -> Result<()> {
 
     let mut join_set: JoinSet<_> = JoinSet::new();
 
-    let role = watch_role(
+    let instance_role = determine_instance_role(
         &mut join_set,
         &client,
         params.pod_namespace(),
         params.instance_name(),
         params.pod_name(),
     );
-    let pod_ip_address = watch_current_pod_ip_address(
-        &mut join_set,
-        &client,
-        params.pod_namespace(),
-        params.pod_name(),
-    );
+    let leader_instance_ip_addr =
+        watch_leader_instance_ip_addr(&mut join_set, &client, &instance_role);
 
     let gateway_classes = watch_objects!(join_set, GatewayClass, client);
     let gateways = watch_objects!(join_set, Gateway, client);
@@ -88,13 +82,15 @@ pub async fn run(params: ControllerRunParams) -> Result<()> {
     sync_gateway_configmaps(
         &mut join_set,
         &client,
+        &instance_role,
+        &leader_instance_ip_addr,
         params.ipc_services,
         &gateway_instances,
         &http_routes_by_gateway,
         &backends,
     );
-    sync_gateway_services(&mut join_set, &client, &gateway_instances);
-    sync_gateway_deployments(&mut join_set, &client, &gateway_instances);
+    sync_gateway_services(&mut join_set, &client, &instance_role, &gateway_instances);
+    sync_gateway_deployments(&mut join_set, &client, &instance_role, &gateway_instances);
 
     join_set.join_all().await;
 

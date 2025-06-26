@@ -1,6 +1,6 @@
 #[macro_export]
 macro_rules! sync_objects {
-    ($join_set:ident, $object_type:ty, $client:ident, $template_value_type:ty, $template:ident) => {{
+    ($join_set:ident, $object_type:ty, $client:ident, $instance_role:ident, $template_value_type:ty, $template:ident) => {{
         use $crate::objects::{ObjectRef, SyncObjectAction, SyncObjectAction::*};
         use gtmpl::{Context, Template, gtmpl_fn, FuncError};
         use gtmpl_value::Value;
@@ -24,6 +24,7 @@ macro_rules! sync_objects {
         };
 
         let client = $client.clone();
+        let mut instance_role: Receiver<InstanceRole> = $instance_role.clone();
 
         gtmpl_fn!(
             fn quote(s: String) -> Result<String, FuncError> {
@@ -86,7 +87,14 @@ macro_rules! sync_objects {
             loop {
                 let action = select! {
                     action = rx.recv() => match action {
-                        Ok(action) => action,
+                        Ok(action) => {
+                            if instance_role.current().is_primary() {
+                                action
+                            } else {
+                                debug!("Skipping action for {} objects as instance is not primary", stringify!($object_type));
+                                continue;
+                            }
+                        },
                         Err(RecvError::Lagged(_)) => {
                             debug!("Queue lagged for {} objects", stringify!($object_type));
                             continue;
@@ -95,6 +103,9 @@ macro_rules! sync_objects {
                             debug!("Queue closed, shutting down controller for {} objects: {}", stringify!($object_type), err);
                             break;
                         }
+                    },
+                    _ = instance_role.changed() => {
+                        continue;
                     },
                     _ = ctrl_c() => {
                         debug!("Received Ctrl+C, shutting down controller for {} objects", stringify!($object_type));

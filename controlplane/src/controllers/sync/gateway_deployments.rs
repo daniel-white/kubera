@@ -1,3 +1,4 @@
+use crate::controllers::instances::InstanceRole;
 use crate::controllers::transformers::GatewayInstanceConfiguration;
 use crate::objects::{ObjectRef, ObjectTracker, SyncObjectAction};
 use crate::sync_objects;
@@ -25,9 +26,17 @@ struct TemplateValues {
 pub fn sync_gateway_deployments(
     join_set: &mut JoinSet<()>,
     client: &Client,
+    instance_role: &Receiver<InstanceRole>,
     gateway_instances: &Receiver<HashMap<ObjectRef, GatewayInstanceConfiguration>>,
 ) {
-    let tx = sync_objects!(join_set, Deployment, client, TemplateValues, TEMPLATE);
+    let tx = sync_objects!(
+        join_set,
+        Deployment,
+        client,
+        instance_role,
+        TemplateValues,
+        TEMPLATE
+    );
     generate_gateway_deployments(join_set, tx, gateway_instances);
 }
 

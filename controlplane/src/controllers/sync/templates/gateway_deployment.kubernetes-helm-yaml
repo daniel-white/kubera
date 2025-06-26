@@ -29,6 +29,7 @@ spec:
           volumeMounts:
             - mountPath: /etc/kubera
               name: config
+              readOnly: true
           env:
             - name: ECHO_INCLUDE_ENV_VARS
               value: "1"

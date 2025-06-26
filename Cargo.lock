@@ -2011,6 +2011,7 @@ dependencies = [
  "schemars 0.8.22",
  "serde",
  "serde_json",
+ "strum 0.27.1",
 ]
 
 [[package]]

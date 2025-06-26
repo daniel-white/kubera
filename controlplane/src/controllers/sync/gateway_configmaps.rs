@@ -1,3 +1,4 @@
+use crate::controllers::instances::InstanceRole;
 use crate::controllers::transformers::{Backend, GatewayInstanceConfiguration};
 use crate::ipc::IpcServices;
 use crate::objects::{ObjectRef, ObjectTracker, SyncObjectAction};
@@ -17,6 +18,7 @@ use kubera_core::sync::signal;
 use kubera_core::sync::signal::Receiver;
 use kubera_core::{continue_after, continue_on};
 use std::collections::{HashMap, HashSet};
+use std::net::IpAddr;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::select;
@@ -36,12 +38,21 @@ struct TemplateValues {
 pub fn sync_gateway_configmaps(
     join_set: &mut JoinSet<()>,
     client: &Client,
+    instance_role: &Receiver<InstanceRole>,
+    primary_instance_ip_addr: &Receiver<Option<IpAddr>>,
     ipc_services: Arc<IpcServices>,
     gateway_instances: &Receiver<HashMap<ObjectRef, GatewayInstanceConfiguration>>,
     http_routes: &Receiver<HashMap<ObjectRef, Vec<Arc<HTTPRoute>>>>,
     backends: &Receiver<HashMap<ObjectRef, Backend>>,
 ) {
-    let tx = sync_objects!(join_set, ConfigMap, client, TemplateValues, TEMPLATE);
+    let tx = sync_objects!(
+        join_set,
+        ConfigMap,
+        client,
+        instance_role,
+        TemplateValues,
+        TEMPLATE
+    );
 
     generate_gateway_configmaps(join_set, tx, gateway_instances, http_routes, backends);
 }

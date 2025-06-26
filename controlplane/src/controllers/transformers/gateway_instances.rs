@@ -1,13 +1,14 @@
 use crate::objects::{ObjectRef, Objects};
 use gateway_api::apis::standard::gateways::Gateway;
 use getset::Getters;
-use k8s_openapi::DeepMerge;
 use k8s_openapi::api::apps::v1::{Deployment, DeploymentSpec, DeploymentStrategy};
 use k8s_openapi::api::core::v1::{Service, ServiceSpec};
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
+use k8s_openapi::DeepMerge;
 use kubera_api::v1alpha1::{GatewayClassParameters, GatewayParameters};
 use kubera_core::continue_on;
-use kubera_core::sync::signal::{Receiver, channel};
+use kubera_core::sync::signal::{channel, Receiver};
+use serde_json::{from_value, json};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::task::JoinSet;
@@ -113,6 +114,27 @@ fn merge_deployment_overrides(
         spec.strategy = Some(strategy);
     }
 
+    // Optionally set the log level for the gateway container
+    let log_level = class_params
+        .and_then(|p| p.log_level)
+        .or_else(|| gateway_params.and_then(|p| p.log_level));
+
+    if let Some(log_level) = log_level {
+        let log_level: &'static str = log_level.into();
+
+        let template_spec = json!({
+            "containers": [{
+                "name": "gateway",
+                "env": [{
+                    "name": "RUST_LOG",
+                    "value": log_level,
+                }]
+            }],
+        });
+
+        spec.template.spec = from_value(template_spec).unwrap();
+    }
+
     Deployment {
         spec: Some(spec),
         metadata: merge_metadata(gateway),
@@ -133,7 +155,7 @@ fn merge_metadata(gateway: &Gateway) -> ObjectMeta {
 
 fn merge_service_overrides(
     gateway: &Gateway,
-    gateway_class_parameters: Option<&GatewayClassParameters>,
+    _gateway_class_parameters: Option<&GatewayClassParameters>,
     gateway_parameters: Option<&GatewayParameters>,
 ) -> Service {
     let mut spec = ServiceSpec::default();
