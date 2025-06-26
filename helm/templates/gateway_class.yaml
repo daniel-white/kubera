@@ -16,8 +16,8 @@ metadata:
   name: {{ include "gateway_class.name" . }}
 spec:
   deployment:
-    replicas: {{ .Values.gateway.deployment.replicas | default 1 }}
-    {{- if .Values.gateway.deployment.strategy }}
+    replicas: {{ .Values.gateways.deployment.replicas | default 1 }}
+    {{- if .Values.gateways.deployment.strategy }}
     strategy:
-    {{- toYaml .Values.gateway.deployment.strategy | nindent 6 -}}
+    {{- toYaml .Values.gateways.deployment.strategy | nindent 6 -}}
     {{- end -}}

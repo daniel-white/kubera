@@ -5,7 +5,7 @@ pub mod objects;
 pub mod ipc;
 
 use crate::controllers::ControllerRunParamsBuilder;
-use crate::ipc::{spawn_ipc_service, IpcServiceConfiguration};
+use crate::ipc::{IpcServiceConfiguration, spawn_ipc_service};
 use anyhow::Result;
 use clap::Parser;
 use cli::Cli;

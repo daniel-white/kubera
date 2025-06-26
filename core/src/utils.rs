@@ -16,7 +16,7 @@ impl<T> Deref for DropTracker<T> {
     }
 }
 
-impl <T> DerefMut for DropTracker<T> {
+impl<T> DerefMut for DropTracker<T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
     }

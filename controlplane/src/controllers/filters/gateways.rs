@@ -3,7 +3,7 @@ use gateway_api::apis::standard::gatewayclasses::GatewayClass;
 use gateway_api::apis::standard::gateways::Gateway;
 use kubera_api::v1alpha1::GatewayParameters;
 use kubera_core::continue_on;
-use kubera_core::sync::signal::{channel, Receiver};
+use kubera_core::sync::signal::{Receiver, channel};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::task::JoinSet;

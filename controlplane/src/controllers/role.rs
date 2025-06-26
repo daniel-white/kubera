@@ -1,7 +1,7 @@
 use kube::Client;
 use kube_leader_election::{LeaseLock, LeaseLockParams};
 use kubera_core::continue_after;
-use kubera_core::sync::signal::{channel, Receiver};
+use kubera_core::sync::signal::{Receiver, channel};
 use std::time::Duration;
 use tokio::task::JoinSet;
 use tracing::debug;
@@ -35,22 +35,24 @@ pub fn watch_role(
 
     join_set.spawn(async move {
         loop {
-            let role = match lock.try_acquire_or_renew().await {
+            let new_role = match lock.try_acquire_or_renew().await {
                 Ok(lease) if lease.acquired_lease => {
                     debug!("Acquired lease, assuming primary role");
-                    ControlplaneRole::Primary
+                    Some(ControlplaneRole::Primary)
                 }
                 Ok(_) => {
                     debug!("Lease renewed, assuming redundant role");
-                    ControlplaneRole::Redundant
+                    Some(ControlplaneRole::Redundant)
                 }
                 Err(e) => {
                     warn!("Failed to acquire or renew lease: {}", e);
-                    ControlplaneRole::Undetermined
+                    None
                 }
             };
 
-            tx.replace(role);
+            if let Some(new_role) = new_role {
+                tx.replace(new_role);
+            }
 
             continue_after!(Duration::from_secs(10));
         }

@@ -5,7 +5,7 @@ metadata:
   namespace: {{ .Release.Namespace }}
 spec:
   replicas: {{ .Values.controlplane.deployment.replicas | default 2 }}
-  {{- if .Values.gateway.deployment.strategy }}
+  {{- if .Values.controlplane.deployment.strategy }}
   strategy:
     {{- toYaml .Values.controlplane.deployment.strategy | nindent 4 -}}
   {{- end }}
@@ -28,7 +28,7 @@ spec:
           env:
             - name: RUST_LOG
               value: {{ default .Values.controlplane.logLevel .Values.logLevel "warn" }}
-            - name: INSTANCE_NAME
+            - name: KUBERA_INSTANCE
               value: {{ include "controlplane.name" . }}
             - name: POD_NAMESPACE
               valueFrom:

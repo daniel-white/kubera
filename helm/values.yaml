@@ -1,4 +1,4 @@
-logLevel: warn
+logLevel: info
 
 images:
   pullPolicy: Always
@@ -25,7 +25,8 @@ controlplane:
       cpu: "500m"
       memory: "256Mi"
 
-gateway:
+gateways:
+  logLevel: ""
   deployment:
     replicas: 4
     strategy:

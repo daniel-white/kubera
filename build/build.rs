@@ -14,8 +14,12 @@ fn main() {
     let out_dir = out_dir.as_path();
 
     write_gateway_configuration_schema(out_dir);
-    
-    let out_dir = manifest_dir.join("..").join("helm").join("crds").join("generated"); 
+
+    let out_dir = manifest_dir
+        .join("..")
+        .join("helm")
+        .join("crds")
+        .join("generated");
     let out_dir = out_dir.as_path();
     write_crds(out_dir);
 }

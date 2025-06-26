@@ -1,3 +1,4 @@
+mod current_pod;
 mod filters;
 mod macros;
 mod role;
@@ -7,6 +8,7 @@ mod transformers;
 use self::filters::*;
 use self::sync::*;
 use self::transformers::*;
+use crate::controllers::current_pod::watch_current_pod_ip_address;
 use crate::controllers::role::watch_role;
 use crate::ipc::IpcServices;
 use crate::watch_objects;
@@ -49,6 +51,12 @@ pub async fn run(params: ControllerRunParams) -> Result<()> {
         &client,
         params.pod_namespace(),
         params.instance_name(),
+        params.pod_name(),
+    );
+    let pod_ip_address = watch_current_pod_ip_address(
+        &mut join_set,
+        &client,
+        params.pod_namespace(),
         params.pod_name(),
     );
 
