@@ -1,10 +1,10 @@
 use crate::ipc::IpcServiceState;
 use crate::objects::ObjectRef;
-use axum::extract::Path;
+use axum::extract::{Path, Query};
 use axum::response::sse::Event;
 use axum::{
     extract::State,
-    response::{IntoResponse, sse::Sse},
+    response::{sse::Sse, IntoResponse},
 };
 use futures::TryStreamExt;
 use gateway_api::apis::standard::gateways::Gateway;
@@ -13,18 +13,24 @@ use std::time::Duration;
 
 #[derive(Deserialize)]
 pub struct GetGatewayEventsPathParams {
-    namespace: String,
-    name: String,
+    gateway_namespace: String,
+    gateway_name: String,
+}
+
+#[derive(Deserialize)]
+pub struct QueryParams {
+    pod_name: String,
 }
 
 pub async fn get_gateway_events(
     State(state): State<IpcServiceState>,
-    Path(params): Path<GetGatewayEventsPathParams>,
+    Path(path_params): Path<GetGatewayEventsPathParams>,
+    Query(query_params): Query<QueryParams>,
 ) -> impl IntoResponse {
     let gateway_ref = ObjectRef::new_builder()
         .of_kind::<Gateway>()
-        .name(params.name)
-        .namespace(Some(params.namespace))
+        .name(path_params.gateway_namespace)
+        .namespace(Some(path_params.gateway_namespace))
         .build()
         .unwrap();
 
