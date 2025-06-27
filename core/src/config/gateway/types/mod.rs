@@ -1,15 +1,15 @@
 pub mod http;
 pub mod net;
 
-use std::net::{IpAddr, SocketAddr};
 use crate::config::gateway::types::http::router::{HttpRoute, HttpRouteBuilder};
 use crate::config::gateway::types::net::{Listener, ListenerBuilder};
+use crate::net::Port;
 use getset::Getters;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_valid::Validate;
+use std::net::{IpAddr, SocketAddr};
 use strum::EnumString;
-use crate::net::Port;
 
 #[derive(
     Validate,
@@ -30,13 +30,11 @@ pub enum GatewayConfigurationVersion {
     V1Alpha1,
 }
 
-#[derive(
-    Validate, Getters, Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema,
-)]
+#[derive(Validate, Getters, Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct GatewayConfiguration {
     #[getset(get = "pub")]
     version: GatewayConfigurationVersion,
-    
+
     #[getset(get = "pub")]
     controlplane: Option<ControlplaneConfiguration>,
 
@@ -79,7 +77,7 @@ impl GatewayConfigurationBuilder {
         self.version = version;
         self
     }
-    
+
     pub fn with_controlplane<F>(&mut self, factory: F) -> &mut Self
     where
         F: FnOnce(&mut ControlplaneConfigurationBuilder),
@@ -112,11 +110,9 @@ impl GatewayConfigurationBuilder {
     }
 }
 
-#[derive(
-    Validate, Getters, Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema,
-)]
+#[derive(Validate, Getters, Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct ControlplaneConfiguration {
-    primary_endpoint: Option<SocketAddr>
+    primary_endpoint: Option<SocketAddr>,
 }
 
 #[derive(Debug, Default)]
@@ -143,4 +139,3 @@ impl ControlplaneConfigurationBuilder {
         }
     }
 }
-

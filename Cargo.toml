@@ -26,6 +26,7 @@ kube = { version = "1", features = ["runtime", "derive"] }
 lockable = "0.2"
 regex = { version = "1", features = ["perf", "unicode"] }
 rstest = "0.25"
+rustls = { version = "0.23", features = ["ring"] }
 schemars = "0.9"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

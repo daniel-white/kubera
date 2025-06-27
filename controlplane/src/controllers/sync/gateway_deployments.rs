@@ -19,8 +19,8 @@ const TEMPLATE: &str = include_str!("./templates/gateway_deployment.kubernetes-h
 #[builder(setter(into))]
 struct TemplateValues {
     gateway_name: String,
-    controlplane_host: String,
     configmap_name: String,
+    image_pull_policy: String,
 }
 
 pub fn sync_gateway_deployments(
@@ -61,10 +61,12 @@ fn generate_gateway_deployments(
                         .build()
                         .expect("Failed to build ObjectRef for Deployment");
 
+                    let image_pull_policy: &'static str = instance.image_pull_policy().into();
+
                     let template_values = TemplateValuesBuilder::default()
                         .gateway_name(gateway_ref.name())
-                        .controlplane_host("hello world")
                         .configmap_name(format!("{}-config", gateway_ref.name()))
+                        .image_pull_policy(image_pull_policy)
                         .build()
                         .expect("Failed to build TemplateValues");
 

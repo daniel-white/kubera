@@ -16,7 +16,8 @@ metadata:
   name: {{ include "gateway_class.name" . }}
 spec:
   deployment:
-    logLevel: {{ .Values.gateways.logLevel | default "info" }}
+    logLevel: {{ .Values.gateways.logLevel | default "Info" }}
+    imagePullPolicy: {{ default .Values.gateways.deployment.imagePullPolicy .Values.deployments.imagePullPolicy "IfNotPresent" }}
     replicas: {{ .Values.gateways.deployment.replicas | default 1 }}
     {{- if .Values.gateways.deployment.strategy }}
     strategy:

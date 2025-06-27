@@ -13,5 +13,5 @@ COPY . .
 RUN cargo build --release --bin kubera_controlplane
 
 FROM debian:${DEBIAN_RELEASE}-slim
-COPY --from=builder /usr/src/kubera/target/release/kubera_controlplane /usr/local/bin/kubera-controlplane
-CMD ["kubera-controlplane"]
+COPY --from=builder /usr/src/kubera/target/release/kubera_controlplane /usr/local/bin/
+CMD ["kubera_controlplane"]

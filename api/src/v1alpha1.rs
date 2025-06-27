@@ -28,7 +28,7 @@ pub enum GatewayRefs {
 #[derive(
     Default, Deserialize, Serialize, Copy, Clone, Debug, JsonSchema, PartialEq, IntoStaticStr,
 )]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "PascalCase")]
 #[strum(serialize_all = "camelCase")]
 pub enum LogLevel {
     Debug,
@@ -36,6 +36,15 @@ pub enum LogLevel {
     Info,
     Warn,
     Error,
+}
+
+#[derive(Default, Deserialize, Serialize, Copy, Clone, Debug, JsonSchema, PartialEq)]
+#[serde(rename_all = "PascalCase")]
+pub enum ImagePullPolicy {
+    Always,
+    #[default]
+    IfNotPresent,
+    Never,
 }
 
 #[derive(Default, Deserialize, Serialize, Clone, Debug, JsonSchema, PartialEq)]
@@ -82,10 +91,15 @@ pub struct GatewayParametersSpec {
 pub struct GatewayDeployment {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub replicas: Option<i32>,
+
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub strategy: Option<DeploymentStrategy>,
+
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub log_level: Option<LogLevel>,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub image_pull_policy: Option<ImagePullPolicy>,
 }
 
 #[derive(Deserialize, Serialize, Clone, Debug, JsonSchema, PartialEq)]

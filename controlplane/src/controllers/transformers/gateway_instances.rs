@@ -5,13 +5,35 @@ use k8s_openapi::api::apps::v1::{Deployment, DeploymentSpec, DeploymentStrategy}
 use k8s_openapi::api::core::v1::{Service, ServiceSpec};
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
 use k8s_openapi::DeepMerge;
-use kubera_api::v1alpha1::{GatewayClassParameters, GatewayParameters};
+use kubera_api::v1alpha1::{
+    GatewayClassParameters, GatewayParameters, ImagePullPolicy as ApiImagePullPolicy,
+};
 use kubera_core::continue_on;
 use kubera_core::sync::signal::{channel, Receiver};
 use serde_json::{from_value, json};
 use std::collections::HashMap;
 use std::sync::Arc;
+use strum::IntoStaticStr;
 use tokio::task::JoinSet;
+
+#[derive(Default, Copy, Clone, Debug, PartialEq, IntoStaticStr)]
+#[strum(serialize_all = "PascalCase")]
+pub enum ImagePullPolicy {
+    Always,
+    #[default]
+    IfNotPresent,
+    Never,
+}
+
+impl From<ApiImagePullPolicy> for ImagePullPolicy {
+    fn from(policy: ApiImagePullPolicy) -> Self {
+        match policy {
+            ApiImagePullPolicy::Always => ImagePullPolicy::Always,
+            ApiImagePullPolicy::IfNotPresent => ImagePullPolicy::IfNotPresent,
+            ApiImagePullPolicy::Never => ImagePullPolicy::Never,
+        }
+    }
+}
 
 #[derive(Clone, Debug, Getters, PartialEq)]
 pub struct GatewayInstanceConfiguration {
@@ -23,6 +45,9 @@ pub struct GatewayInstanceConfiguration {
 
     #[getset(get = "pub")]
     deployment_overrides: Deployment,
+
+    #[getset(get = "pub")]
+    image_pull_policy: ImagePullPolicy,
 }
 
 pub fn collect_gateway_instances(
@@ -47,7 +72,7 @@ pub fn collect_gateway_instances(
                 .iter()
                 .map(|(gateway_ref, _, gateway)| {
                     let gateway_parameters = current_gateway_parameters.get(&gateway_ref).cloned();
-                    let deployment_overrides = merge_deployment_overrides(
+                    let (deployment_overrides, image_pull_policy) = merge_deployment_overrides(
                         &gateway,
                         current_gateway_class_parameters.as_deref(),
                         gateway_parameters.as_deref(),
@@ -63,6 +88,7 @@ pub fn collect_gateway_instances(
                             gateway,
                             deployment_overrides,
                             service_overrides,
+                            image_pull_policy,
                         },
                     )
                 })
@@ -85,7 +111,7 @@ fn merge_deployment_overrides(
     gateway: &Gateway,
     gateway_class_parameters: Option<&GatewayClassParameters>,
     gateway_parameters: Option<&GatewayParameters>,
-) -> Deployment {
+) -> (Deployment, ImagePullPolicy) {
     let mut spec = DeploymentSpec::default();
 
     let class_params = gateway_class_parameters
@@ -94,6 +120,12 @@ fn merge_deployment_overrides(
     let gateway_params = gateway_parameters
         .and_then(|p| p.spec.common.as_ref())
         .and_then(|c| c.deployment.as_ref());
+
+    let image_pull_policy = class_params
+        .and_then(|p| p.image_pull_policy)
+        .or_else(|| gateway_params.and_then(|p| p.image_pull_policy))
+        .unwrap_or_default()
+        .into();
 
     spec.replicas = class_params
         .as_ref()
@@ -135,11 +167,14 @@ fn merge_deployment_overrides(
         spec.template.spec = from_value(template_spec).unwrap();
     }
 
-    Deployment {
-        spec: Some(spec),
-        metadata: merge_metadata(gateway),
-        ..Default::default()
-    }
+    (
+        Deployment {
+            spec: Some(spec),
+            metadata: merge_metadata(gateway),
+            ..Default::default()
+        },
+        image_pull_policy,
+    )
 }
 
 fn merge_metadata(gateway: &Gateway) -> ObjectMeta {

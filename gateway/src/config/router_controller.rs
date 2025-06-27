@@ -8,7 +8,7 @@ use kubera_core::config::gateway::types::GatewayConfiguration;
 use kubera_core::continue_on;
 use kubera_core::sync::signal::{channel, Receiver};
 use thiserror::Error;
-use tracing::debug;
+use tracing::{debug, warn};
 
 #[derive(Debug, Error)]
 pub enum ControllerError {}
@@ -27,6 +27,8 @@ pub async fn spawn_controller(
         loop {
             if let Some(gateway_config) = gateway_configuration.current().as_ref() {
                 let mut router = HttpRouterBuilder::new(&current_location);
+                
+                warn!("Current location: {:?}", gateway_config);
 
                 // for host_match in gateway_config.hosts().iter() {
                 //     match host_match.match_type() {

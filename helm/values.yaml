@@ -1,7 +1,7 @@
-logLevel: info
+logLevel: Info
 
-images:
-  pullPolicy: Always
+deployments:
+  imagePullPolicy: IfNotPresent
 
 gatewayclass:
   name: ""
@@ -10,12 +10,12 @@ controlplane:
   name: ""
   logLevel: ""
   deployment:
+    imagePullPolicy: ""
     replicas: 2
     strategy:
       type: Recreate
   image:
     repository: kubera-controlplane
-    pullPolicy: ""
     tag: latest
   resources:
     limits:
@@ -28,6 +28,7 @@ controlplane:
 gateways:
   logLevel: ""
   deployment:
+    imagePullPolicy: ""
     replicas: 4
     strategy:
       type: RollingUpdate
