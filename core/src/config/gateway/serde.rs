@@ -1,6 +1,6 @@
 use crate::config::gateway::types::GatewayConfiguration;
-use serde_valid::Validate;
 use serde_valid::validation::{Error, Errors};
+use serde_valid::Validate;
 use std::fmt::Debug;
 use std::io::{Read, Write};
 use thiserror::Error;
@@ -64,6 +64,18 @@ mod tests {
             *config.unwrap().version(),
             GatewayConfigurationVersion::V1Alpha1
         );
+    }
+
+    #[test]
+    fn round_trip_simple() {
+        let yaml = include_str!("tests/simple.yaml").as_bytes();
+        let config = read_configuration(yaml).unwrap();
+
+        let mut buffer = Vec::new();
+        write_configuration(&config, &mut buffer).unwrap();
+
+        let round_trip_config = read_configuration(buffer.as_slice()).unwrap();
+        assert_eq!(round_trip_config, config);
     }
 
     // #[test]

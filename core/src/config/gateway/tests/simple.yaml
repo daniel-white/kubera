@@ -1,0 +1,21 @@
+version: v1alpha1
+controlplane:
+  primary_endpoint: 10.244.0.56:8080
+listeners:
+  - name: http
+    host: null
+    port: 80
+    protocol: HTTP
+http_routes:
+  - rules:
+      - unique_id: dc74f547-fa64-4b83-b600-c1c9895b2ad2:aec2951c-ab8d-4d8e-a4cd-7b805a49734e:0
+        matches:
+          - method: GET
+        backends:
+          - weight: 1
+            port: 80
+            name: echo
+            namespace: default
+            endpoints:
+              - node: minikube
+                address: 10.244.0.67
