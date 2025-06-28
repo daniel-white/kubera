@@ -2,7 +2,7 @@ use crate::objects::ObjectRef;
 use kubera_core::ipc::{Event, GatewayEvent};
 use std::fmt::Display;
 use thiserror::Error;
-use tokio::sync::broadcast::{Sender as BroadcastSender, channel as broadcast_channel};
+use tokio::sync::broadcast::{channel as broadcast_channel, Sender as BroadcastSender};
 use tokio_stream::wrappers::BroadcastStream;
 use tokio_stream::{Stream, StreamExt};
 
@@ -59,8 +59,9 @@ impl EventStreamFactory {
         gateway_ref: ObjectRef,
     ) -> impl Stream<Item = Result<GatewayEvent, RecvError>> + Send + use<> {
         self.gateway_events().filter(move |event| match event {
-            Ok(GatewayEvent::ConfigurationUpdate { name, namespace }) => {
-                name == gateway_ref.name() && Some(namespace) == gateway_ref.namespace().as_ref()
+            Ok(GatewayEvent::ConfigurationUpdate(ref_)) => {
+                ref_.name() == gateway_ref.name()
+                    && Some(ref_.namespace()) == gateway_ref.namespace().as_ref()
             }
             _ => false,
         })

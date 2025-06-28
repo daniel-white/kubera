@@ -1,12 +1,19 @@
 pub mod endpoints;
 pub mod events;
+mod gateways;
 
 use self::endpoints::router;
 use self::events::EventStreamFactory;
 use crate::ipc::events::EventSender;
+use crate::ipc::gateways::{
+    create_gateway_configuration_services, GatewayConfigurationManager, GatewayConfigurationReader,
+};
+use crate::objects::ObjectRef;
 use anyhow::Result;
 use derive_builder::Builder;
 use getset::Getters;
+use kubera_core::config::gateway::types::GatewayConfiguration;
+use kubera_core::ipc::{Event, GatewayEvent, Ref as IpcRef};
 use kubera_core::net::Port;
 use std::net::SocketAddr;
 use tokio::net::TcpListener;
@@ -14,14 +21,17 @@ use tokio::{select, spawn};
 use tracing::info;
 
 #[derive(Builder, Getters, Clone)]
-pub struct IpcServiceState {
+pub struct IpcServicesState {
     #[getset(get = "pub")]
     events: EventStreamFactory,
+
+    #[getset(get = "pub")]
+    gateways: GatewayConfigurationReader,
 }
 
-impl IpcServiceState {
-    fn new_builder() -> IpcServiceStateBuilder {
-        IpcServiceStateBuilder::default()
+impl IpcServicesState {
+    fn new_builder() -> IpcServicesStateBuilder {
+        IpcServicesStateBuilder::default()
     }
 }
 
@@ -43,29 +53,76 @@ impl IpcServiceConfiguration {
 #[derive(Debug, Builder, Getters)]
 #[builder(setter(into))]
 pub struct IpcServices {
-    #[getset(get = "pub")]
     events: EventSender,
+
+    gateway_configuration_manager: GatewayConfigurationManager,
 
     #[getset(get = "pub")]
     port: Port,
+}
+
+impl From<ObjectRef> for IpcRef {
+    fn from(object_ref: ObjectRef) -> Self {
+        (&object_ref).into()
+    }
+}
+
+impl From<&ObjectRef> for IpcRef {
+    fn from(object_ref: &ObjectRef) -> Self {
+        IpcRef::new_builder()
+            .namespace(
+                object_ref
+                    .namespace()
+                    .clone()
+                    .expect("ObjectRef must have a namespace"),
+            )
+            .name(object_ref.name())
+            .build()
+            .expect("Failed to create IpcRef from ObjectRef")
+    }
 }
 
 impl IpcServices {
     fn new_builder() -> IpcServicesBuilder {
         IpcServicesBuilder::default()
     }
+
+    pub fn insert_gateway_configuration(
+        &self,
+        gateway_ref: ObjectRef,
+        configuration: &GatewayConfiguration,
+    ) {
+        self.gateway_configuration_manager
+            .insert(gateway_ref.clone(), configuration);
+        self.events
+            .send(Event::Gateway(GatewayEvent::ConfigurationUpdate(
+                gateway_ref.into(),
+            )));
+    }
+
+    pub fn remove_gateway_configuration(&self, gateway_ref: &ObjectRef) {
+        self.gateway_configuration_manager.remove(gateway_ref);
+        self.events
+            .send(Event::Gateway(GatewayEvent::Deleted(gateway_ref.into())));
+    }
 }
 
 pub async fn spawn_ipc_service(ipc_configuration: IpcServiceConfiguration) -> Result<IpcServices> {
-    let (event_sender, factory) = events::events_channel();
+    let (event_sender, events_factory) = events::events_channel();
     let socket_address = ipc_configuration.socket_address();
+
+    let (reader, gateway_manager) = create_gateway_configuration_services();
 
     let services = IpcServices::new_builder()
         .events(event_sender)
+        .gateway_configuration_manager(gateway_manager)
         .port(Port::new(socket_address.port()))
         .build()?;
 
-    let state = IpcServiceState::new_builder().events(factory).build()?;
+    let state = IpcServicesState::new_builder()
+        .gateways(reader)
+        .events(events_factory)
+        .build()?;
 
     info!("Starting IPC service on {}", socket_address);
 

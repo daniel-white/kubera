@@ -112,6 +112,7 @@ impl GatewayConfigurationBuilder {
 
 #[derive(Validate, Getters, Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct ControlplaneConfiguration {
+    #[getset(get = "pub")]
     primary_endpoint: Option<SocketAddr>,
 }
 

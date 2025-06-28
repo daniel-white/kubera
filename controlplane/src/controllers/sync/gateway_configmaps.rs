@@ -74,9 +74,10 @@ fn generate_gateway_configmaps(
     http_routes: &Receiver<HashMap<ObjectRef, Vec<Arc<HTTPRoute>>>>,
     backends: &Receiver<HashMap<ObjectRef, Backend>>,
 ) {
+    let ipc_services = ipc_services.clone();
     let configs = generate_gateway_configurations(
         join_set,
-        ipc_services,
+        ipc_services.clone(),
         primary_instance_ip_addr,
         gateway_instances,
         http_routes,
@@ -106,25 +107,30 @@ fn generate_gateway_configmaps(
                         .build()
                         .expect("Failed to build TemplateValues");
 
-                    (configmap_ref, gateway_ref, template_values)
+                    (configmap_ref, gateway_ref, template_values, config)
                 })
                 .collect();
 
             let configmaps_refs: HashSet<_> = config_values
                 .iter()
-                .map(|(ref_, _, _)| ref_.clone())
+                .map(|(ref_, _, _, _)| ref_.clone())
                 .collect();
 
             let deleted_refs = tracker.reconcile(configmaps_refs);
             for deleted_ref in deleted_refs {
+                let ipc_services = ipc_services.clone();
                 let _ = tx
-                    .send(SyncObjectAction::Delete(deleted_ref))
+                    .send(SyncObjectAction::Delete(deleted_ref.clone()))
+                    .inspect(move |_| {
+                        ipc_services.remove_gateway_configuration(&deleted_ref);
+                    })
                     .inspect_err(|err| {
                         error!("Failed to send delete action: {}", err);
                     });
             }
 
-            for (service_ref, gateway_ref, template_values) in config_values.into_iter() {
+            for (service_ref, gateway_ref, template_values, config) in config_values.into_iter() {
+                let ipc_services = ipc_services.clone();
                 let _ = tx
                     .send(SyncObjectAction::Upsert(
                         service_ref,
@@ -132,6 +138,9 @@ fn generate_gateway_configmaps(
                         template_values,
                         None,
                     ))
+                    .inspect(move |_| {
+                        ipc_services.insert_gateway_configuration(gateway_ref.clone(), &config);
+                    })
                     .inspect_err(|err| {
                         error!("Failed to send upsert action: {}", err);
                     });

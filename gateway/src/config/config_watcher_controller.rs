@@ -5,7 +5,7 @@ use kubera_core::config::gateway::serde::read_configuration;
 use kubera_core::config::gateway::types::GatewayConfiguration;
 use kubera_core::continue_on;
 use kubera_core::io::file_watcher::spawn_file_watcher;
-use kubera_core::sync::signal::{channel, Receiver};
+use kubera_core::sync::signal::{Receiver, channel};
 use std::io::Cursor;
 use std::path::{Path, PathBuf};
 use tokio::fs::read;

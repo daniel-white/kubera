@@ -3,10 +3,10 @@ use http::HeaderValue;
 use std::sync::Arc;
 
 use crate::config::topology::TopologyLocation;
-use kubera_core::config::gateway::types::http::router::*;
 use kubera_core::config::gateway::types::GatewayConfiguration;
+use kubera_core::config::gateway::types::http::router::*;
 use kubera_core::continue_on;
-use kubera_core::sync::signal::{channel, Receiver};
+use kubera_core::sync::signal::{Receiver, channel};
 use thiserror::Error;
 use tracing::{debug, warn};
 
@@ -27,7 +27,7 @@ pub async fn spawn_controller(
         loop {
             if let Some(gateway_config) = gateway_configuration.current().as_ref() {
                 let mut router = HttpRouterBuilder::new(&current_location);
-                
+
                 warn!("Current location: {:?}", gateway_config);
 
                 // for host_match in gateway_config.hosts().iter() {

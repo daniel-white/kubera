@@ -8,6 +8,7 @@ anyhow = { workspace = true }
 axum = { workspace = true }
 backtrace-on-stack-overflow = "0.3"
 clap = { workspace = true }
+dashmap = { workspace = true }
 derive_builder = { workspace = true }
 futures = { workspace = true }
 gateway-api = "0.16"
