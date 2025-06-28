@@ -2,7 +2,7 @@ use crate::objects::ObjectRef;
 use kubera_core::ipc::{Event, GatewayEvent};
 use std::fmt::Display;
 use thiserror::Error;
-use tokio::sync::broadcast::{channel as broadcast_channel, Sender as BroadcastSender};
+use tokio::sync::broadcast::{Sender as BroadcastSender, channel as broadcast_channel};
 use tokio_stream::wrappers::BroadcastStream;
 use tokio_stream::{Stream, StreamExt};
 
@@ -16,7 +16,7 @@ impl Display for RecvError {
 }
 
 pub fn events_channel() -> (EventSender, EventStreamFactory) {
-    let (tx, _) = broadcast_channel(128);
+    let (tx, _) = broadcast_channel(20);
     (EventSender { tx: tx.clone() }, EventStreamFactory { tx })
 }
 

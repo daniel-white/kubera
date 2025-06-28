@@ -15,5 +15,7 @@ COPY . .
 RUN cargo build --release --bin kubera_gateway
 
 FROM debian:${DEBIAN_RELEASE}-slim
+RUN apt update && apt install -y \
+    ca-certificates
 COPY --from=builder /usr/src/kubera/target/release/kubera_gateway /usr/local/bin/
 CMD ["kubera_gateway"]

@@ -2,44 +2,94 @@ use derive_builder::Builder;
 use eventsource_client::{Client, ClientBuilder, SSE};
 use futures::TryStreamExt;
 use getset::Getters;
+use kubera_core::ipc::GatewayEvent;
 use kubera_core::sync::signal::Receiver;
 use std::net::SocketAddr;
 use tokio::select;
 use tokio::signal::ctrl_c;
+use tokio::sync::broadcast::{Sender, channel};
 use tokio::task::JoinSet;
 use tracing::info;
 use url::Url;
 
-#[derive(Clone, Debug, Getters, Builder)]
-#[builder(setter(into))]
-pub struct WatchGatewayEventsParams {
+#[derive(Debug, Getters)]
+pub struct PollGatewayEventsParams {
     primary_socket_addr: Receiver<Option<SocketAddr>>,
     pod_name: String,
     gateway_namespace: String,
     gateway_name: String,
 }
 
-impl WatchGatewayEventsParams {
-    pub fn new_builder() -> WatchGatewayEventsParamsBuilder {
-        WatchGatewayEventsParamsBuilder::default()
+impl PollGatewayEventsParams {
+    pub fn new_builder() -> PollGatewayEventsParamsBuilder {
+        PollGatewayEventsParamsBuilder::default()
     }
 }
 
-pub fn watch_gateway_events(join_set: &mut JoinSet<()>, params: WatchGatewayEventsParams) {
+#[derive(Default)]
+pub struct PollGatewayEventsParamsBuilder {
+    primary_socket_addr: Option<Receiver<Option<SocketAddr>>>,
+    pod_name: Option<String>,
+    gateway_namespace: Option<String>,
+    gateway_name: Option<String>,
+}
+
+impl PollGatewayEventsParamsBuilder {
+    pub fn primary_socket_addr(&mut self, addr: &Receiver<Option<SocketAddr>>) -> &mut Self {
+        self.primary_socket_addr = Some(addr.clone());
+        self
+    }
+
+    pub fn pod_name<N: AsRef<str>>(&mut self, name: N) -> &mut Self {
+        self.pod_name = Some(name.as_ref().to_string());
+        self
+    }
+
+    pub fn gateway_namespace<N: AsRef<str>>(&mut self, namespace: N) -> &mut Self {
+        self.gateway_namespace = Some(namespace.as_ref().to_string());
+        self
+    }
+
+    pub fn gateway_name<N: AsRef<str>>(&mut self, name: N) -> &mut Self {
+        self.gateway_name = Some(name.as_ref().to_string());
+        self
+    }
+
+    pub fn build(self) -> PollGatewayEventsParams {
+        PollGatewayEventsParams {
+            primary_socket_addr: self
+                .primary_socket_addr
+                .expect("Primary socket address is required"),
+            pod_name: self.pod_name.expect("Pod name is required"),
+            gateway_namespace: self
+                .gateway_namespace
+                .expect("Gateway namespace is required"),
+            gateway_name: self.gateway_name.expect("Gateway name is required"),
+        }
+    }
+}
+
+pub fn poll_gateway_events(
+    join_set: &mut JoinSet<()>,
+    params: PollGatewayEventsParams,
+) -> Sender<GatewayEvent> {
+    let (tx, _) = channel(20);
+
     let primary_socket_addr = params.primary_socket_addr.clone();
 
+    let events_tx = tx.clone();
     join_set.spawn(async move {
         'primary: loop {
             if let Some(socket_addr) = primary_socket_addr.current().as_ref() {
                 let url = {
-                    let mut events_url = Url::parse(&format!("http://{}", socket_addr))
+                    let mut url = Url::parse(&format!("http://{}", socket_addr))
                         .expect("Failed to parse URL");
-                    events_url.set_path(&format!(
+                    url.set_path(&format!(
                         "/ipc/namespaces/{}/gateways/{}/events",
                         params.gateway_namespace, params.gateway_name
                     ));
-                    events_url.set_query(Some(&format!("pod_name={}", params.pod_name)));
-                    events_url
+                    url.set_query(Some(&format!("pod_name={}", params.pod_name)));
+                    url
                 };
 
                 info!("Watching events at URL: {}", url);
@@ -61,8 +111,14 @@ pub fn watch_gateway_events(join_set: &mut JoinSet<()>, params: WatchGatewayEven
                         event = event_stream.try_next() => {
                             match event {
                                 Ok(Some(SSE::Event(event))) => {
-                                    tracing::debug!("Received event: {:?}", event);
-                                    // Process the event as needed
+                                    let _ = GatewayEvent::try_parse(event.event_type, event.data)
+                                        .map(|gateway_event| {
+                                            tracing::debug!("Received gateway event: {:?}", gateway_event);
+                                            events_tx.send(gateway_event).ok();
+                                        })
+                                        .inspect_err(|e| {
+                                            tracing::error!("Failed to parse gateway event: {}", e);
+                                        });
                                 }
                                 Ok(None) => {
                                     tracing::info!("Event stream ended");
@@ -72,8 +128,8 @@ pub fn watch_gateway_events(join_set: &mut JoinSet<()>, params: WatchGatewayEven
                                     tracing::error!("Error receiving event: {}", e);
                                     break 'events; // Exit on error
                                 }
-                                _ => {
-                                    tracing::warn!("Received unexpected event type");
+                                e => {
+                                    tracing::debug!("Received unexpected event type: {:?}", e);
                                 }
                             }
                         }
@@ -84,4 +140,6 @@ pub fn watch_gateway_events(join_set: &mut JoinSet<()>, params: WatchGatewayEven
             }
         }
     });
+
+    tx
 }

@@ -6,7 +6,7 @@ use self::endpoints::router;
 use self::events::EventStreamFactory;
 use crate::ipc::events::EventSender;
 use crate::ipc::gateways::{
-    create_gateway_configuration_services, GatewayConfigurationManager, GatewayConfigurationReader,
+    GatewayConfigurationManager, GatewayConfigurationReader, create_gateway_configuration_services,
 };
 use crate::objects::ObjectRef;
 use anyhow::Result;

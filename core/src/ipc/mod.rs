@@ -1,5 +1,6 @@
 use derive_builder::Builder;
 use getset::Getters;
+use schemars::_private::serde_json;
 use serde::{Deserialize, Serialize};
 use strum::{AsRefStr, IntoStaticStr};
 
@@ -27,6 +28,7 @@ impl Ref {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, IntoStaticStr, AsRefStr)]
 #[non_exhaustive]
+#[strum(serialize_all = "snake_case")]
 pub enum GatewayEvent {
     ConfigurationUpdate(Ref),
     Deleted(Ref),
@@ -37,6 +39,23 @@ impl GatewayEvent {
         match self {
             GatewayEvent::ConfigurationUpdate(gateway_ref) => gateway_ref,
             GatewayEvent::Deleted(gateway_ref) => gateway_ref,
+        }
+    }
+
+    pub fn try_parse<E: AsRef<str>, D: AsRef<str>>(event: E, data: D) -> Result<Self, String> {
+        match event.as_ref() {
+            "configuration_update" => {
+                let ref_ = serde_json::from_str(data.as_ref()).map_err(|e| {
+                    format!("Failed to parse GatewayEvent::ConfigurationUpdate: {}", e)
+                })?;
+                Ok(GatewayEvent::ConfigurationUpdate(ref_))
+            }
+            "deleted" => {
+                let ref_ = serde_json::from_str(data.as_ref())
+                    .map_err(|e| format!("Failed to parse GatewayEvent::Deleted: {}", e))?;
+                Ok(GatewayEvent::Deleted(ref_))
+            }
+            _ => Err(format!("Unknown event type: {}", event.as_ref())),
         }
     }
 }

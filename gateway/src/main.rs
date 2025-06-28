@@ -7,12 +7,15 @@ mod util;
 use crate::cli::Cli;
 use crate::config::config_watcher_controller::ConfigurationReaderParameters;
 use crate::config::topology::TopologyLocationBuilder;
-use crate::controllers::events::{watch_gateway_events, WatchGatewayEventsParams};
+use crate::controllers::config::ipc::fetch_gateway_configuration;
+use crate::controllers::events::{poll_gateway_events, PollGatewayEventsParams};
 use crate::services::proxy::ProxyBuilder;
 use clap::Parser;
+use controllers::events;
 use futures::task::SpawnExt;
 use kubera_core::config::logging::init_logging;
 use kubera_core::continue_on;
+use kubera_core::sync::signal::channel;
 use once_cell::sync::Lazy;
 use pingora::prelude::*;
 use pingora::server::Server;
@@ -53,12 +56,6 @@ async fn main() {
             .expect("Failed to build ConfigurationReaderParameters")
     };
 
-    warn!("Current location: {:?}", current_location);
-    warn!(
-        "Configuration reader parameters: {:?}",
-        configuration_reader_params
-    );
-
     let (tx, rx) = kubera_core::sync::signal::channel(None);
 
     let config = config::config_watcher_controller::spawn_controller(configuration_reader_params)
@@ -69,15 +66,31 @@ async fn main() {
 
     let mut join_set = JoinSet::new();
 
-    let p = WatchGatewayEventsParams::new_builder()
-        .primary_socket_addr(rx)
-        .pod_name(cli.pod_name())
-        .gateway_namespace(cli.pod_namespace())
-        .gateway_name(cli.gateway_name())
-        .build()
-        .expect("Failed to build WatchGatewayEventsParams");
+    let gateway_events = {
+        let mut params = PollGatewayEventsParams::new_builder();
+        params
+            .primary_socket_addr(&rx)
+            .pod_name(cli.pod_name())
+            .gateway_namespace(cli.pod_namespace())
+            .gateway_name(cli.gateway_name());
 
-    watch_gateway_events(&mut join_set, p);
+        poll_gateway_events(&mut join_set, params.build())
+    };
+
+    let _ = {
+        let (tx, _) = channel(None);
+
+        let mut params = controllers::config::ipc::FetchGatewayConfigurationParams::new_builder();
+        params
+            .primary_socket_addr(&rx)
+            .gateway_events(gateway_events.subscribe())
+            .gateway_configuration(&tx)
+            .pod_name(cli.pod_name())
+            .gateway_namespace(cli.pod_namespace())
+            .gateway_name(cli.gateway_name());
+
+        fetch_gateway_configuration(&mut join_set, params.build())
+    };
 
     join_set.spawn(async move {
         loop {

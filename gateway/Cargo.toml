@@ -26,6 +26,7 @@ tracing = { workspace = true }
 unicase = { workspace = true }
 url = "2"
 prometheus = "0.14"
+reqwest = "0.12"
 
 [dev-dependencies]
 rstest = { workspace = true }
