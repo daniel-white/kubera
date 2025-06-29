@@ -1,6 +1,7 @@
 use eventsource_client::{Client, ClientBuilder, SSE};
 use futures::TryStreamExt;
 use getset::Getters;
+use kubera_core::continue_on;
 use kubera_core::ipc::GatewayEvent;
 use kubera_core::sync::signal::Receiver;
 use std::net::SocketAddr;
@@ -135,7 +136,7 @@ pub fn poll_gateway_events(
                     }
                 }
             } else {
-                info!("No primary socket address available, waiting for it to be set");
+                continue_on!(primary_socket_addr.changed());
             }
         }
     });
