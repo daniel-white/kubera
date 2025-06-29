@@ -1,42 +1,42 @@
-use getset::Getters;
+use http::StatusCode;
+use kubera_core::config::gateway::serde::read_configuration;
 use kubera_core::config::gateway::types::GatewayConfiguration;
 use kubera_core::ipc::GatewayEvent;
-use kubera_core::sync::signal::{Receiver, Sender};
+use kubera_core::sync::signal::{Receiver, channel};
 use reqwest::Client;
+use std::io::BufReader;
 use std::net::SocketAddr;
 use std::time::Instant;
 use tokio::sync::broadcast::Receiver as BroadcastReceiver;
 use tokio::task::JoinSet;
-use tracing::{error, info};
+use tracing::{debug, info, warn};
 use url::Url;
 
-#[derive(Debug, Getters)]
-pub struct FetchGatewayConfigurationParams {
+#[derive(Debug)]
+pub struct FetchConfigurationParams {
     primary_socket_addr: Receiver<Option<SocketAddr>>,
     gateway_events: BroadcastReceiver<GatewayEvent>,
-    gateway_configuration: Sender<Option<(Instant, GatewayConfiguration)>>,
     pod_name: String,
     gateway_namespace: String,
     gateway_name: String,
 }
 
-impl FetchGatewayConfigurationParams {
-    pub fn new_builder() -> FetchGatewayConfigurationParamsBuilder {
-        FetchGatewayConfigurationParamsBuilder::default()
+impl FetchConfigurationParams {
+    pub fn new_builder() -> FetchConfigurationParamsBuilder {
+        FetchConfigurationParamsBuilder::default()
     }
 }
 
 #[derive(Default)]
-pub struct FetchGatewayConfigurationParamsBuilder {
+pub struct FetchConfigurationParamsBuilder {
     primary_socket_addr: Option<Receiver<Option<SocketAddr>>>,
     gateway_events: Option<BroadcastReceiver<GatewayEvent>>,
-    gateway_configuration: Option<Sender<Option<(Instant, GatewayConfiguration)>>>,
     pod_name: Option<String>,
     gateway_namespace: Option<String>,
     gateway_name: Option<String>,
 }
 
-impl FetchGatewayConfigurationParamsBuilder {
+impl FetchConfigurationParamsBuilder {
     pub fn primary_socket_addr(&mut self, addr: &Receiver<Option<SocketAddr>>) -> &mut Self {
         self.primary_socket_addr = Some(addr.clone());
         self
@@ -44,14 +44,6 @@ impl FetchGatewayConfigurationParamsBuilder {
 
     pub fn gateway_events(&mut self, events: BroadcastReceiver<GatewayEvent>) -> &mut Self {
         self.gateway_events = Some(events);
-        self
-    }
-
-    pub fn gateway_configuration(
-        &mut self,
-        configuration: &Sender<Option<(Instant, GatewayConfiguration)>>,
-    ) -> &mut Self {
-        self.gateway_configuration = Some(configuration.clone());
         self
     }
 
@@ -70,17 +62,14 @@ impl FetchGatewayConfigurationParamsBuilder {
         self
     }
 
-    pub fn build(self) -> FetchGatewayConfigurationParams {
-        FetchGatewayConfigurationParams {
+    pub fn build(self) -> FetchConfigurationParams {
+        FetchConfigurationParams {
             primary_socket_addr: self
                 .primary_socket_addr
                 .expect("Primary socket address is required"),
             gateway_events: self
                 .gateway_events
                 .expect("Gateway events receiver is required"),
-            gateway_configuration: self
-                .gateway_configuration
-                .expect("Gateway configuration sender is required"),
             pod_name: self.pod_name.expect("Pod name is required"),
             gateway_namespace: self
                 .gateway_namespace
@@ -90,10 +79,12 @@ impl FetchGatewayConfigurationParamsBuilder {
     }
 }
 
-pub fn fetch_gateway_configuration(
+pub fn fetch_configuration(
     join_set: &mut JoinSet<()>,
-    params: FetchGatewayConfigurationParams,
-) {
+    params: FetchConfigurationParams,
+) -> Receiver<Option<(Instant, GatewayConfiguration)>> {
+    let (tx, rx) = channel(None);
+
     join_set.spawn(async move {
         let mut gateway_events = params.gateway_events;
         let client = Client::new();
@@ -113,17 +104,47 @@ pub fn fetch_gateway_configuration(
                     url
                 };
 
-                info!("Fetching configuration from URL: {}", url);
+                debug!("Fetching configuration from URL: {}", url);
+
+                let serial = Instant::now(); // capture the time before the request
 
                 match client.get(url).send().await {
+                    Ok(response) if response.status() == StatusCode::OK => {
+                        match response.bytes().await {
+                            Ok(bytes) => {
+                                let buf = BufReader::new(bytes.as_ref());
+                                match read_configuration(buf) {
+                                    Ok(configuration) => {
+                                        debug!("Configuration fetched successfully");
+                                        tx.replace(Some((serial, configuration)));
+                                    }
+                                    Err(err) => {
+                                        warn!("Error reading configuration: {}", err);
+                                        tx.replace(None);
+                                    }
+                                }
+                            }
+                            Err(err) => {
+                                warn!("Error reading response body: {}", err);
+                                tx.replace(None);
+                            }
+                        }
+                    }
                     Ok(response) => {
-                        info!("Received response: {:?}", response);
+                        info!("Unexpected response fetching configuration: {:?}", response);
+                        tx.replace(None);
                     }
                     Err(err) => {
-                        error!("Failed to fetch configuration: {}", err);
+                        warn!("Error fetching configuration: {}", err);
+                        tx.replace(None);
                     }
                 }
+            } else {
+                tx.replace(None);
+                let _ = params.primary_socket_addr.changed().await;
             }
         }
     });
+
+    rx
 }

@@ -5,14 +5,13 @@ mod services;
 mod util;
 
 use crate::cli::Cli;
-use crate::config::config_watcher_controller::ConfigurationReaderParameters;
 use crate::config::topology::TopologyLocationBuilder;
-use crate::controllers::config::ipc::fetch_gateway_configuration;
+use crate::controllers::config::fs::{watch_configuration_file, WatchConfigurationFileParams};
+use crate::controllers::config::ipc::{fetch_configuration, FetchConfigurationParams};
+use crate::controllers::config::selector::{select_configuration, SelectorParams};
 use crate::controllers::events::{poll_gateway_events, PollGatewayEventsParams};
 use crate::services::proxy::ProxyBuilder;
 use clap::Parser;
-use controllers::events;
-use futures::task::SpawnExt;
 use kubera_core::config::logging::init_logging;
 use kubera_core::continue_on;
 use kubera_core::sync::signal::channel;
@@ -24,7 +23,8 @@ use prometheus::{register_int_gauge, IntGauge};
 use std::path::PathBuf;
 use tokio::join;
 use tokio::task::{spawn_blocking, JoinSet};
-use tracing::warn;
+use tracing::field::debug;
+use tracing::{debug, warn};
 
 static MY_COUNTER: Lazy<IntGauge> =
     Lazy::new(|| register_int_gauge!("my_counter", "my counter").unwrap());
@@ -47,29 +47,14 @@ async fn main() {
         current_location.build()
     };
 
-    let configuration_reader_params = {
-        ConfigurationReaderParameters::<PathBuf>::new_builder()
-            .config_path(cli.config_file_path())
-            .gateway_name(cli.gateway_name())
-            .gateway_namespace(cli.pod_namespace())
-            .build()
-            .expect("Failed to build ConfigurationReaderParameters")
-    };
-
-    let (tx, rx) = kubera_core::sync::signal::channel(None);
-
-    let config = config::config_watcher_controller::spawn_controller(configuration_reader_params)
-        .expect("Failed to spawn controller");
-    let router = config::router_controller::spawn_controller(config.clone(), current_location)
-        .await
-        .expect("Failed to spawn router controller");
+    let (signal_new_primary_socket_addr, primary_socket_addr) = channel(None);
 
     let mut join_set = JoinSet::new();
 
     let gateway_events = {
         let mut params = PollGatewayEventsParams::new_builder();
         params
-            .primary_socket_addr(&rx)
+            .primary_socket_addr(&primary_socket_addr)
             .pod_name(cli.pod_name())
             .gateway_namespace(cli.pod_namespace())
             .gateway_name(cli.gateway_name());
@@ -77,30 +62,50 @@ async fn main() {
         poll_gateway_events(&mut join_set, params.build())
     };
 
-    let _ = {
-        let (tx, _) = channel(None);
-
-        let mut params = controllers::config::ipc::FetchGatewayConfigurationParams::new_builder();
+    let ipc_configuration_source = {
+        let mut params = FetchConfigurationParams::new_builder();
         params
-            .primary_socket_addr(&rx)
+            .primary_socket_addr(&primary_socket_addr)
             .gateway_events(gateway_events.subscribe())
-            .gateway_configuration(&tx)
             .pod_name(cli.pod_name())
             .gateway_namespace(cli.pod_namespace())
             .gateway_name(cli.gateway_name());
 
-        fetch_gateway_configuration(&mut join_set, params.build())
+        fetch_configuration(&mut join_set, params.build())
     };
+
+    let fs_configuration_source = {
+        let mut params = WatchConfigurationFileParams::new_builder();
+        params.file_path(cli.config_file_path());
+        watch_configuration_file(&mut join_set, params.build())
+    };
+
+    let config = {
+        let mut params = SelectorParams::new_builder();
+        params
+            .ipc_configuration_source(ipc_configuration_source)
+            .fs_configuration_source(fs_configuration_source);
+
+        select_configuration(
+            &mut join_set,
+            params.build().expect("Failed to build SelectorParams"),
+        )
+    };
+
+    let router = config::router_controller::spawn_controller(config.clone(), current_location)
+        .await
+        .expect("Failed to spawn router controller");
 
     join_set.spawn(async move {
         loop {
-            let cc = config
-                .current()
+            let cc = config.current();
+            debug!("Current configuration: {:?}", cc);
+            let cc = cc
                 .as_ref()
                 .clone()
                 .and_then(|c| c.controlplane().clone())
                 .and_then(|c| c.primary_endpoint().clone());
-            tx.replace(cc);
+            signal_new_primary_socket_addr.replace(cc);
 
             continue_on!(config.changed());
         }

@@ -1,7 +1,9 @@
 use crate::objects::ObjectRef;
 use dashmap::DashMap;
 use dashmap::mapref::one::Ref;
+use kubera_core::config::gateway::serde::write_configuration;
 use kubera_core::config::gateway::types::GatewayConfiguration;
+use std::io::BufWriter;
 use std::sync::Arc;
 
 pub fn create_gateway_configuration_services()
@@ -40,9 +42,11 @@ pub struct GatewayConfigurationManager {
 
 impl GatewayConfigurationManager {
     pub fn insert(&self, gateway_ref: ObjectRef, configuration: &GatewayConfiguration) {
-        let yaml = serde_yaml::to_string(configuration)
-            .expect("Failed to serialize GatewayConfiguration to YAML");
-        self.configurations.insert(gateway_ref, yaml);
+        let mut buf = BufWriter::new(Vec::new());
+        if let Ok(_) = write_configuration(configuration, &mut buf) {
+            let yaml = String::from_utf8(buf.into_inner().unwrap()).unwrap();
+            self.configurations.insert(gateway_ref, yaml);
+        }
     }
 
     pub fn remove(&self, gateway_ref: &ObjectRef) {
