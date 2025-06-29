@@ -119,6 +119,9 @@ pub fn poll_gateway_events(
                                             tracing::error!("Failed to parse gateway event: {}", e);
                                         });
                                 }
+                                Ok(Some(_)) => {
+                                    tracing::debug!("Received non-event SSE message");
+                                }
                                 Ok(None) => {
                                     tracing::info!("Event stream ended");
                                     break 'events; // Exit if the stream ends
@@ -126,9 +129,6 @@ pub fn poll_gateway_events(
                                 Err(e) => {
                                     tracing::error!("Error receiving event: {}", e);
                                     break 'events; // Exit on error
-                                }
-                                e => {
-                                    tracing::debug!("Received unexpected event type: {:?}", e);
                                 }
                             }
                         }

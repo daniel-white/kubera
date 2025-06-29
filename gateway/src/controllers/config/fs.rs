@@ -1,12 +1,12 @@
 use getset::Getters;
 use kubera_core::config::gateway::serde::read_configuration;
 use kubera_core::config::gateway::types::GatewayConfiguration;
-use kubera_core::continue_on;
 use kubera_core::io::file_watcher::spawn_file_watcher;
 use kubera_core::sync::signal::{channel, Receiver};
+use kubera_core::{continue_after, continue_on};
 use std::io::Cursor;
 use std::path::{Path, PathBuf};
-use std::time::Instant;
+use std::time::{Duration, Instant};
 use tokio::fs::read;
 use tokio::task::JoinSet;
 use tracing::{debug, info};
@@ -65,12 +65,15 @@ pub fn watch_configuration_file(
 
             if let Ok(config_reader) = read(&params.file_path).await.map(Cursor::new) {
                 if let Ok(config) = read_configuration(config_reader) {
-                    info!("Configuration file changed");
+                    info!("Configuration file read");
                     tx.replace(Some((serial, config)));
                 }
             }
-            
-            continue_on!(file_watcher.changed());
+
+            continue_after!(
+                Duration::from_secs(30), // failsafe timeout to force a re-read
+                file_watcher.changed()
+            );
         }
     });
 

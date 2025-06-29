@@ -9,7 +9,7 @@ use crate::config::topology::TopologyLocationBuilder;
 use crate::controllers::config::fs::{watch_configuration_file, WatchConfigurationFileParams};
 use crate::controllers::config::ipc::{fetch_configuration, FetchConfigurationParams};
 use crate::controllers::config::selector::{select_configuration, SelectorParams};
-use crate::controllers::events::{poll_gateway_events, PollGatewayEventsParams};
+use crate::controllers::ipc_events::{poll_gateway_events, PollGatewayEventsParams};
 use crate::services::proxy::ProxyBuilder;
 use clap::Parser;
 use kubera_core::config::logging::init_logging;
