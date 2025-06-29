@@ -7,9 +7,12 @@ mod util;
 use crate::cli::Cli;
 use crate::config::topology::TopologyLocationBuilder;
 use crate::controllers::config::fs::{watch_configuration_file, WatchConfigurationFileParams};
-use crate::controllers::config::ipc::{fetch_configuration, FetchConfigurationParams};
+use crate::controllers::config::ipc::{
+    fetch_configuration, watch_ipc_socket_addr, FetchConfigurationParams,
+};
 use crate::controllers::config::selector::{select_configuration, SelectorParams};
 use crate::controllers::ipc_events::{poll_gateway_events, PollGatewayEventsParams};
+use crate::controllers::router::synthesize_http_router;
 use crate::services::proxy::ProxyBuilder;
 use clap::Parser;
 use kubera_core::config::logging::init_logging;
@@ -47,14 +50,14 @@ async fn main() {
         current_location.build()
     };
 
-    let (signal_new_primary_socket_addr, primary_socket_addr) = channel(None);
+    let (ipc_socket_addr_tx, ipc_socket_addr) = channel(None);
 
     let mut join_set = JoinSet::new();
 
     let gateway_events = {
         let mut params = PollGatewayEventsParams::new_builder();
         params
-            .primary_socket_addr(&primary_socket_addr)
+            .primary_socket_addr(&ipc_socket_addr)
             .pod_name(cli.pod_name())
             .gateway_namespace(cli.pod_namespace())
             .gateway_name(cli.gateway_name());
@@ -65,7 +68,7 @@ async fn main() {
     let ipc_configuration_source = {
         let mut params = FetchConfigurationParams::new_builder();
         params
-            .primary_socket_addr(&primary_socket_addr)
+            .primary_socket_addr(&ipc_socket_addr)
             .gateway_events(gateway_events.subscribe())
             .pod_name(cli.pod_name())
             .gateway_namespace(cli.pod_namespace())
@@ -92,24 +95,9 @@ async fn main() {
         )
     };
 
-    let router = config::router_controller::spawn_controller(config.clone(), current_location)
-        .await
-        .expect("Failed to spawn router controller");
+    watch_ipc_socket_addr(&mut join_set, &config, ipc_socket_addr_tx);
 
-    join_set.spawn(async move {
-        loop {
-            let cc = config.current();
-            debug!("Current configuration: {:?}", cc);
-            let cc = cc
-                .as_ref()
-                .clone()
-                .and_then(|c| c.controlplane().clone())
-                .and_then(|c| c.primary_endpoint().clone());
-            signal_new_primary_socket_addr.replace(cc);
-
-            continue_on!(config.changed());
-        }
-    });
+    let router = synthesize_http_router(config, current_location);
 
     join_set.join_all().await;
 

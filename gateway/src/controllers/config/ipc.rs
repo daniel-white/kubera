@@ -1,8 +1,9 @@
 use http::StatusCode;
 use kubera_core::config::gateway::serde::read_configuration;
 use kubera_core::config::gateway::types::GatewayConfiguration;
+use kubera_core::continue_on;
 use kubera_core::ipc::GatewayEvent;
-use kubera_core::sync::signal::{Receiver, channel};
+use kubera_core::sync::signal::{channel, Receiver, Sender};
 use reqwest::Client;
 use std::io::BufReader;
 use std::net::SocketAddr;
@@ -147,4 +148,27 @@ pub fn fetch_configuration(
     });
 
     rx
+}
+
+pub fn watch_ipc_socket_addr(
+    join_set: &mut JoinSet<()>,
+    gateway_configuration: &Receiver<Option<GatewayConfiguration>>,
+    tx: Sender<Option<SocketAddr>>,
+) {
+    let gateway_configuration = gateway_configuration.clone();
+
+    join_set.spawn(async move {
+        loop {
+            let current_configuration = gateway_configuration.current();
+            let primary_endpoint = current_configuration
+                .as_ref()
+                .as_ref()
+                .and_then(|c| c.controlplane().clone())
+                .and_then(|c| c.primary_endpoint().clone());
+
+            tx.replace(primary_endpoint);
+
+            continue_on!(gateway_configuration.changed());
+        }
+    });
 }

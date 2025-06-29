@@ -1,22 +1,18 @@
+use crate::config::topology::TopologyLocation;
 use crate::services::proxy::router::{HttpRouter, HttpRouterBuilder};
 use http::HeaderValue;
-use std::sync::Arc;
-
-use crate::config::topology::TopologyLocation;
-use kubera_core::config::gateway::types::GatewayConfiguration;
 use kubera_core::config::gateway::types::http::router::*;
+use kubera_core::config::gateway::types::GatewayConfiguration;
 use kubera_core::continue_on;
-use kubera_core::sync::signal::{Receiver, channel};
+use kubera_core::sync::signal::{channel, Receiver};
+use std::sync::Arc;
 use thiserror::Error;
 use tracing::{debug, warn};
 
-#[derive(Debug, Error)]
-pub enum ControllerError {}
-
-pub async fn spawn_controller(
+pub fn synthesize_http_router(
     gateway_configuration: Receiver<Option<GatewayConfiguration>>,
     current_location: TopologyLocation,
-) -> Result<Receiver<Option<HttpRouter>>, ControllerError> {
+) -> Receiver<Option<HttpRouter>> {
     let (tx, rx) = channel(None);
 
     let gateway_configuration = gateway_configuration.clone();
@@ -27,8 +23,6 @@ pub async fn spawn_controller(
         loop {
             if let Some(gateway_config) = gateway_configuration.current().as_ref() {
                 let mut router = HttpRouterBuilder::new(&current_location);
-
-                warn!("Current location: {:?}", gateway_config);
 
                 // for host_match in gateway_config.hosts().iter() {
                 //     match host_match.match_type() {
@@ -159,5 +153,5 @@ pub async fn spawn_controller(
         }
     });
 
-    Ok(rx)
+    rx
 }
