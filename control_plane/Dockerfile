@@ -7,11 +7,11 @@ WORKDIR /usr/src/kubera
 COPY Cargo.toml Cargo.lock ./
 COPY api/Cargo.toml ./api/
 COPY core/Cargo.toml ./core/
-COPY controlplane/Cargo.toml ./controlplane/
+COPY control_plane/Cargo.toml ./control_plane/
 # TODO do a cargo fetch here
 COPY . .
-RUN cargo build --release --bin kubera_controlplane
+RUN cargo build --release --bin kubera_control_plane
 
 FROM debian:${DEBIAN_RELEASE}-slim
-COPY --from=builder /usr/src/kubera/target/release/kubera_controlplane /usr/local/bin/
-CMD ["kubera_controlplane"]
+COPY --from=builder /usr/src/kubera/target/release/kubera_control_plane /usr/local/bin/
+CMD ["kubera_control_plane"]

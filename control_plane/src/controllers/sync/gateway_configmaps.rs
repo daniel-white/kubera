@@ -177,7 +177,7 @@ fn generate_gateway_configurations(
                     let mut gateway_configuration = GatewayConfigurationBuilder::new();
 
                     if let Some(ip_addr) = primary_instance_ip_addr.current().as_ref() {
-                        gateway_configuration.with_controlplane(|cp| {
+                        gateway_configuration.with_ipc(|cp| {
                             cp.with_endpoint(ip_addr, &ipc_services.port());
                         });
                     }

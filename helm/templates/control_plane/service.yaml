@@ -1,13 +1,13 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ include "controlplane.name" . }}
+  name: {{ include "controlPlane.name" . }}
   namespace: {{ .Release.Namespace }}
   labels: {{ (include "labels" .) | nindent 4 }}
 spec:
   type: ClusterIP
   selector:
-    app: {{ include "controlplane.name" . }}
+    app: {{ include "controlPlane.name" . }}
   ports:
     - port: 80
       targetPort: 8000

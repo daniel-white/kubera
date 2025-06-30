@@ -1,0 +1,47 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "controlPlane.name" . }}
+  namespace: {{ .Release.Namespace }}
+spec:
+  replicas: {{ .Values.controlPlane.deployment.replicas | default 2 }}
+  {{- if .Values.controlPlane.deployment.strategy }}
+  strategy:
+    {{- toYaml .Values.controlPlane.deployment.strategy | nindent 4 -}}
+  {{- end }}
+  selector:
+    matchLabels:
+      app: {{ include "controlPlane.name" . }}
+  template:
+    metadata:
+      {{- if .Values.podAnnotations }}
+      annotations: {{ toYaml .Values.podAnnotations | nindent 8 }}
+      {{- end }}
+      labels: {{ (include "labels" .) | nindent 8 }}
+        app: {{ include "controlPlane.name" . }}
+    spec:
+      serviceAccountName: {{ include "controlPlane.name" . }}
+      containers:
+        - name: control-plane
+          image: {{ default .Values.controlPlane.image.repository "kubera-control-plane" }}:{{ default .Values.controlPlane.image.tag "latest" }}
+          imagePullPolicy: {{ default .Values.controlPlane.deployment.imagePullPolicy .Values.deployments.imagePullPolicy "IfNotPresent" }}
+          env:
+            - name: RUST_LOG
+              value: {{ (default .Values.controlPlane.logLevel .Values.logLevel "Warn") | lower }}
+            - name: KUBERA_INSTANCE
+              value: {{ include "controlPlane.name" . }}
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: PORT
+              value: "8080"
+          resources: {{ toYaml .Values.controlPlane.resources | nindent 12 }}
+          ports:
+            - containerPort: 8080
+              name: http
+

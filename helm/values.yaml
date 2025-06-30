@@ -3,10 +3,10 @@ logLevel: Info
 deployments:
   imagePullPolicy: IfNotPresent
 
-gatewayclass:
+gatewayClass:
   name: ""
 
-controlplane:
+controlPlane:
   name: ""
   logLevel: ""
   deployment:
@@ -15,7 +15,7 @@ controlplane:
     strategy:
       type: Recreate
   image:
-    repository: kubera-controlplane
+    repository: kubera-control-plane
     tag: latest
   resources:
     limits:

@@ -4,7 +4,6 @@ use getset::{CopyGetters, Getters};
 use kubera_core::net::Port;
 
 #[derive(Parser, Getters, CopyGetters)]
-#[command(name = "kubera-controlplane")]
 #[command(about = "A Kubernetes control plane for Kubera", long_about = None)]
 pub struct Cli {
     #[getset(get_copy = "pub")]

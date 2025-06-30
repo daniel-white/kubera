@@ -1,12 +1,12 @@
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: {{ include "controlplane.name" . }}
+  name: {{ include "controlPlane.name" . }}
 subjects:
   - kind: ServiceAccount
-    name: {{ include "controlplane.name" . }}
+    name: {{ include "controlPlane.name" . }}
     namespace: {{ .Release.Namespace }}
 roleRef:
   kind: ClusterRole
-  name: {{ include "controlplane.name" . }}
+  name: {{ include "controlPlane.name" . }}
   apiGroup: rbac.authorization.k8s.io

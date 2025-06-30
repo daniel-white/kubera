@@ -1,5 +1,5 @@
 [package]
-name = "kubera_controlplane"
+name = "kubera_control_plane"
 version = "0.1.0"
 edition = "2024"
 
@@ -35,5 +35,5 @@ kube-leader-election = { git = "https://github.com/daniel-white/kube-leader-elec
 strum = { workspace = true }
 
 [[bin]]
-name = "kubera_controlplane"
+name = "kubera_control_plane"
 path = "src/main.rs"

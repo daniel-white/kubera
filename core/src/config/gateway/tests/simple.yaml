@@ -1,6 +1,6 @@
 version: v1alpha1
-controlplane:
-  primary_endpoint: 10.244.0.56:8080
+ipc:
+  endpoint: 10.244.0.56:8080
 listeners:
   - name: http
     host: null

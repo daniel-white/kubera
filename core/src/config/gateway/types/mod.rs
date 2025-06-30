@@ -50,7 +50,7 @@ pub struct GatewayConfiguration {
 #[derive(Debug, Default)]
 pub struct GatewayConfigurationBuilder {
     version: GatewayConfigurationVersion,
-    controlplane_configuration_builder: Option<IpcConfigurationBuilder>,
+    ipc: Option<IpcConfigurationBuilder>,
     listeners: Vec<Listener>,
     http_route_builders: Vec<HttpRouteBuilder>,
 }
@@ -63,7 +63,7 @@ impl GatewayConfigurationBuilder {
     pub fn build(self) -> GatewayConfiguration {
         GatewayConfiguration {
             version: self.version,
-            ipc: self.controlplane_configuration_builder.map(|b| b.build()),
+            ipc: self.ipc.map(|b| b.build()),
             listeners: self.listeners,
             http_routes: self
                 .http_route_builders
@@ -78,13 +78,13 @@ impl GatewayConfigurationBuilder {
         self
     }
 
-    pub fn with_controlplane<F>(&mut self, factory: F) -> &mut Self
+    pub fn with_ipc<F>(&mut self, factory: F) -> &mut Self
     where
         F: FnOnce(&mut IpcConfigurationBuilder),
     {
         let mut builder = IpcConfigurationBuilder::new();
         factory(&mut builder);
-        self.controlplane_configuration_builder = Some(builder);
+        self.ipc = Some(builder);
         self
     }
 

@@ -2,7 +2,7 @@
 resolver = "3"
 members = ["api",
     "build",
-    "controlplane",
+    "control_plane",
     "core",
     "gateway"
 ]

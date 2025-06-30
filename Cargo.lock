@@ -2218,7 +2218,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "kubera_controlplane"
+name = "kubera_control_plane"
 version = "0.1.0"
 dependencies = [
  "anyhow",

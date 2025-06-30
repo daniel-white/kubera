@@ -3,7 +3,7 @@ kind: GatewayClass
 metadata:
   name: {{ include "gateway_class.name" . }}
 spec:
-  controllerName: kubera.whitefamily.in/controlplane
+  controllerName: kubera.whitefamily.in/controlPlane
   parametersRef:
     group: kubera.whitefamily.in
     kind: GatewayClassParameters

@@ -1,7 +1,7 @@
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: {{ include "controlplane.name" . }}
+  name: {{ include "controlPlane.name" . }}
 rules:
   - apiGroups: [ "apps" ]
     resources: [ "deployments" ]
