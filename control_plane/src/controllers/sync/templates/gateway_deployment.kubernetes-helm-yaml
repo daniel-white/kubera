@@ -24,8 +24,10 @@ spec:
                 path: config.yaml
       containers:
         - name: gateway
-          image: kubera-gateway:latest
+          image: kubera:latest
           imagePullPolicy: {{ .image_pull_policy | quote }}
+          command:
+            - /usr/local/bin/kubera_gateway
           volumeMounts:
             - mountPath: /etc/kubera
               name: config

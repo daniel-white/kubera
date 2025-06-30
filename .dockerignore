@@ -1,5 +1,5 @@
-helm/
+helm/charts/
+helm/crds/generated/
 target/
-**/Dockerfile
+Dockerfile
 .dockerignore
-justfile

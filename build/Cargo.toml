@@ -1,5 +1,5 @@
 [package]
-name = "build"
+name = "kubera_build"
 version = "0.1.0"
 edition = "2024"
 
@@ -12,3 +12,7 @@ kubera_core = { path = "../core" }
 schemars = { workspace = true }
 serde = { workspace = true }
 serde_yaml = { workspace = true }
+
+[lib]
+name = "kubera_build"
+path = "src/lib.rs"

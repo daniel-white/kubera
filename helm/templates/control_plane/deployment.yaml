@@ -23,8 +23,10 @@ spec:
       serviceAccountName: {{ include "controlPlane.name" . }}
       containers:
         - name: control-plane
-          image: {{ default .Values.controlPlane.image.repository "kubera-control-plane" }}:{{ default .Values.controlPlane.image.tag "latest" }}
+          image: {{ default .Values.controlPlane.image.repository "kubera" }}:{{ default .Values.controlPlane.image.tag "latest" }}
           imagePullPolicy: {{ default .Values.controlPlane.deployment.imagePullPolicy .Values.deployments.imagePullPolicy "IfNotPresent" }}
+          command:
+            - /usr/local/bin/kubera_control_plane
           env:
             - name: RUST_LOG
               value: {{ (default .Values.controlPlane.logLevel .Values.logLevel "Warn") | lower }}

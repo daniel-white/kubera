@@ -2,6 +2,7 @@ use kube::CustomResourceExt;
 use kubera_api::v1alpha1::*;
 use kubera_core::config::gateway::types::GatewayConfiguration;
 use schemars::schema_for;
+use std::fs::create_dir_all;
 use std::fs::File;
 use std::io::Write;
 use std::path::Path;
@@ -20,11 +21,13 @@ fn main() {
         .join("helm")
         .join("crds")
         .join("generated");
+
     let out_dir = out_dir.as_path();
     write_crds(out_dir);
 }
 
 fn write_gateway_configuration_schema(out_dir: &Path) {
+    create_dir_all(out_dir).unwrap();
     let dest_path = out_dir.join("gateway_configuration_schema.yaml");
     let mut file = File::create(dest_path).unwrap();
 
@@ -34,6 +37,7 @@ fn write_gateway_configuration_schema(out_dir: &Path) {
 }
 
 fn write_crds(out_dir: &Path) {
+    create_dir_all(out_dir).unwrap();
     let dest_path = out_dir.join("crds.yaml");
     let file = File::create(dest_path).unwrap();
 
