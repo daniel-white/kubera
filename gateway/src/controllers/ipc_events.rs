@@ -14,7 +14,7 @@ use url::Url;
 
 #[derive(Debug, Getters)]
 pub struct PollGatewayEventsParams {
-    primary_socket_addr: Receiver<Option<SocketAddr>>,
+    ipc_endpoint: Receiver<Option<SocketAddr>>,
     pod_name: String,
     gateway_namespace: String,
     gateway_name: String,
@@ -28,15 +28,15 @@ impl PollGatewayEventsParams {
 
 #[derive(Default)]
 pub struct PollGatewayEventsParamsBuilder {
-    primary_socket_addr: Option<Receiver<Option<SocketAddr>>>,
+    ipc_endpoint: Option<Receiver<Option<SocketAddr>>>,
     pod_name: Option<String>,
     gateway_namespace: Option<String>,
     gateway_name: Option<String>,
 }
 
 impl PollGatewayEventsParamsBuilder {
-    pub fn primary_socket_addr(&mut self, addr: &Receiver<Option<SocketAddr>>) -> &mut Self {
-        self.primary_socket_addr = Some(addr.clone());
+    pub fn ipc_endpoint(&mut self, addr: &Receiver<Option<SocketAddr>>) -> &mut Self {
+        self.ipc_endpoint = Some(addr.clone());
         self
     }
 
@@ -57,8 +57,8 @@ impl PollGatewayEventsParamsBuilder {
 
     pub fn build(self) -> PollGatewayEventsParams {
         PollGatewayEventsParams {
-            primary_socket_addr: self
-                .primary_socket_addr
+            ipc_endpoint: self
+                .ipc_endpoint
                 .expect("Primary socket address is required"),
             pod_name: self.pod_name.expect("Pod name is required"),
             gateway_namespace: self
@@ -75,14 +75,14 @@ pub fn poll_gateway_events(
 ) -> Sender<GatewayEvent> {
     let (tx, _) = channel(20);
 
-    let primary_socket_addr = params.primary_socket_addr.clone();
+    let ipc_endpoint = params.ipc_endpoint.clone();
 
     let events_tx = tx.clone();
     join_set.spawn(async move {
         'primary: loop {
-            if let Some(socket_addr) = primary_socket_addr.current().as_ref() {
+            if let Some(ipc_endpoint_addr) = ipc_endpoint.current().as_ref() {
                 let url = {
-                    let mut url = Url::parse(&format!("http://{}", socket_addr))
+                    let mut url = Url::parse(&format!("http://{}", ipc_endpoint_addr))
                         .expect("Failed to parse URL");
                     url.set_path(&format!(
                         "/ipc/namespaces/{}/gateways/{}/events",
@@ -105,7 +105,7 @@ pub fn poll_gateway_events(
                         _ = ctrl_c() => {
                             break 'primary; // Exit the loop, shutting down the watcher
                         },
-                        _ = primary_socket_addr.changed() => {
+                        _ = ipc_endpoint.changed() => {
                             break 'events; // Restart the watcher if the socket address changes
                         },
                         event = event_stream.try_next() => {
@@ -136,7 +136,7 @@ pub fn poll_gateway_events(
                     }
                 }
             } else {
-                continue_on!(primary_socket_addr.changed());
+                continue_on!(ipc_endpoint.changed());
             }
         }
     });

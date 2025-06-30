@@ -36,7 +36,7 @@ pub struct GatewayConfiguration {
     version: GatewayConfigurationVersion,
 
     #[getset(get = "pub")]
-    controlplane: Option<ControlplaneConfiguration>,
+    ipc: Option<IpcConfiguration>,
 
     #[getset(get = "pub")]
     #[validate(max_items = 64)]
@@ -50,7 +50,7 @@ pub struct GatewayConfiguration {
 #[derive(Debug, Default)]
 pub struct GatewayConfigurationBuilder {
     version: GatewayConfigurationVersion,
-    controlplane_configuration_builder: Option<ControlplaneConfigurationBuilder>,
+    controlplane_configuration_builder: Option<IpcConfigurationBuilder>,
     listeners: Vec<Listener>,
     http_route_builders: Vec<HttpRouteBuilder>,
 }
@@ -63,7 +63,7 @@ impl GatewayConfigurationBuilder {
     pub fn build(self) -> GatewayConfiguration {
         GatewayConfiguration {
             version: self.version,
-            controlplane: self.controlplane_configuration_builder.map(|b| b.build()),
+            ipc: self.controlplane_configuration_builder.map(|b| b.build()),
             listeners: self.listeners,
             http_routes: self
                 .http_route_builders
@@ -80,9 +80,9 @@ impl GatewayConfigurationBuilder {
 
     pub fn with_controlplane<F>(&mut self, factory: F) -> &mut Self
     where
-        F: FnOnce(&mut ControlplaneConfigurationBuilder),
+        F: FnOnce(&mut IpcConfigurationBuilder),
     {
-        let mut builder = ControlplaneConfigurationBuilder::new();
+        let mut builder = IpcConfigurationBuilder::new();
         factory(&mut builder);
         self.controlplane_configuration_builder = Some(builder);
         self
@@ -111,32 +111,30 @@ impl GatewayConfigurationBuilder {
 }
 
 #[derive(Validate, Getters, Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-pub struct ControlplaneConfiguration {
+pub struct IpcConfiguration {
     #[getset(get = "pub")]
-    primary_endpoint: Option<SocketAddr>,
+    endpoint: Option<SocketAddr>,
 }
 
 #[derive(Debug, Default)]
-pub struct ControlplaneConfigurationBuilder {
-    primary_endpoint: Option<SocketAddr>,
+pub struct IpcConfigurationBuilder {
+    endpoint: Option<SocketAddr>,
 }
 
-impl ControlplaneConfigurationBuilder {
+impl IpcConfigurationBuilder {
     pub fn new() -> Self {
-        Self {
-            primary_endpoint: None,
-        }
+        Self::default()
     }
 
-    pub fn with_primary_endpoint(&mut self, ip_addr: &IpAddr, port: &Port) -> &mut Self {
-        let socket_addr = SocketAddr::new(ip_addr.clone(), (*port).into());
-        self.primary_endpoint = Some(socket_addr);
+    pub fn with_endpoint(&mut self, ip_addr: &IpAddr, port: &Port) -> &mut Self {
+        let endpoint = SocketAddr::new(ip_addr.clone(), (*port).into());
+        self.endpoint = Some(endpoint);
         self
     }
 
-    pub fn build(self) -> ControlplaneConfiguration {
-        ControlplaneConfiguration {
-            primary_endpoint: self.primary_endpoint,
+    pub fn build(self) -> IpcConfiguration {
+        IpcConfiguration {
+            endpoint: self.endpoint,
         }
     }
 }

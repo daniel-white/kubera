@@ -6,7 +6,7 @@ use self::endpoints::router;
 use self::events::EventStreamFactory;
 use crate::ipc::events::EventSender;
 use crate::ipc::gateways::{
-    GatewayConfigurationManager, GatewayConfigurationReader, create_gateway_configuration_services,
+    create_gateway_configuration_services, GatewayConfigurationManager, GatewayConfigurationReader,
 };
 use crate::objects::ObjectRef;
 use anyhow::Result;
@@ -45,7 +45,7 @@ impl IpcServiceConfiguration {
         IpcServiceConfigurationBuilder::default()
     }
 
-    fn socket_address(&self) -> SocketAddr {
+    fn endpoint(&self) -> SocketAddr {
         SocketAddr::from(([0, 0, 0, 0], self.port.into()))
     }
 }
@@ -109,14 +109,14 @@ impl IpcServices {
 
 pub async fn spawn_ipc_service(ipc_configuration: IpcServiceConfiguration) -> Result<IpcServices> {
     let (event_sender, events_factory) = events::events_channel();
-    let socket_address = ipc_configuration.socket_address();
+    let endpoint = ipc_configuration.endpoint();
 
     let (reader, gateway_manager) = create_gateway_configuration_services();
 
     let services = IpcServices::new_builder()
         .events(event_sender)
         .gateway_configuration_manager(gateway_manager)
-        .port(Port::new(socket_address.port()))
+        .port(Port::new(endpoint.port()))
         .build()?;
 
     let state = IpcServicesState::new_builder()
@@ -124,9 +124,9 @@ pub async fn spawn_ipc_service(ipc_configuration: IpcServiceConfiguration) -> Re
         .events(events_factory)
         .build()?;
 
-    info!("Starting IPC service on {}", socket_address);
+    info!("Starting IPC service on {}", endpoint);
 
-    let tcp_listener = TcpListener::bind(socket_address).await?;
+    let tcp_listener = TcpListener::bind(endpoint).await?;
 
     spawn(async move {
         select! {

@@ -8,7 +8,7 @@ use crate::cli::Cli;
 use crate::config::topology::TopologyLocationBuilder;
 use crate::controllers::config::fs::{watch_configuration_file, WatchConfigurationFileParams};
 use crate::controllers::config::ipc::{
-    fetch_configuration, watch_ipc_socket_addr, FetchConfigurationParams,
+    fetch_configuration, watch_ipc_endpoint, FetchConfigurationParams,
 };
 use crate::controllers::config::selector::{select_configuration, SelectorParams};
 use crate::controllers::ipc_events::{poll_gateway_events, PollGatewayEventsParams};
@@ -50,14 +50,14 @@ async fn main() {
         current_location.build()
     };
 
-    let (ipc_socket_addr_tx, ipc_socket_addr) = channel(None);
+    let (ipc_endpoint_tx, ipc_endpoint) = channel(None);
 
     let mut join_set = JoinSet::new();
 
     let gateway_events = {
         let mut params = PollGatewayEventsParams::new_builder();
         params
-            .primary_socket_addr(&ipc_socket_addr)
+            .ipc_endpoint(&ipc_endpoint)
             .pod_name(cli.pod_name())
             .gateway_namespace(cli.pod_namespace())
             .gateway_name(cli.gateway_name());
@@ -68,7 +68,7 @@ async fn main() {
     let ipc_configuration_source = {
         let mut params = FetchConfigurationParams::new_builder();
         params
-            .primary_socket_addr(&ipc_socket_addr)
+            .ipc_endpoint(&ipc_endpoint)
             .gateway_events(gateway_events.subscribe())
             .pod_name(cli.pod_name())
             .gateway_namespace(cli.pod_namespace())
@@ -95,7 +95,7 @@ async fn main() {
         )
     };
 
-    watch_ipc_socket_addr(&mut join_set, &config, ipc_socket_addr_tx);
+    watch_ipc_endpoint(&mut join_set, &config, ipc_endpoint_tx);
 
     let router = synthesize_http_router(config, current_location);
 

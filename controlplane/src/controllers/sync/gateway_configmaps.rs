@@ -178,7 +178,7 @@ fn generate_gateway_configurations(
 
                     if let Some(ip_addr) = primary_instance_ip_addr.current().as_ref() {
                         gateway_configuration.with_controlplane(|cp| {
-                            cp.with_primary_endpoint(ip_addr, &ipc_services.port());
+                            cp.with_endpoint(ip_addr, &ipc_services.port());
                         });
                     }
 

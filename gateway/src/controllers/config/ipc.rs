@@ -15,7 +15,7 @@ use url::Url;
 
 #[derive(Debug)]
 pub struct FetchConfigurationParams {
-    primary_socket_addr: Receiver<Option<SocketAddr>>,
+    ipc_endpoint: Receiver<Option<SocketAddr>>,
     gateway_events: BroadcastReceiver<GatewayEvent>,
     pod_name: String,
     gateway_namespace: String,
@@ -30,7 +30,7 @@ impl FetchConfigurationParams {
 
 #[derive(Default)]
 pub struct FetchConfigurationParamsBuilder {
-    primary_socket_addr: Option<Receiver<Option<SocketAddr>>>,
+    ipc_endpoint: Option<Receiver<Option<SocketAddr>>>,
     gateway_events: Option<BroadcastReceiver<GatewayEvent>>,
     pod_name: Option<String>,
     gateway_namespace: Option<String>,
@@ -38,8 +38,8 @@ pub struct FetchConfigurationParamsBuilder {
 }
 
 impl FetchConfigurationParamsBuilder {
-    pub fn primary_socket_addr(&mut self, addr: &Receiver<Option<SocketAddr>>) -> &mut Self {
-        self.primary_socket_addr = Some(addr.clone());
+    pub fn ipc_endpoint(&mut self, addr: &Receiver<Option<SocketAddr>>) -> &mut Self {
+        self.ipc_endpoint = Some(addr.clone());
         self
     }
 
@@ -65,8 +65,8 @@ impl FetchConfigurationParamsBuilder {
 
     pub fn build(self) -> FetchConfigurationParams {
         FetchConfigurationParams {
-            primary_socket_addr: self
-                .primary_socket_addr
+            ipc_endpoint: self
+                .ipc_endpoint
                 .expect("Primary socket address is required"),
             gateway_events: self
                 .gateway_events
@@ -90,12 +90,12 @@ pub fn fetch_configuration(
         let mut gateway_events = params.gateway_events;
         let client = Client::new();
         loop {
-            if let Some(socket_addr) = params.primary_socket_addr.current().as_ref()
+            if let Some(ipc_endpoint_addr) = params.ipc_endpoint.current().as_ref()
                 && let Ok(event) = gateway_events.recv().await
                 && let GatewayEvent::ConfigurationUpdate(_) = event
             {
                 let url = {
-                    let mut url = Url::parse(&format!("http://{}", socket_addr))
+                    let mut url = Url::parse(&format!("http://{}", ipc_endpoint_addr))
                         .expect("Failed to parse URL");
                     url.set_path(&format!(
                         "/ipc/namespaces/{}/gateways/{}/configuration",
@@ -142,7 +142,7 @@ pub fn fetch_configuration(
                 }
             } else {
                 tx.replace(None);
-                let _ = params.primary_socket_addr.changed().await;
+                let _ = params.ipc_endpoint.changed().await;
             }
         }
     });
@@ -150,7 +150,7 @@ pub fn fetch_configuration(
     rx
 }
 
-pub fn watch_ipc_socket_addr(
+pub fn watch_ipc_endpoint(
     join_set: &mut JoinSet<()>,
     gateway_configuration: &Receiver<Option<GatewayConfiguration>>,
     tx: Sender<Option<SocketAddr>>,
@@ -163,8 +163,8 @@ pub fn watch_ipc_socket_addr(
             let primary_endpoint = current_configuration
                 .as_ref()
                 .as_ref()
-                .and_then(|c| c.controlplane().clone())
-                .and_then(|c| c.primary_endpoint().clone());
+                .and_then(|c| c.ipc().clone())
+                .and_then(|c| c.endpoint().clone());
 
             tx.replace(primary_endpoint);
 
