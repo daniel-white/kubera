@@ -2,7 +2,7 @@ use derive_builder::Builder;
 use getset::Getters;
 use kubera_core::config::gateway::types::GatewayConfiguration;
 use kubera_core::continue_on;
-use kubera_core::sync::signal::{channel, Receiver};
+use kubera_core::sync::signal::{Receiver, channel};
 use std::time::Instant;
 use tokio::task::JoinSet;
 use tracing::debug;

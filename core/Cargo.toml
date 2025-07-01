@@ -6,11 +6,13 @@ edition = "2024"
 [dependencies]
 anyhow = { workspace = true }
 atomic_refcell = "0.1.13"
+backtrace-on-stack-overflow = "0.3"
 derive_builder = { workspace = true }
 flexi_logger = { workspace = true }
 getset = { workspace = true }
 http = { workspace = true }
 notify = "8"
+rustls = { workspace = true }
 schemars = { workspace = true }
 serde = { workspace = true }
 serde_valid = { version = "1", features = ["yaml"] }

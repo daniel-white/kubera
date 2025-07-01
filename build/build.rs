@@ -2,8 +2,8 @@ use kube::CustomResourceExt;
 use kubera_api::v1alpha1::*;
 use kubera_core::config::gateway::types::GatewayConfiguration;
 use schemars::schema_for;
-use std::fs::create_dir_all;
 use std::fs::File;
+use std::fs::create_dir_all;
 use std::io::Write;
 use std::path::Path;
 

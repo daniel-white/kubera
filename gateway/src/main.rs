@@ -6,26 +6,27 @@ mod util;
 
 use crate::cli::Cli;
 use crate::config::topology::TopologyLocationBuilder;
-use crate::controllers::config::fs::{watch_configuration_file, WatchConfigurationFileParams};
+use crate::controllers::config::fs::{WatchConfigurationFileParams, watch_configuration_file};
 use crate::controllers::config::ipc::{
-    fetch_configuration, watch_ipc_endpoint, FetchConfigurationParams,
+    FetchConfigurationParams, fetch_configuration, watch_ipc_endpoint,
 };
-use crate::controllers::config::selector::{select_configuration, SelectorParams};
-use crate::controllers::ipc_events::{poll_gateway_events, PollGatewayEventsParams};
+use crate::controllers::config::selector::{SelectorParams, select_configuration};
+use crate::controllers::ipc_events::{PollGatewayEventsParams, poll_gateway_events};
 use crate::controllers::router::synthesize_http_router;
 use crate::services::proxy::ProxyBuilder;
 use clap::Parser;
-use kubera_core::config::logging::init_logging;
 use kubera_core::continue_on;
+use kubera_core::crypto::init_crypto;
+use kubera_core::instrumentation::init_instrumentation;
 use kubera_core::sync::signal::channel;
 use once_cell::sync::Lazy;
 use pingora::prelude::*;
 use pingora::server::Server;
 use pingora::services::listening::Service;
-use prometheus::{register_int_gauge, IntGauge};
+use prometheus::{IntGauge, register_int_gauge};
 use std::path::PathBuf;
 use tokio::join;
-use tokio::task::{spawn_blocking, JoinSet};
+use tokio::task::{JoinSet, spawn_blocking};
 use tracing::field::debug;
 use tracing::{debug, warn};
 
@@ -34,16 +35,14 @@ static MY_COUNTER: Lazy<IntGauge> =
 
 #[tokio::main]
 async fn main() {
-    init_logging();
-    let cli = Cli::parse();
+    init_crypto();
+    init_instrumentation();
 
-    rustls::crypto::ring::default_provider()
-        .install_default()
-        .expect("Failed to install rustls crypto provider");
+    let args = Cli::parse();
 
     let current_location = {
-        let zone_name = cli.zone_name().filter(|z| !z.is_empty());
-        let node_name = cli.node_name().filter(|n| !n.is_empty());
+        let zone_name = args.zone_name().filter(|z| !z.is_empty());
+        let node_name = args.node_name().filter(|n| !n.is_empty());
 
         let mut current_location = TopologyLocationBuilder::default();
         current_location.in_zone(&zone_name).on_node(&node_name);
@@ -58,9 +57,9 @@ async fn main() {
         let mut params = PollGatewayEventsParams::new_builder();
         params
             .ipc_endpoint(&ipc_endpoint)
-            .pod_name(cli.pod_name())
-            .gateway_namespace(cli.pod_namespace())
-            .gateway_name(cli.gateway_name());
+            .pod_name(args.pod_name())
+            .gateway_namespace(args.pod_namespace())
+            .gateway_name(args.gateway_name());
 
         poll_gateway_events(&mut join_set, params.build())
     };
@@ -70,16 +69,16 @@ async fn main() {
         params
             .ipc_endpoint(&ipc_endpoint)
             .gateway_events(gateway_events.subscribe())
-            .pod_name(cli.pod_name())
-            .gateway_namespace(cli.pod_namespace())
-            .gateway_name(cli.gateway_name());
+            .pod_name(args.pod_name())
+            .gateway_namespace(args.pod_namespace())
+            .gateway_name(args.gateway_name());
 
         fetch_configuration(&mut join_set, params.build())
     };
 
     let fs_configuration_source = {
         let mut params = WatchConfigurationFileParams::new_builder();
-        params.file_path(cli.config_file_path());
+        params.file_path(args.config_file_path());
         watch_configuration_file(&mut join_set, params.build())
     };
 

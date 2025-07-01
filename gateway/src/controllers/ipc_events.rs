@@ -7,7 +7,7 @@ use kubera_core::sync::signal::Receiver;
 use std::net::SocketAddr;
 use tokio::select;
 use tokio::signal::ctrl_c;
-use tokio::sync::broadcast::{channel, Sender};
+use tokio::sync::broadcast::{Sender, channel};
 use tokio::task::JoinSet;
 use tracing::info;
 use url::Url;

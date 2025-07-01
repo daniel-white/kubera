@@ -2223,7 +2223,6 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "axum",
- "backtrace-on-stack-overflow",
  "clap 4.5.40",
  "dashmap",
  "derive_builder",
@@ -2240,7 +2239,6 @@ dependencies = [
  "kubera_api",
  "kubera_core",
  "problemdetails",
- "rustls 0.23.28",
  "serde",
  "serde_json",
  "serde_yaml 0.9.34+deprecated",
@@ -2258,11 +2256,13 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "atomic_refcell",
+ "backtrace-on-stack-overflow",
  "derive_builder",
  "flexi_logger",
  "getset",
  "http 1.3.1",
  "notify",
+ "rustls 0.23.28",
  "schemars 0.9.0",
  "serde",
  "serde_valid",
@@ -2296,11 +2296,9 @@ dependencies = [
  "regex",
  "reqwest",
  "rstest",
- "rustls 0.23.28",
  "thiserror 2.0.12",
  "tokio",
  "tracing",
- "unicase",
  "url",
 ]
 

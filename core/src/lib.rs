@@ -8,6 +8,8 @@ use std::fmt::{Display, Formatter};
 use unicase::UniCase;
 
 pub mod config;
+pub mod crypto;
+pub mod instrumentation;
 pub mod io;
 pub mod ipc;
 pub mod net;
