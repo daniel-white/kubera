@@ -1,4 +1,4 @@
-use crate::objects::{ObjectRef, Objects};
+use crate::kubernetes::objects::{ObjectRef, Objects};
 use gateway_api::apis::standard::gateways::Gateway;
 use getset::Getters;
 use k8s_openapi::DeepMerge;

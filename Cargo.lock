@@ -340,6 +340,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "axum-health"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a56f5dc54368de406d0b9efbd0f9cd1a32a0e74452889e872cc0d66e3de5ada9"
+dependencies = [
+ "async-trait",
+ "axum",
+ "futures",
+ "serde",
+ "tower-layer",
+]
+
+[[package]]
 name = "backon"
 version = "1.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2223,6 +2236,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "axum",
+ "axum-health",
  "clap 4.5.40",
  "dashmap",
  "derive_builder",

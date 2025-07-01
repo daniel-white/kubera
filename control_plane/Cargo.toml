@@ -32,6 +32,7 @@ tokio-stream = { version = "0.1", features = ["full"] }
 tracing = { workspace = true }
 kube-leader-election = { git = "https://github.com/daniel-white/kube-leader-election.git", branch = "feat/change-result-type" }
 strum = { workspace = true }
+axum-health = "0.1.2"
 
 [[bin]]
 name = "kubera_control_plane"

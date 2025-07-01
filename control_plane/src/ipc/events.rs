@@ -1,4 +1,4 @@
-use crate::objects::ObjectRef;
+use crate::kubernetes::objects::ObjectRef;
 use kubera_core::ipc::{Event, GatewayEvent};
 use std::fmt::Display;
 use thiserror::Error;
@@ -31,7 +31,7 @@ impl EventSender {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct EventStreamFactory {
     tx: BroadcastSender<Event>,
 }

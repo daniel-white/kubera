@@ -1,4 +1,4 @@
-use crate::objects::{ObjectRef, Objects};
+use crate::kubernetes::objects::{ObjectRef, Objects};
 use gateway_api::apis::standard::gatewayclasses::GatewayClass;
 use gateway_api::apis::standard::gateways::Gateway;
 use kubera_api::v1alpha1::GatewayParameters;

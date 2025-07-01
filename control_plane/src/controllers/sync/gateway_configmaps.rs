@@ -1,7 +1,8 @@
 use crate::controllers::instances::InstanceRole;
 use crate::controllers::transformers::{Backend, GatewayInstanceConfiguration};
 use crate::ipc::IpcServices;
-use crate::objects::{ObjectRef, ObjectTracker, SyncObjectAction};
+use crate::kubernetes::objects::{ObjectRef, ObjectTracker, SyncObjectAction};
+use crate::kubernetes::KubeClientCell;
 use crate::sync_objects;
 use derive_builder::Builder;
 use gateway_api::apis::standard::httproutes::{
@@ -10,7 +11,6 @@ use gateway_api::apis::standard::httproutes::{
 };
 use gtmpl_derive::Gtmpl;
 use k8s_openapi::api::core::v1::{ConfigMap, Service};
-use kube::Client;
 use kubera_core::config::gateway::types::http::router::HttpMethodMatch;
 use kubera_core::config::gateway::types::{GatewayConfiguration, GatewayConfigurationBuilder};
 use kubera_core::net::Hostname;
@@ -37,7 +37,7 @@ struct TemplateValues {
 
 pub fn sync_gateway_configmaps(
     join_set: &mut JoinSet<()>,
-    client: &Client,
+    kube_client: &Receiver<Option<KubeClientCell>>,
     ipc_services: Arc<IpcServices>,
     instance_role: &Receiver<InstanceRole>,
     primary_instance_ip_addr: &Receiver<Option<IpAddr>>,
@@ -48,7 +48,7 @@ pub fn sync_gateway_configmaps(
     let tx = sync_objects!(
         join_set,
         ConfigMap,
-        client,
+        kube_client,
         instance_role,
         TemplateValues,
         TEMPLATE

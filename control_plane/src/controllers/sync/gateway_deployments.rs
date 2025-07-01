@@ -1,17 +1,17 @@
 use crate::controllers::instances::InstanceRole;
 use crate::controllers::transformers::GatewayInstanceConfiguration;
-use crate::objects::{ObjectRef, ObjectTracker, SyncObjectAction};
+use crate::kubernetes::objects::{ObjectRef, ObjectTracker, SyncObjectAction};
 use crate::sync_objects;
 use derive_builder::Builder;
 use gtmpl_derive::Gtmpl;
 use k8s_openapi::api::apps::v1::Deployment;
-use kube::Client;
 use kubera_core::continue_after;
 use kubera_core::sync::signal::Receiver;
 use std::collections::{HashMap, HashSet};
 use std::time::Duration;
 use tokio::sync::broadcast::Sender;
 use tokio::task::JoinSet;
+use crate::kubernetes::KubeClientCell;
 
 const TEMPLATE: &str = include_str!("./templates/gateway_deployment.kubernetes-helm-yaml");
 
@@ -25,14 +25,14 @@ struct TemplateValues {
 
 pub fn sync_gateway_deployments(
     join_set: &mut JoinSet<()>,
-    client: &Client,
+    kube_client: &Receiver<Option<KubeClientCell>>,
     instance_role: &Receiver<InstanceRole>,
     gateway_instances: &Receiver<HashMap<ObjectRef, GatewayInstanceConfiguration>>,
 ) {
     let tx = sync_objects!(
         join_set,
         Deployment,
-        client,
+        kube_client,
         instance_role,
         TemplateValues,
         TEMPLATE

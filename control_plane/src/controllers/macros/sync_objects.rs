@@ -1,7 +1,7 @@
 #[macro_export]
 macro_rules! sync_objects {
-    ($join_set:ident, $object_type:ty, $client:ident, $instance_role:ident, $template_value_type:ty, $template:ident) => {{
-        use $crate::objects::{ObjectRef, SyncObjectAction, SyncObjectAction::*};
+    ($join_set:ident, $object_type:ty, $kube_client:ident, $instance_role:ident, $template_value_type:ty, $template:ident) => {{
+        use $crate::kubernetes::objects::{ObjectRef, SyncObjectAction, SyncObjectAction::*};
         use gtmpl::{Context, Template, gtmpl_fn, FuncError};
         use gtmpl_value::Value;
         use kube::{ Api, Resource, ResourceExt };
@@ -13,6 +13,7 @@ macro_rules! sync_objects {
         use tokio::signal::ctrl_c;
         use tokio::sync::broadcast::{channel, error::RecvError};
         use tracing::{debug, info, trace, warn};
+        use kubera_core::continue_on;
 
         let (tx, mut rx) = channel::<SyncObjectAction<$template_value_type, $object_type>>(1);
 
@@ -23,7 +24,7 @@ macro_rules! sync_objects {
             }
         };
 
-        let client = $client.clone();
+        let kube_client = $kube_client.clone();
         let instance_role: Receiver<InstanceRole> = $instance_role.clone();
 
         gtmpl_fn!(
@@ -85,14 +86,18 @@ macro_rules! sync_objects {
 
         $join_set.spawn(async move {
             loop {
-                let action = select! {
+                let (kube_client, action) = select! {
                     action = rx.recv() => match action {
                         Ok(action) => {
-                            if instance_role.current().is_primary() {
-                                action
+                            if let Some(kube_client) = kube_client.current().as_ref() {
+                                if instance_role.current().is_primary() {
+                                    (kube_client.cloned(), action)
+                                } else {
+                                    debug!("Skipping action for {} objects as instance is not primary", stringify!($object_type));
+                                    continue;
+                                }
                             } else {
-                                debug!("Skipping action for {} objects as instance is not primary", stringify!($object_type));
-                                continue;
+                                continue_on!(kube_client.changed());
                             }
                         },
                         Err(RecvError::Lagged(_)) => {
@@ -116,7 +121,7 @@ macro_rules! sync_objects {
                 let object_ref = action.object_ref();
 
                 let api = Api::<$object_type>::namespaced(
-                    client.clone(),
+                    kube_client,
                     object_ref.namespace().as_ref().expect("Missing namespace"),
                 );
 

@@ -1,4 +1,4 @@
-use crate::objects::{ObjectRef, Objects};
+use crate::kubernetes::objects::{ObjectRef, Objects};
 use gateway_api::apis::standard::gatewayclasses::GatewayClass;
 use itertools::Itertools;
 use kubera_api::constants::GATEWAY_CLASS_CONTROLLER_NAME;

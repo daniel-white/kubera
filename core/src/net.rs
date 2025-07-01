@@ -23,6 +23,12 @@ impl Port {
     }
 }
 
+impl From<u16> for Port {
+    fn from(port: u16) -> Self {
+        Self::new(port)
+    }
+}
+
 impl From<Port> for u16 {
     fn from(port: Port) -> Self {
         port.0

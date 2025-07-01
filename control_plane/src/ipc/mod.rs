@@ -2,63 +2,26 @@ pub mod endpoints;
 pub mod events;
 mod gateways;
 
-use self::endpoints::router;
-use self::events::EventStreamFactory;
+use crate::ipc::endpoints::{SpawnIpcEndpointParameters, spawn_ipc_endpoint};
 use crate::ipc::events::EventSender;
-use crate::ipc::gateways::{
-    GatewayConfigurationManager, GatewayConfigurationReader, create_gateway_configuration_services,
-};
-use crate::objects::ObjectRef;
-use anyhow::Result;
+use crate::ipc::gateways::{GatewayConfigurationManager, create_gateway_configuration_services};
+use crate::kubernetes::objects::ObjectRef;
 use derive_builder::Builder;
-use getset::Getters;
+use getset::{CopyGetters, Getters};
 use kubera_core::config::gateway::types::GatewayConfiguration;
 use kubera_core::ipc::{Event, GatewayEvent, Ref as IpcRef};
 use kubera_core::net::Port;
-use std::net::SocketAddr;
-use tokio::net::TcpListener;
-use tokio::{select, spawn};
-use tracing::info;
+use tokio::task::JoinSet;
 
-#[derive(Builder, Getters, Clone)]
-pub struct IpcServicesState {
-    #[getset(get = "pub")]
-    events: EventStreamFactory,
-
-    #[getset(get = "pub")]
-    gateways: GatewayConfigurationReader,
-}
-
-impl IpcServicesState {
-    fn new_builder() -> IpcServicesStateBuilder {
-        IpcServicesStateBuilder::default()
-    }
-}
-
-#[derive(Debug, Builder, Getters)]
-pub struct IpcServiceConfiguration {
-    port: Port,
-}
-
-impl IpcServiceConfiguration {
-    pub fn new_builder() -> IpcServiceConfigurationBuilder {
-        IpcServiceConfigurationBuilder::default()
-    }
-
-    fn endpoint(&self) -> SocketAddr {
-        SocketAddr::from(([0, 0, 0, 0], self.port.into()))
-    }
-}
-
-#[derive(Debug, Builder, Getters)]
+#[derive(Debug, Builder, Getters, CopyGetters)]
 #[builder(setter(into))]
 pub struct IpcServices {
     events: EventSender,
 
     gateway_configuration_manager: GatewayConfigurationManager,
-
-    #[getset(get = "pub")]
-    port: Port,
+    
+    #[getset(get_copy = "pub")]
+    port: Port
 }
 
 impl From<ObjectRef> for IpcRef {
@@ -107,33 +70,34 @@ impl IpcServices {
     }
 }
 
-pub async fn spawn_ipc_service(ipc_configuration: IpcServiceConfiguration) -> Result<IpcServices> {
-    let (event_sender, events_factory) = events::events_channel();
-    let endpoint = ipc_configuration.endpoint();
+#[derive(Debug, Clone, Builder)]
+#[builder(setter(into))]
+pub struct SpawnIpcParameters {
+    port: Port,
+}
 
+impl SpawnIpcParameters {
+    pub fn new_builder() -> SpawnIpcParametersBuilder {
+        SpawnIpcParametersBuilder::default()
+    }
+}
+
+pub fn spawn_ipc(join_set: &mut JoinSet<()>, params: SpawnIpcParameters) -> IpcServices {
+    let (event_sender, events_factory) = events::events_channel();
     let (reader, gateway_manager) = create_gateway_configuration_services();
 
-    let services = IpcServices::new_builder()
+    let ipc_endpoint_params = SpawnIpcEndpointParameters::new_builder()
+        .port(params.port)
+        .events(events_factory)
+        .gateways(reader)
+        .build()
+        .expect("Failed to build IPC endpoint parameters");
+
+    spawn_ipc_endpoint(join_set, ipc_endpoint_params);
+
+    IpcServices::new_builder()
         .events(event_sender)
         .gateway_configuration_manager(gateway_manager)
-        .port(Port::new(endpoint.port()))
-        .build()?;
-
-    let state = IpcServicesState::new_builder()
-        .gateways(reader)
-        .events(events_factory)
-        .build()?;
-
-    info!("Starting IPC service on {}", endpoint);
-
-    let tcp_listener = TcpListener::bind(endpoint).await?;
-
-    spawn(async move {
-        select! {
-            _ = axum::serve(tcp_listener, router(state)) => info!("IPC service stopped"),
-            _ = tokio::signal::ctrl_c() => info!("Received shutdown signal, stopping IPC service")
-        }
-    });
-
-    Ok(services)
+        .build()
+        .expect("Failed to build IpcServices")
 }

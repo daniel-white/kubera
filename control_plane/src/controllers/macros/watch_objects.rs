@@ -1,9 +1,11 @@
+
+
 #[macro_export]
 macro_rules! watch_objects {
-    ($join_set:ident, $object_type:ty, $client:ident) => {
-        watch_objects!($join_set, $object_type, $client, Config::default())
+    ($join_set:ident, $object_type:ty, $kube_client:ident) => {
+        watch_objects!($join_set, $object_type, $kube_client, Config::default())
     };
-    ($join_set:ident, $object_type:ty, $client:ident, $config:expr) => {{
+    ($join_set:ident, $object_type:ty, $kube_client:ident, $config:expr) => {{
         use futures::StreamExt;
         use kube::Api;
         use kube::runtime::Controller;
@@ -16,7 +18,8 @@ macro_rules! watch_objects {
         use thiserror::Error;
         use tracing::instrument;
         use tracing::debug;
-        use $crate::objects::Objects;
+        use kubera_core::continue_on;
+        use $crate::kubernetes::objects::Objects;
 
         struct ControllerContext {
             tx: Sender<Objects<$object_type>>,
@@ -68,7 +71,7 @@ macro_rules! watch_objects {
             Action::requeue(Duration::from_secs(5))
         }
 
-        let client = $client.clone();
+        let kube_client = $kube_client.clone();
         let config = $config.clone();
         let (tx, rx) = channel::<Objects<$object_type>>(Objects::default());
 
@@ -78,17 +81,24 @@ macro_rules! watch_objects {
         );
 
         $join_set.spawn(async move {
-            let object_api = Api::<$object_type>::all(client);
-            Controller::new(object_api, config)
-                .shutdown_on_signal()
-                .run(
-                    reconcile,
-                    error_policy,
-                    Arc::new(ControllerContext::new(tx)),
-                )
-                .filter_map(|x| async move { Some(x) })
-                .for_each(|_| ready(()))
-                .await;
+            let controller_context = Arc::new(ControllerContext::new(tx));
+            loop {
+                if let Some(kube_client) = kube_client.current().as_ref() {
+                    let object_api = Api::<$object_type>::all(kube_client.cloned());
+                    Controller::new(object_api, config.clone())
+                        .shutdown_on_signal()
+                        .run(
+                            reconcile,
+                            error_policy,
+                            controller_context.clone(),
+                        )
+                        .filter_map(|x| async move { Some(x) })
+                        .for_each(|_| ready(()))
+                        .await;
+                } else {
+                    continue_on!(kube_client.changed());
+                }
+            }
         });
 
         rx

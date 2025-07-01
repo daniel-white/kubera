@@ -1,4 +1,4 @@
-use crate::objects::ObjectRef;
+use crate::kubernetes::objects::ObjectRef;
 use dashmap::DashMap;
 use dashmap::mapref::one::Ref;
 use kubera_core::config::gateway::serde::write_configuration;

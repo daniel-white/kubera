@@ -1,5 +1,5 @@
-use crate::ipc::IpcServicesState;
-use crate::objects::ObjectRef;
+use crate::ipc::endpoints::IpcEndpointState;
+use crate::kubernetes::objects::ObjectRef;
 use axum::extract::{Path, Query};
 use axum::{extract::State, response::IntoResponse};
 use gateway_api::apis::standard::gateways::Gateway;
@@ -19,7 +19,7 @@ pub struct QueryParams {
 }
 
 pub async fn get_gateway_configuration(
-    State(state): State<IpcServicesState>,
+    State(state): State<IpcEndpointState>,
     Path(path_params): Path<PathParams>,
     Query(query_params): Query<QueryParams>,
 ) -> impl IntoResponse {

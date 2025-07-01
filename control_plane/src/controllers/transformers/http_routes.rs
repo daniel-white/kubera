@@ -1,4 +1,4 @@
-use crate::objects::{ObjectRef, Objects};
+use crate::kubernetes::objects::{ObjectRef, Objects};
 use derive_builder::Builder;
 use gateway_api::apis::standard::gateways::Gateway;
 use gateway_api::apis::standard::httproutes::HTTPRoute;

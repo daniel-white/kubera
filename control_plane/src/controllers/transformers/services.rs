@@ -1,5 +1,5 @@
 use crate::controllers::transformers::http_routes::HttpRouteBackend;
-use crate::objects::{ObjectRef, Objects, TopologyLocation};
+use crate::kubernetes::objects::{ObjectRef, Objects, TopologyLocation};
 use derive_builder::Builder;
 use getset::Getters;
 use k8s_openapi::api::core::v1::Service;
