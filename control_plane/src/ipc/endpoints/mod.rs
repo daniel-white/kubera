@@ -4,12 +4,14 @@ mod liveness_check;
 
 use self::get_gateway_configuration::get_gateway_configuration;
 use self::get_gateway_events::get_gateway_events;
+use crate::ipc::endpoints::liveness_check::liveness_check;
 use crate::ipc::events::EventStreamFactory;
 use crate::ipc::gateways::GatewayConfigurationReader;
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::routing::get;
 use axum::Router;
+use axum_health::{Health, HealthIndicator};
 use derive_builder::Builder;
 use getset::{CloneGetters, CopyGetters, Getters};
 use kubera_core::net::Port;
@@ -79,6 +81,8 @@ pub(super) fn spawn_ipc_endpoint(join_set: &mut JoinSet<()>, params: SpawnIpcEnd
 
 fn router(state: IpcEndpointState) -> Router {
     Router::new()
+        .route("/healthz/liveness", get(liveness_check))
+        .route("/healthz/readiness", get(axum_health::health))
         .route(
             "/ipc/namespaces/{gateway_namespace}/gateways/{gateway_name}/configuration",
             get(get_gateway_configuration),
@@ -89,6 +93,7 @@ fn router(state: IpcEndpointState) -> Router {
         )
         .fallback(not_found)
         .method_not_allowed_fallback(method_not_allowed)
+        .layer(Health::builder().build())
         .with_state(state)
 }
 
