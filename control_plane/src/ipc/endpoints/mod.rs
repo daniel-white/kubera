@@ -4,17 +4,20 @@ mod liveness_check;
 
 use self::get_gateway_configuration::get_gateway_configuration;
 use self::get_gateway_events::get_gateway_events;
+use crate::health::KubernetesApiHealthIndicator;
 use crate::ipc::endpoints::liveness_check::liveness_check;
 use crate::ipc::events::EventStreamFactory;
 use crate::ipc::gateways::GatewayConfigurationReader;
+use crate::kubernetes::KubeClientCell;
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::routing::get;
 use axum::Router;
-use axum_health::{Health, HealthIndicator};
+use axum_health::Health;
 use derive_builder::Builder;
 use getset::{CloneGetters, CopyGetters, Getters};
 use kubera_core::net::Port;
+use kubera_core::sync::signal::Receiver;
 use problemdetails::Problem;
 use std::net::SocketAddr;
 use tokio::net::TcpListener;
@@ -37,7 +40,7 @@ impl IpcEndpointState {
     }
 }
 
-#[derive(Debug, Builder, CloneGetters, CopyGetters)]
+#[derive(Builder, CloneGetters, CopyGetters)]
 #[builder(setter(into))]
 pub(super) struct SpawnIpcEndpointParameters {
     #[getset(get_copy = "")]
@@ -48,6 +51,8 @@ pub(super) struct SpawnIpcEndpointParameters {
 
     #[getset(get_clone = "")]
     gateways: GatewayConfigurationReader,
+
+    kube_client: Receiver<Option<KubeClientCell>>,
 }
 
 impl SpawnIpcEndpointParameters {
@@ -68,18 +73,22 @@ pub(super) fn spawn_ipc_endpoint(join_set: &mut JoinSet<()>, params: SpawnIpcEnd
             .build()
             .expect("Failed to create initial IPC endpoint state");
 
+        let kube_health = KubernetesApiHealthIndicator::new(&params.kube_client);
+
+        let health = Health::builder().with_indicator(kube_health).build();
+
         let endpoint = params.endpoint();
         let tcp_listener = TcpListener::bind(endpoint)
             .await
             .expect("Failed to bind IPC endpoint");
         select! {
-            _ = axum::serve(tcp_listener, router(initial_state)) => info!("IPC service stopped"),
+            _ = axum::serve(tcp_listener, router(initial_state, health)) => info!("IPC service stopped"),
             _ = tokio::signal::ctrl_c() => info!("Received shutdown signal, stopping IPC service")
         }
     });
 }
 
-fn router(state: IpcEndpointState) -> Router {
+fn router(state: IpcEndpointState, health: Health) -> Router {
     Router::new()
         .route("/healthz/liveness", get(liveness_check))
         .route("/healthz/readiness", get(axum_health::health))
@@ -93,7 +102,7 @@ fn router(state: IpcEndpointState) -> Router {
         )
         .fallback(not_found)
         .method_not_allowed_fallback(method_not_allowed)
-        .layer(Health::builder().build())
+        .layer(health)
         .with_state(state)
 }
 

@@ -1,11 +1,12 @@
 mod cli;
 mod controllers;
 
+mod health;
 pub mod ipc;
 pub mod kubernetes;
 
-use crate::controllers::{SpawnControllersParams, spawn_controllers};
-use crate::ipc::{SpawnIpcParameters, spawn_ipc};
+use crate::controllers::{spawn_controllers, SpawnControllersParams};
+use crate::ipc::{spawn_ipc, SpawnIpcParameters};
 use crate::kubernetes::start_kubernetes_client;
 use clap::Parser;
 use cli::Cli;
@@ -29,6 +30,7 @@ async fn main() {
     let ipc_services = {
         let params = SpawnIpcParameters::new_builder()
             .port(args.port())
+            .kube_client(kube_client.clone())
             .build()
             .expect("Failed to build IPC parameters");
 

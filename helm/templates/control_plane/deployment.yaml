@@ -43,6 +43,14 @@ spec:
             - name: PORT
               value: "8080"
           resources: {{ toYaml .Values.controlPlane.resources | nindent 12 }}
+          livenessProbe:
+            httpGet:
+              port: http
+              path: /healthz/liveness
+          readinessProbe:
+            httpGet:
+              port: http
+              path: /healthz/readiness
           ports:
             - containerPort: 8080
               name: http

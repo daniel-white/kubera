@@ -2235,6 +2235,7 @@ name = "kubera_control_plane"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "async-trait",
  "axum",
  "axum-health",
  "clap 4.5.40",

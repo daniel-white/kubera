@@ -2,15 +2,17 @@ pub mod endpoints;
 pub mod events;
 mod gateways;
 
-use crate::ipc::endpoints::{SpawnIpcEndpointParameters, spawn_ipc_endpoint};
+use crate::ipc::endpoints::{spawn_ipc_endpoint, SpawnIpcEndpointParameters};
 use crate::ipc::events::EventSender;
-use crate::ipc::gateways::{GatewayConfigurationManager, create_gateway_configuration_services};
+use crate::ipc::gateways::{create_gateway_configuration_services, GatewayConfigurationManager};
 use crate::kubernetes::objects::ObjectRef;
+use crate::kubernetes::KubeClientCell;
 use derive_builder::Builder;
 use getset::{CopyGetters, Getters};
 use kubera_core::config::gateway::types::GatewayConfiguration;
 use kubera_core::ipc::{Event, GatewayEvent, Ref as IpcRef};
 use kubera_core::net::Port;
+use kubera_core::sync::signal::Receiver;
 use tokio::task::JoinSet;
 
 #[derive(Debug, Builder, Getters, CopyGetters)]
@@ -19,9 +21,9 @@ pub struct IpcServices {
     events: EventSender,
 
     gateway_configuration_manager: GatewayConfigurationManager,
-    
+
     #[getset(get_copy = "pub")]
-    port: Port
+    port: Port,
 }
 
 impl From<ObjectRef> for IpcRef {
@@ -70,10 +72,11 @@ impl IpcServices {
     }
 }
 
-#[derive(Debug, Clone, Builder)]
+#[derive(Clone, Builder)]
 #[builder(setter(into))]
 pub struct SpawnIpcParameters {
     port: Port,
+    kube_client: Receiver<Option<KubeClientCell>>,
 }
 
 impl SpawnIpcParameters {
@@ -90,6 +93,7 @@ pub fn spawn_ipc(join_set: &mut JoinSet<()>, params: SpawnIpcParameters) -> IpcS
         .port(params.port)
         .events(events_factory)
         .gateways(reader)
+        .kube_client(params.kube_client)
         .build()
         .expect("Failed to build IPC endpoint parameters");
 
@@ -98,6 +102,7 @@ pub fn spawn_ipc(join_set: &mut JoinSet<()>, params: SpawnIpcParameters) -> IpcS
     IpcServices::new_builder()
         .events(event_sender)
         .gateway_configuration_manager(gateway_manager)
+        .port(params.port)
         .build()
         .expect("Failed to build IpcServices")
 }
