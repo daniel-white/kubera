@@ -2,7 +2,7 @@ use anyhow::Result;
 use atomic_refcell::AtomicRefCell;
 use std::sync::Arc;
 use tokio::sync::watch::{
-    Receiver as WatchReceiver, Sender as WatchSender, channel as watch_channel,
+    channel as watch_channel, Receiver as WatchReceiver, Sender as WatchSender,
 };
 use tracing::trace;
 
@@ -46,15 +46,6 @@ where
     }
 }
 
-impl<T> Drop for Sender<T>
-where
-    T: PartialEq,
-{
-    fn drop(&mut self) {
-        trace!("Sender dropped");
-    }
-}
-
 #[derive(Clone, Debug)]
 pub struct Receiver<T>
 where
@@ -76,14 +67,5 @@ where
             trace!("Sender dropped");
             RecvError
         })
-    }
-}
-
-impl<T> Drop for Receiver<T>
-where
-    T: PartialEq,
-{
-    fn drop(&mut self) {
-        trace!("Receiver dropped");
     }
 }

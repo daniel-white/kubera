@@ -39,8 +39,8 @@ macro_rules! continue_after {
                         debug!("Future {} advanced, continuing loop", stringify!($fut));
                         continue;
                     }
-                    Err(_) => {
-                        debug!("Future {} advanced with err, exiting loop", stringify!($fut));
+                    Err(e) => {
+                        debug!("Future {} advanced with err, exiting loop: {:?}", stringify!($fut), e);
                         break;
                     }
                 }
@@ -67,8 +67,8 @@ macro_rules! continue_on {
                             debug!("Future {} advanced, continuing loop", stringify!($fut));
                             continue;
                         }
-                        Err(_) => {
-                            debug!("Future {} advanced with err, exiting loop", stringify!($fut));
+                        Err(e) => {
+                            debug!("Future {} advanced with err, exiting loop: {:?}", stringify!($fut), e);
                             break;
                         }
                     }

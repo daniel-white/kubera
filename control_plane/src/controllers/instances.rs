@@ -6,12 +6,13 @@ use k8s_openapi::api::core::v1::Pod;
 use kube::runtime::controller::Action;
 use kube::runtime::watcher::Config;
 use kube::runtime::Controller;
-use kube::Api;
+use kube::{Api, Client};
 use kube_leader_election::{LeaseLock, LeaseLockParams, LeaseLockResult};
 use kubera_core::sync::signal::{channel, Receiver, Sender};
 use kubera_core::{continue_after, continue_on};
 use std::future::ready;
 use std::net::IpAddr;
+use std::ops::Deref;
 use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
@@ -43,6 +44,11 @@ pub fn watch_leader_instance_ip_addr(
             .as_ref()
             .and_then(|s| s.pod_ip.as_ref())
             .and_then(|ip| IpAddr::from_str(ip.as_str()).ok());
+
+        warn!(
+            "Reconcile called for pod in namespace with IP {:?}",
+            ip_addr
+        );
         ctx.tx.replace(ip_addr);
         Ok(Action::requeue(Duration::from_secs(60)))
     }
@@ -58,11 +64,11 @@ pub fn watch_leader_instance_ip_addr(
     join_set.spawn(async move {
         let controller_context = Arc::new(ControllerContext { tx });
         loop {
-            if let Some(kube_client) = kube_client.current().as_ref()
+            if let Some(kube_client2) = kube_client.current().as_ref()
                 && let Some(primary_pod_ref) = instance_role.current().primary_pod_ref()
             {
                 let api = Api::<Pod>::namespaced(
-                    kube_client.cloned(),
+                    kube_client2.deref().clone(),
                     primary_pod_ref.namespace().clone().unwrap().as_str(),
                 );
                 let config = Config::default()
@@ -76,6 +82,9 @@ pub fn watch_leader_instance_ip_addr(
                     _ = controller => {
                         break;
                     },
+                    _ = kube_client.changed() => {
+                        continue;
+                    }
                     _ = instance_role.changed() => {
                         continue;
                     }
@@ -113,54 +122,53 @@ impl InstanceRole {
 
 pub fn determine_instance_role(
     join_set: &mut JoinSet<()>,
-    kube_client: &Receiver<Option<KubeClientCell>>,
     namespace: &str,
     instance_name: &str,
     pod_name: &str,
 ) -> Receiver<InstanceRole> {
     let (tx, rx) = channel(InstanceRole::Undetermined);
 
-    let kube_client = kube_client.clone();
     let namespace = namespace.to_string();
     let instance_name = instance_name.to_string();
     let pod_name = pod_name.to_string();
 
     join_set.spawn(async move {
+        let kube_client = Client::try_default()
+            .await
+            .expect("Unable to start client to determine role");
+        let lock = LeaseLock::new(
+            kube_client,
+            &namespace,
+            LeaseLockParams {
+                holder_id: pod_name.to_string(),
+                lease_name: format!("{}-primary", instance_name),
+                lease_ttl: Duration::from_secs(30),
+            },
+        );
+
         loop {
-            if let Some(kube_client) = kube_client.current().as_ref() {
-                let lock = LeaseLock::new(
-                    kube_client.cloned(),
-                    &namespace,
-                    LeaseLockParams {
-                        holder_id: pod_name.to_string(),
-                        lease_name: format!("{}-primary", instance_name),
-                        lease_ttl: Duration::from_secs(30),
-                    },
-                );
-
-                let new_role = match lock.try_acquire_or_renew().await {
-                    Ok(LeaseLockResult::Acquired(lease)) => {
-                        debug!("Acquired lease, assuming primary role");
-                        let pod_ref = get_pod_ref(&namespace, lease);
-                        Some(InstanceRole::Primary(pod_ref))
-                    }
-                    Ok(LeaseLockResult::NotAcquired(lease)) => {
-                        debug!("Lease renewed, assuming redundant role");
-                        let pod_ref = get_pod_ref(&namespace, lease);
-                        Some(InstanceRole::Redundant(pod_ref))
-                    }
-                    Err(e) => {
-                        warn!("Failed to acquire or renew lease: {}", e);
-                        None
-                    }
-                };
-
-                if let Some(new_role) = new_role {
-                    tx.replace(new_role);
+            let new_role = match lock.try_acquire_or_renew().await {
+                Ok(LeaseLockResult::Acquired(lease)) => {
+                    debug!("Acquired lease, assuming primary role");
+                    let pod_ref = get_pod_ref(&namespace, lease);
+                    Some(InstanceRole::Primary(pod_ref))
                 }
+                Ok(LeaseLockResult::NotAcquired(lease)) => {
+                    debug!("Lease renewed, assuming redundant role");
+                    let pod_ref = get_pod_ref(&namespace, lease);
+                    Some(InstanceRole::Redundant(pod_ref))
+                }
+                Err(e) => {
+                    warn!("Failed to acquire or renew lease: {}", e);
+                    None
+                }
+            };
+
+            if let Some(new_role) = new_role {
+                tx.replace(new_role);
             }
 
-            continue_after!(Duration::from_secs(10), kube_client.changed());
+            continue_after!(Duration::from_secs(10));
         }
     });
 

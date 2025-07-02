@@ -1,5 +1,6 @@
 use kube::Client;
-use kubera_core::sync::signal::{Receiver, channel};
+use kubera_core::sync::signal::{channel, Receiver};
+use std::ops::Deref;
 use tokio::task::JoinSet;
 use tracing::error;
 
@@ -14,15 +15,17 @@ impl PartialEq for KubeClientCell {
     }
 }
 
-impl AsRef<Client> for KubeClientCell {
-    fn as_ref(&self) -> &Client {
+impl Deref for KubeClientCell {
+    type Target = Client;
+
+    fn deref(&self) -> &Self::Target {
         &self.0
     }
 }
 
-impl KubeClientCell {
-    pub fn cloned(&self) -> Client {
-       self.0.clone()
+impl From<KubeClientCell> for Client {
+    fn from(client_cell: KubeClientCell) -> Self {
+        client_cell.0
     }
 }
 
@@ -34,6 +37,8 @@ pub fn start_kubernetes_client(join_set: &mut JoinSet<()>) -> Receiver<Option<Ku
             Ok(client) => {
                 let client_cell = KubeClientCell(client);
                 tx.replace(Some(client_cell));
+                let tx = Box::new(tx);
+                Box::leak(tx); // Leak the sender to keep it alive
             }
             Err(e) => error!("Failed to create Kubernetes client: {}", e),
         };

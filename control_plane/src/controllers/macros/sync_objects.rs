@@ -24,7 +24,7 @@ macro_rules! sync_objects {
             }
         };
 
-        let kube_client = $kube_client.clone();
+        let kube_client: Receiver<Option<KubeClientCell>> = $kube_client.clone();
         let instance_role: Receiver<InstanceRole> = $instance_role.clone();
 
         gtmpl_fn!(
@@ -91,7 +91,7 @@ macro_rules! sync_objects {
                         Ok(action) => {
                             if let Some(kube_client) = kube_client.current().as_ref() {
                                 if instance_role.current().is_primary() {
-                                    (kube_client.cloned(), action)
+                                    (kube_client.clone(), action)
                                 } else {
                                     debug!("Skipping action for {} objects as instance is not primary", stringify!($object_type));
                                     continue;
@@ -121,7 +121,7 @@ macro_rules! sync_objects {
                 let object_ref = action.object_ref();
 
                 let api = Api::<$object_type>::namespaced(
-                    kube_client,
+                    kube_client.into(),
                     object_ref.namespace().as_ref().expect("Missing namespace"),
                 );
 

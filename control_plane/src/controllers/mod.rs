@@ -45,7 +45,6 @@ pub fn spawn_controllers(join_set: &mut JoinSet<()>, params: SpawnControllersPar
 
     let instance_role = determine_instance_role(
         join_set,
-        &kube_client,
         &params.pod_namespace,
         &params.instance_name,
         &params.pod_name,

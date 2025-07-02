@@ -1,5 +1,3 @@
-
-
 #[macro_export]
 macro_rules! watch_objects {
     ($join_set:ident, $object_type:ty, $kube_client:ident) => {
@@ -34,7 +32,7 @@ macro_rules! watch_objects {
         #[derive(Error, Debug)]
         enum ControllerError {}
 
-        #[instrument(skip(object, ctx))]
+        #[instrument(skip(object, ctx), level = "debug")]
         async fn reconcile(
             object: Arc<$object_type>,
             ctx: Arc<ControllerContext>,
@@ -71,7 +69,7 @@ macro_rules! watch_objects {
             Action::requeue(Duration::from_secs(5))
         }
 
-        let kube_client = $kube_client.clone();
+        let kube_client: Receiver<Option<KubeClientCell>> = $kube_client.clone();
         let config = $config.clone();
         let (tx, rx) = channel::<Objects<$object_type>>(Objects::default());
 
@@ -84,7 +82,7 @@ macro_rules! watch_objects {
             let controller_context = Arc::new(ControllerContext::new(tx));
             loop {
                 if let Some(kube_client) = kube_client.current().as_ref() {
-                    let object_api = Api::<$object_type>::all(kube_client.cloned());
+                    let object_api = Api::<$object_type>::all(kube_client.clone().into());
                     Controller::new(object_api, config.clone())
                         .shutdown_on_signal()
                         .run(
