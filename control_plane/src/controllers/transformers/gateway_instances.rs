@@ -1,20 +1,21 @@
 use crate::kubernetes::objects::{ObjectRef, Objects};
 use gateway_api::apis::standard::gateways::Gateway;
 use getset::Getters;
-use k8s_openapi::DeepMerge;
 use k8s_openapi::api::apps::v1::{Deployment, DeploymentSpec, DeploymentStrategy};
 use k8s_openapi::api::core::v1::{Service, ServiceSpec};
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
+use k8s_openapi::DeepMerge;
 use kubera_api::v1alpha1::{
     GatewayClassParameters, GatewayParameters, ImagePullPolicy as ApiImagePullPolicy,
 };
 use kubera_core::continue_on;
-use kubera_core::sync::signal::{Receiver, channel};
+use kubera_core::sync::signal::{channel, Receiver};
 use serde_json::{from_value, json};
 use std::collections::HashMap;
 use std::sync::Arc;
 use strum::IntoStaticStr;
 use tokio::task::JoinSet;
+use tracing::info;
 
 #[derive(Default, Copy, Clone, Debug, PartialEq, IntoStaticStr)]
 #[strum(serialize_all = "PascalCase")]
@@ -71,6 +72,7 @@ pub fn collect_gateway_instances(
             let instances = current_gateways
                 .iter()
                 .map(|(gateway_ref, _, gateway)| {
+                    info!("Processing gateway instance: {}", gateway_ref);
                     let gateway_parameters = current_gateway_parameters.get(&gateway_ref).cloned();
                     let (deployment_overrides, image_pull_policy) = merge_deployment_overrides(
                         &gateway,

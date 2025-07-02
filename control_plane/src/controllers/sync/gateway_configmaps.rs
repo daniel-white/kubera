@@ -174,6 +174,7 @@ fn generate_gateway_configurations(
             let configs: HashMap<_, _> = current_instances
                 .iter()
                 .map(|(gateway_ref, instance)| {
+                    info!("Generating configuration for gateway: {}", gateway_ref);
                     let mut gateway_configuration = GatewayConfigurationBuilder::new();
 
                     if let Some(ip_addr) = primary_instance_ip_addr.current().as_ref() {
