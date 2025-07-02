@@ -1,8 +1,8 @@
-use crate::config::topology::TopologyLocation;
-use crate::services::proxy::router::matches::{
+use crate::proxy::router::matches::{
     HostHeaderMatch, HostHeaderMatchBuilder, HttpRouteRuleMatchesBuilder, HttpRouteRuleMatchesScore,
 };
-use crate::services::proxy::router::{HttpBackend, HttpBackendBuilder, HttpRouteRuleMatches};
+use crate::proxy::router::topology::TopologyLocation;
+use crate::proxy::router::{HttpBackend, HttpBackendBuilder, HttpRouteRuleMatches};
 use getset::Getters;
 use http::request::Parts;
 use kubera_core::net::Hostname;

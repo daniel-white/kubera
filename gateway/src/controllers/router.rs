@@ -1,28 +1,29 @@
-use crate::config::topology::TopologyLocation;
-use crate::services::proxy::router::{HttpRouter, HttpRouterBuilder};
+use crate::proxy::router::topology::TopologyLocation;
+use crate::proxy::router::{HttpRouter, HttpRouterBuilder};
 use http::HeaderValue;
-use kubera_core::config::gateway::types::GatewayConfiguration;
 use kubera_core::config::gateway::types::http::router::*;
+use kubera_core::config::gateway::types::GatewayConfiguration;
 use kubera_core::continue_on;
-use kubera_core::sync::signal::{Receiver, channel};
+use kubera_core::sync::signal::{channel, Receiver};
 use std::sync::Arc;
 use thiserror::Error;
+use tokio::task::JoinSet;
 use tracing::{debug, warn};
 
 pub fn synthesize_http_router(
-    gateway_configuration: Receiver<Option<GatewayConfiguration>>,
+    mut join_set: &mut JoinSet<()>,
+    gateway_configuration: &Receiver<Option<GatewayConfiguration>>,
     current_location: TopologyLocation,
 ) -> Receiver<Option<HttpRouter>> {
     let (tx, rx) = channel(None);
 
     let gateway_configuration = gateway_configuration.clone();
 
-    tokio::spawn(async move {
+    join_set.spawn(async move {
         let current_location = Arc::new(current_location);
-
         loop {
             if let Some(gateway_config) = gateway_configuration.current().as_ref() {
-                let mut router = HttpRouterBuilder::new(&current_location);
+                let mut router = HttpRouterBuilder::new(current_location.clone());
 
                 // for host_match in gateway_config.hosts().iter() {
                 //     match host_match.match_type() {

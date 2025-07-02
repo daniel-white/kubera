@@ -1,9 +1,12 @@
 mod matches;
 mod routes;
+pub mod topology;
 
-use crate::config::topology::{TopologyLocation, TopologyLocationBuilder, TopologyLocationMatch};
-use crate::services::proxy::router::matches::{HostMatch, HostValueMatch};
-use crate::services::proxy::router::routes::{HttpRoute, HttpRouteBuilder};
+use crate::proxy::router::matches::{HostMatch, HostValueMatch};
+use crate::proxy::router::routes::{HttpRoute, HttpRouteBuilder};
+use crate::proxy::router::topology::{
+    TopologyLocation, TopologyLocationBuilder, TopologyLocationMatch,
+};
 use enumflags2::BitFlags;
 use getset::Getters;
 use http::request::Parts;
@@ -27,9 +30,9 @@ pub struct HttpRouterBuilder {
 }
 
 impl HttpRouterBuilder {
-    pub fn new(current_location: &Arc<TopologyLocation>) -> Self {
+    pub fn new(current_location: Arc<TopologyLocation>) -> Self {
         HttpRouterBuilder {
-            current_location: current_location.clone(),
+            current_location: current_location,
             host_value_matches: Vec::new(),
             routes_builders: Vec::new(),
         }

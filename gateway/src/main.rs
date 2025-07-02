@@ -1,19 +1,16 @@
 mod cli;
-mod config;
 mod controllers;
-mod services;
+mod proxy;
 mod util;
 
 use crate::cli::Cli;
-use crate::config::topology::TopologyLocationBuilder;
-use crate::controllers::config::fs::{WatchConfigurationFileParams, watch_configuration_file};
+use crate::controllers::config::fs::{watch_configuration_file, WatchConfigurationFileParams};
 use crate::controllers::config::ipc::{
-    FetchConfigurationParams, fetch_configuration, watch_ipc_endpoint,
+    fetch_configuration, watch_ipc_endpoint, FetchConfigurationParams,
 };
-use crate::controllers::config::selector::{SelectorParams, select_configuration};
-use crate::controllers::ipc_events::{PollGatewayEventsParams, poll_gateway_events};
+use crate::controllers::config::selector::{select_configuration, SelectorParams};
+use crate::controllers::ipc_events::{poll_gateway_events, PollGatewayEventsParams};
 use crate::controllers::router::synthesize_http_router;
-use crate::services::proxy::ProxyBuilder;
 use clap::Parser;
 use kubera_core::continue_on;
 use kubera_core::crypto::init_crypto;
@@ -23,10 +20,12 @@ use once_cell::sync::Lazy;
 use pingora::prelude::*;
 use pingora::server::Server;
 use pingora::services::listening::Service;
-use prometheus::{IntGauge, register_int_gauge};
+use prometheus::{register_int_gauge, IntGauge};
+use proxy::router::topology::TopologyLocationBuilder;
+use proxy::ProxyBuilder;
 use std::path::PathBuf;
 use tokio::join;
-use tokio::task::{JoinSet, spawn_blocking};
+use tokio::task::{spawn_blocking, JoinSet};
 use tracing::field::debug;
 use tracing::{debug, warn};
 
@@ -96,7 +95,7 @@ async fn main() {
 
     watch_ipc_endpoint(&mut join_set, &config, ipc_endpoint_tx);
 
-    let router = synthesize_http_router(config, current_location);
+    let router = synthesize_http_router(&mut join_set, &config, current_location);
 
     join_set.join_all().await;
 
