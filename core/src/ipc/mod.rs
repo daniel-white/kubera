@@ -46,13 +46,13 @@ impl GatewayEvent {
         match event.as_ref() {
             "configuration_update" => {
                 let ref_ = serde_json::from_str(data.as_ref()).map_err(|e| {
-                    format!("Failed to parse GatewayEvent::ConfigurationUpdate: {}", e)
+                    format!("Failed to parse GatewayEvent::ConfigurationUpdate: {e}")
                 })?;
                 Ok(GatewayEvent::ConfigurationUpdate(ref_))
             }
             "deleted" => {
                 let ref_ = serde_json::from_str(data.as_ref())
-                    .map_err(|e| format!("Failed to parse GatewayEvent::Deleted: {}", e))?;
+                    .map_err(|e| format!("Failed to parse GatewayEvent::Deleted: {e}"))?;
                 Ok(GatewayEvent::Deleted(ref_))
             }
             _ => Err(format!("Unknown event type: {}", event.as_ref())),

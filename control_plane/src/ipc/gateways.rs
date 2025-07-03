@@ -1,6 +1,6 @@
 use crate::kubernetes::objects::ObjectRef;
-use dashmap::DashMap;
 use dashmap::mapref::one::Ref;
+use dashmap::DashMap;
 use kubera_core::config::gateway::serde::write_configuration;
 use kubera_core::config::gateway::types::GatewayConfiguration;
 use std::io::BufWriter;
@@ -43,7 +43,7 @@ pub struct GatewayConfigurationManager {
 impl GatewayConfigurationManager {
     pub fn insert(&self, gateway_ref: ObjectRef, configuration: &GatewayConfiguration) {
         let mut buf = BufWriter::new(Vec::new());
-        if let Ok(_) = write_configuration(configuration, &mut buf) {
+        if write_configuration(configuration, &mut buf).is_ok() {
             let yaml = String::from_utf8(buf.into_inner().unwrap()).unwrap();
             self.configurations.insert(gateway_ref, yaml);
         }

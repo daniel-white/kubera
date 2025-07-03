@@ -60,7 +60,7 @@ impl BackendBuilder {
         self
     }
 
-    pub fn add_endpoint<F>(&mut self, address: &IpAddr, factory: F) -> &mut Self
+    pub fn add_endpoint<F>(&mut self, address: IpAddr, factory: F) -> &mut Self
     where
         F: FnOnce(&mut EndpointBuilder),
     {
@@ -109,11 +109,11 @@ pub struct EndpointBuilder {
 }
 
 impl EndpointBuilder {
-    fn new(address: &IpAddr) -> Self {
+    fn new(address: IpAddr) -> Self {
         Self {
             node: None,
             zone: None,
-            address: address.clone(),
+            address,
         }
     }
 

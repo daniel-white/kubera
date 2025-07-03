@@ -26,7 +26,7 @@ use tokio::task::JoinSet;
 use tracing::info;
 
 #[derive(Builder, Getters, Clone)]
-pub(self) struct IpcEndpointState {
+ struct IpcEndpointState {
     #[getset(get = "pub")]
     events: EventStreamFactory,
 

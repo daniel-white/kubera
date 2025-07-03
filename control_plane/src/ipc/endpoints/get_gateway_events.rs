@@ -44,7 +44,7 @@ pub async fn get_gateway_events(
     if !state.gateways.exists(&gateway_ref) {
         return Problem::from(axum::http::StatusCode::NOT_FOUND)
             .with_title("Gateway Not Found")
-            .with_detail(format!("Object {} not found", gateway_ref))
+            .with_detail(format!("Object {gateway_ref} not found"))
             .into_response();
     }
 

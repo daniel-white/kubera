@@ -220,6 +220,12 @@ pub struct ObjectTracker {
     object_refs: Cell<HashSet<ObjectRef>>,
 }
 
+impl Default for ObjectTracker {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ObjectTracker {
     pub fn new() -> Self {
         Self {

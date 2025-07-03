@@ -141,7 +141,7 @@ pub fn determine_instance_role(
             &namespace,
             LeaseLockParams {
                 holder_id: pod_name.to_string(),
-                lease_name: format!("{}-primary", instance_name),
+                lease_name: format!("{instance_name}-primary"),
                 lease_ttl: Duration::from_secs(30),
             },
         );
@@ -159,7 +159,7 @@ pub fn determine_instance_role(
                     Some(InstanceRole::Redundant(pod_ref))
                 }
                 Err(e) => {
-                    warn!("Failed to acquire or renew lease: {}", e);
+                    warn!("Failed to acquire or renew lease: {e}");
                     None
                 }
             };

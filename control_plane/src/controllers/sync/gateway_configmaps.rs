@@ -139,7 +139,7 @@ fn generate_gateway_configmaps(
                         None,
                     ))
                     .inspect(move |_| {
-                        ipc_services.insert_gateway_configuration(gateway_ref.clone(), &config);
+                        ipc_services.insert_gateway_configuration(gateway_ref.clone(), config);
                     })
                     .inspect_err(|err| {
                         error!("Failed to send upsert action: {}", err);
@@ -203,7 +203,7 @@ fn generate_gateway_configurations(
 
                     for http_route in http_routes
                         .current()
-                        .get(&gateway_ref)
+                        .get(gateway_ref)
                         .unwrap_or(&vec![])
                         .iter()
                     {
@@ -327,7 +327,7 @@ fn generate_gateway_configurations(
 
                                                             for endpoint in backend.endpoints() {
                                                                 for address in endpoint.addresses() {
-                                                                    b.add_endpoint(address, |e| {
+                                                                    b.add_endpoint(*address, |e| {
                                                                         let zone_ref = endpoint.location();
                                                                         if let Some(node) = zone_ref.node() {
                                                                             e.with_node(node);
@@ -376,7 +376,7 @@ enum HostnameMatchType {
 
 fn map_hostname_match_to_type<S: AsRef<str>>(hostname: &Option<S>) -> Option<HostnameMatchType> {
     match hostname.as_ref().map(|hostname| hostname.as_ref()) {
-        Some(hostname) if hostname.is_empty() => None,
+        Some("") => None,
         Some(hostname) if hostname.starts_with('*') => {
             let hostname = hostname.trim_start_matches('*');
             Some(HostnameMatchType::Suffix(Hostname::new(hostname)))
