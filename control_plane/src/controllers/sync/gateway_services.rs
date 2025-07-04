@@ -1,7 +1,7 @@
 use crate::controllers::instances::InstanceRole;
 use crate::controllers::transformers::GatewayInstanceConfiguration;
-use crate::kubernetes::objects::{ObjectRef, ObjectTracker, SyncObjectAction};
 use crate::kubernetes::KubeClientCell;
+use crate::kubernetes::objects::{ObjectRef, ObjectTracker, SyncObjectAction};
 use crate::sync_objects;
 use derive_builder::Builder;
 use gtmpl_derive::Gtmpl;

@@ -22,15 +22,11 @@ impl WatchConfigurationFileParams {
     }
 }
 
+#[derive(Default)]
 pub struct WatchConfigurationFileParamsBuilder {
     file_path: Option<PathBuf>,
 }
 
-impl Default for WatchConfigurationFileParamsBuilder {
-    fn default() -> Self {
-        Self { file_path: None }
-    }
-}
 
 impl WatchConfigurationFileParamsBuilder {
     pub fn file_path<P: AsRef<Path>>(&mut self, p: P) -> &mut Self {

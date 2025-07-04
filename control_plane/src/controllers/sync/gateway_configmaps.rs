@@ -1,8 +1,8 @@
 use crate::controllers::instances::InstanceRole;
 use crate::controllers::transformers::{Backend, GatewayInstanceConfiguration};
 use crate::ipc::IpcServices;
-use crate::kubernetes::objects::{ObjectRef, ObjectTracker, SyncObjectAction};
 use crate::kubernetes::KubeClientCell;
+use crate::kubernetes::objects::{ObjectRef, ObjectTracker, SyncObjectAction};
 use crate::sync_objects;
 use derive_builder::Builder;
 use gateway_api::apis::standard::httproutes::{

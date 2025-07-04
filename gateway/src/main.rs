@@ -4,15 +4,14 @@ mod proxy;
 mod util;
 
 use crate::cli::Cli;
-use crate::controllers::config::fs::{watch_configuration_file, WatchConfigurationFileParams};
+use crate::controllers::config::fs::{WatchConfigurationFileParams, watch_configuration_file};
 use crate::controllers::config::ipc::{
-    fetch_configuration, watch_ipc_endpoint, FetchConfigurationParams,
+    FetchConfigurationParams, fetch_configuration, watch_ipc_endpoint,
 };
-use crate::controllers::config::selector::{select_configuration, SelectorParams};
-use crate::controllers::ipc_events::{poll_gateway_events, PollGatewayEventsParams};
+use crate::controllers::config::selector::{SelectorParams, select_configuration};
+use crate::controllers::ipc_events::{PollGatewayEventsParams, poll_gateway_events};
 use crate::controllers::router::synthesize_http_router;
 use clap::Parser;
-use kubera_core::continue_on;
 use kubera_core::crypto::init_crypto;
 use kubera_core::instrumentation::init_instrumentation;
 use kubera_core::sync::signal::channel;
@@ -20,14 +19,11 @@ use once_cell::sync::Lazy;
 use pingora::prelude::*;
 use pingora::server::Server;
 use pingora::services::listening::Service;
-use prometheus::{register_int_gauge, IntGauge};
-use proxy::router::topology::TopologyLocationBuilder;
+use prometheus::{IntGauge, register_int_gauge};
 use proxy::ProxyBuilder;
-use std::path::PathBuf;
+use proxy::router::topology::TopologyLocationBuilder;
 use tokio::join;
-use tokio::task::{spawn_blocking, JoinSet};
-use tracing::field::debug;
-use tracing::{debug, warn};
+use tokio::task::{JoinSet, spawn_blocking};
 
 static MY_COUNTER: Lazy<IntGauge> =
     Lazy::new(|| register_int_gauge!("my_counter", "my counter").unwrap());

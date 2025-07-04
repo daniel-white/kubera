@@ -2,11 +2,11 @@ pub mod endpoints;
 pub mod events;
 mod gateways;
 
-use crate::ipc::endpoints::{spawn_ipc_endpoint, SpawnIpcEndpointParameters};
+use crate::ipc::endpoints::{SpawnIpcEndpointParameters, spawn_ipc_endpoint};
 use crate::ipc::events::EventSender;
-use crate::ipc::gateways::{create_gateway_configuration_services, GatewayConfigurationManager};
-use crate::kubernetes::objects::ObjectRef;
+use crate::ipc::gateways::{GatewayConfigurationManager, create_gateway_configuration_services};
 use crate::kubernetes::KubeClientCell;
+use crate::kubernetes::objects::ObjectRef;
 use derive_builder::Builder;
 use getset::{CopyGetters, Getters};
 use kubera_core::config::gateway::types::GatewayConfiguration;

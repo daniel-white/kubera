@@ -49,9 +49,7 @@ pub async fn get_gateway_configuration(
             debug!("Configuration for {} not found", gateway_ref);
             Problem::from(axum::http::StatusCode::NOT_FOUND)
                 .with_title("Gateway Configuration Not Found")
-                .with_detail(format!(
-                    "Configuration for object {gateway_ref} not found"
-                ))
+                .with_detail(format!("Configuration for object {gateway_ref} not found"))
                 .into_response()
         }
     }

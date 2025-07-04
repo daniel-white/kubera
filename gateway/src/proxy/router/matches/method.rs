@@ -1,5 +1,5 @@
-use super::score::HttpRouteRuleMatchesScore;
 use super::Match;
+use super::score::HttpRouteRuleMatchesScore;
 use http::Method;
 use tracing::{debug, instrument};
 

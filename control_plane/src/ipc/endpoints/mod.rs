@@ -9,10 +9,10 @@ use crate::ipc::endpoints::liveness_check::liveness_check;
 use crate::ipc::events::EventStreamFactory;
 use crate::ipc::gateways::GatewayConfigurationReader;
 use crate::kubernetes::KubeClientCell;
+use axum::Router;
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::routing::get;
-use axum::Router;
 use axum_health::Health;
 use derive_builder::Builder;
 use getset::{CloneGetters, CopyGetters, Getters};
@@ -26,7 +26,7 @@ use tokio::task::JoinSet;
 use tracing::info;
 
 #[derive(Builder, Getters, Clone)]
- struct IpcEndpointState {
+struct IpcEndpointState {
     #[getset(get = "pub")]
     events: EventStreamFactory,
 

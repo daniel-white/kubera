@@ -75,7 +75,7 @@ impl HttpRouteRuleMatches {
                 .uri
                 .query()
                 .map(|query| url::form_urlencoded::parse(query.as_bytes()).collect())
-                .unwrap_or_else(Vec::new);
+                .unwrap_or_default();
             if !query_params_matcher.matches(&score, &query_params) {
                 debug!("Query parameters did not match");
                 return NotMatched;

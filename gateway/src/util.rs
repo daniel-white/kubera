@@ -3,7 +3,7 @@ use regex::Regex;
 use std::collections::HashMap;
 use std::sync::Mutex;
 
-static REGEX_CACHE: Lazy<Mutex<HashMap<String, Regex>>> = Lazy::new(|| Mutex::default());
+static REGEX_CACHE: Lazy<Mutex<HashMap<String, Regex>>> = Lazy::new(Mutex::default);
 
 pub fn get_regex(pattern: &str) -> Regex {
     let mut map = REGEX_CACHE.lock().expect("Failed to lock regex cache");

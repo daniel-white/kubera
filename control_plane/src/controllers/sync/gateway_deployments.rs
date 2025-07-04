@@ -1,5 +1,6 @@
 use crate::controllers::instances::InstanceRole;
 use crate::controllers::transformers::GatewayInstanceConfiguration;
+use crate::kubernetes::KubeClientCell;
 use crate::kubernetes::objects::{ObjectRef, ObjectTracker, SyncObjectAction};
 use crate::sync_objects;
 use derive_builder::Builder;
@@ -11,7 +12,6 @@ use std::collections::{HashMap, HashSet};
 use std::time::Duration;
 use tokio::sync::broadcast::Sender;
 use tokio::task::JoinSet;
-use crate::kubernetes::KubeClientCell;
 
 const TEMPLATE: &str = include_str!("./templates/gateway_deployment.kubernetes-helm-yaml");
 

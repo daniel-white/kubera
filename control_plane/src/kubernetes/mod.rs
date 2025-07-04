@@ -1,5 +1,5 @@
 use kube::Client;
-use kubera_core::sync::signal::{channel, Receiver};
+use kubera_core::sync::signal::{Receiver, channel};
 use std::ops::Deref;
 use tokio::task::JoinSet;
 use tracing::error;

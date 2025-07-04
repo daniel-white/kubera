@@ -2,7 +2,7 @@ mod matches;
 mod routes;
 pub mod topology;
 
-use crate::proxy::router::matches::{HostMatch, HostValueMatch, HttpRouteRuleMatchesResult};
+use crate::proxy::router::matches::{HostMatch, HostValueMatch};
 use crate::proxy::router::routes::{HttpRoute, HttpRouteBuilder, HttpRouteMatchResult};
 use crate::proxy::router::topology::{
     TopologyLocation, TopologyLocationBuilder, TopologyLocationMatch,
@@ -33,7 +33,7 @@ pub struct HttpRouterBuilder {
 impl HttpRouterBuilder {
     pub fn new(current_location: Arc<TopologyLocation>) -> Self {
         HttpRouterBuilder {
-            current_location: current_location,
+            current_location,
             host_value_matches: Vec::new(),
             routes_builders: Vec::new(),
         }
@@ -129,7 +129,7 @@ impl HttpBackendBuilder {
     }
 
     pub fn build(self) -> HttpBackend {
-        let mut endpoints: HashMap<_, _> = self
+        let endpoints: HashMap<_, _> = self
             .endpoint_builders
             .into_iter()
             .map(|b| {
@@ -166,7 +166,7 @@ impl HttpBackendBuilder {
 
     pub fn add_endpoint<F>(&mut self, address: IpAddr, factory: F) -> &mut Self
     where
-        F: FnOnce(&mut HttpBackendEndpointBuilder) -> (),
+        F: FnOnce(&mut HttpBackendEndpointBuilder),
     {
         let mut endpoint_builder = HttpBackendEndpointBuilder::for_address(address);
         factory(&mut endpoint_builder);
