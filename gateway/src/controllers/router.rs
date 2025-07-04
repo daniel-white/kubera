@@ -11,7 +11,7 @@ use tokio::task::JoinSet;
 use tracing::{debug, warn};
 
 pub fn synthesize_http_router(
-    mut join_set: &mut JoinSet<()>,
+    join_set: &mut JoinSet<()>,
     gateway_configuration: &Receiver<Option<GatewayConfiguration>>,
     current_location: TopologyLocation,
 ) -> Receiver<Option<HttpRouter>> {

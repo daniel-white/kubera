@@ -1,5 +1,6 @@
 use crate::proxy::router::matches::{
-    HostHeaderMatch, HostHeaderMatchBuilder, HttpRouteRuleMatchesBuilder, HttpRouteRuleMatchesScore,
+    HostHeaderMatch, HostHeaderMatchBuilder, HttpRouteRuleMatchesBuilder,
+    HttpRouteRuleMatchesResult, HttpRouteRuleMatchesScore,
 };
 use crate::proxy::router::topology::TopologyLocation;
 use crate::proxy::router::{HttpBackend, HttpBackendBuilder, HttpRouteRuleMatches};
@@ -7,10 +8,10 @@ use getset::Getters;
 use http::request::Parts;
 use kubera_core::net::Hostname;
 use std::sync::Arc;
-use tracing::instrument;
+use tracing::{debug, instrument};
 
 pub enum HttpRouteMatchResult<'a> {
-    Matched(Vec<(&'a HttpRoute, &'a HttpRouteRule, HttpRouteRuleMatchesScore)>),
+    Matched(&'a HttpRouteRule, HttpRouteRuleMatchesScore),
     NotMatched,
 }
 
@@ -30,22 +31,44 @@ impl HttpRoute {
             return HttpRouteMatchResult::NotMatched;
         }
 
-        let matched_rules: Vec<_> = self
+        let best_match = self
             .rules
             .iter()
-            // .filter_map(|rule| match rule.matches().matches(parts) {
-            //     HttpRouteRuleMatchesResult::Matched(score) => Some((self, rule, score)),
-            //     _ => None,
-            // })
-            .collect();
+            .enumerate()
+            .flat_map(|(i, rule)| {
+                rule.matches()
+                    .iter()
+                    .enumerate()
+                    .map(move |(j, m)| (format!("{i}:{j}"), rule, m))
+            })
+            .filter_map(|(path, rule, m)| match m.matches(parts) {
+                HttpRouteRuleMatchesResult::Matched(score) => {
+                    debug!(
+                        "Matched rule {:?} at path {} with score {:?}",
+                        rule.unique_id, path, score
+                    );
+                    Some((path, rule, score))
+                }
+                HttpRouteRuleMatchesResult::NotMatched => {
+                    debug!("Rule {:?} at path {} did not match", rule.unique_id, path);
+                    None
+                }
+            })
+            .min_by(|(_, _, lhs), (_, _, rhs)| lhs.cmp(rhs));
 
-        if matched_rules.is_empty() {
-            return HttpRouteMatchResult::NotMatched;
+        match best_match {
+            Some((path, rule, score)) => {
+                debug!(
+                    "Best match found for rule {:?} at path {}",
+                    rule.unique_id, path
+                );
+                HttpRouteMatchResult::Matched(rule, score)
+            }
+            None => {
+                debug!("No matching rule found for the request");
+                HttpRouteMatchResult::NotMatched
+            }
         }
-
-        HttpRouteMatchResult::NotMatched
-
-        // HttpRouteMatchResult::Matched(matched_rules)
     }
 }
 

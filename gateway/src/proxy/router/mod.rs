@@ -2,8 +2,8 @@ mod matches;
 mod routes;
 pub mod topology;
 
-use crate::proxy::router::matches::{HostMatch, HostValueMatch};
-use crate::proxy::router::routes::{HttpRoute, HttpRouteBuilder};
+use crate::proxy::router::matches::{HostMatch, HostValueMatch, HttpRouteRuleMatchesResult};
+use crate::proxy::router::routes::{HttpRoute, HttpRouteBuilder, HttpRouteMatchResult};
 use crate::proxy::router::topology::{
     TopologyLocation, TopologyLocationBuilder, TopologyLocationMatch,
 };
@@ -16,6 +16,7 @@ pub use matches::HttpRouteRuleMatches;
 use std::collections::HashMap;
 use std::net::IpAddr;
 use std::sync::Arc;
+use tracing::debug;
 
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct HttpRouter {
@@ -79,25 +80,21 @@ impl HttpRouterBuilder {
 
 impl HttpRouter {
     pub fn match_route(&self, parts: &Parts) -> Option<&HttpRoute> {
-        None
-        // self.routes
-        //     .iter()
-        //     .enumerate()
-        //     .filter_map(|(i, r)| match r.matches(parts) {
-        //         HttpRouteRuleMatchesResult::Matched(score) => {
-        //             debug!("Matched route at index {} with score: {:?}", i, score);
-        //             Some((i, r, score))
-        //         }
-        //         HttpRouteRuleMatchesResult::NotMatched => {
-        //             debug!("Route at index {} did not match", i);
-        //             None
-        //         }
-        //     })
-        //     .min_by(|(_, _, lhs), (_, _, rhs)| lhs.cmp(rhs))
-        //     .map(|(i, r, _)| {
-        //         debug!("Returning matched route at index {}", i);
-        //         r
-        //     })
+        self.routes
+            .iter()
+            .enumerate()
+            .filter_map(|(i, route)| match route.matches(parts) {
+                HttpRouteMatchResult::Matched(rule, score) => Some((i, route, rule, score)),
+                HttpRouteMatchResult::NotMatched => {
+                    debug!("Route at index {} did not match", i);
+                    None
+                }
+            })
+            .min_by(|(_, _, _, lhs), (_, _, _, rhs)| lhs.cmp(rhs))
+            .map(|(i, route, _, _)| {
+                debug!("Returning matched route at index {}", i);
+                route
+            })
     }
 }
 
