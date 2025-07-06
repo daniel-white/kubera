@@ -18,7 +18,6 @@ use gateway_api::apis::standard::gateways::Gateway;
 use gateway_api::apis::standard::httproutes::HTTPRoute;
 use getset::Getters;
 use k8s_openapi::api::discovery::v1::EndpointSlice;
-use kube::runtime::watcher::Config;
 use kubera_api::v1alpha1::{GatewayClassParameters, GatewayParameters};
 use kubera_core::sync::signal::Receiver;
 use std::sync::Arc;

@@ -1,8 +1,10 @@
 #[macro_export]
 macro_rules! watch_objects {
-    ($join_set:ident, $object_type:ty, $kube_client:ident) => {
+    ($join_set:ident, $object_type:ty, $kube_client:ident) => {{
+        use kube::runtime::watcher::Config;
+        
         watch_objects!($join_set, $object_type, $kube_client, Config::default())
-    };
+    }};
     ($join_set:ident, $object_type:ty, $kube_client:ident, $config:expr) => {{
         use futures::StreamExt;
         use kube::Api;

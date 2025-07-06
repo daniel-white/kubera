@@ -1,9 +1,9 @@
 use crate::controllers::instances::InstanceRole;
 use crate::controllers::transformers::{Backend, GatewayInstanceConfiguration};
 use crate::ipc::IpcServices;
+use crate::kubernetes::objects::{ObjectRef, SyncObjectAction};
 use crate::kubernetes::KubeClientCell;
-use crate::kubernetes::objects::{ObjectRef, ObjectTracker, SyncObjectAction};
-use crate::sync_objects;
+use crate::{sync_objects, watch_objects};
 use derive_builder::Builder;
 use gateway_api::apis::standard::httproutes::{
     HTTPRoute, HTTPRouteRulesMatchesHeadersType, HTTPRouteRulesMatchesMethod,
@@ -11,6 +11,7 @@ use gateway_api::apis::standard::httproutes::{
 };
 use gtmpl_derive::Gtmpl;
 use k8s_openapi::api::core::v1::{ConfigMap, Service};
+use kube::runtime::watcher::Config;
 use kubera_core::config::gateway::types::http::router::HttpMethodMatch;
 use kubera_core::config::gateway::types::{GatewayConfiguration, GatewayConfigurationBuilder};
 use kubera_core::net::Hostname;
@@ -24,7 +25,7 @@ use std::time::Duration;
 use tokio::select;
 use tokio::sync::broadcast::Sender;
 use tokio::task::JoinSet;
-use tracing::{error, info};
+use tracing::{error, info, warn};
 
 const TEMPLATE: &str = include_str!("./templates/gateway_configmap.kubernetes-helm-yaml");
 
@@ -45,7 +46,7 @@ pub fn sync_gateway_configmaps(
     http_routes: &Receiver<HashMap<ObjectRef, Vec<Arc<HTTPRoute>>>>,
     backends: &Receiver<HashMap<ObjectRef, Backend>>,
 ) {
-    let tx = sync_objects!(
+    let (tx, current_refs) = sync_objects!(
         join_set,
         ConfigMap,
         kube_client,
@@ -58,6 +59,7 @@ pub fn sync_gateway_configmaps(
         join_set,
         tx,
         ipc_services,
+        current_refs,
         primary_instance_ip_addr,
         gateway_instances,
         http_routes,
@@ -69,13 +71,14 @@ fn generate_gateway_configmaps(
     join_set: &mut JoinSet<()>,
     tx: Sender<SyncObjectAction<TemplateValues, ConfigMap>>,
     ipc_services: Arc<IpcServices>,
+    current_refs_rx: Receiver<Option<HashSet<ObjectRef>>>,
     primary_instance_ip_addr: &Receiver<Option<IpAddr>>,
     gateway_instances: &Receiver<HashMap<ObjectRef, GatewayInstanceConfiguration>>,
     http_routes: &Receiver<HashMap<ObjectRef, Vec<Arc<HTTPRoute>>>>,
     backends: &Receiver<HashMap<ObjectRef, Backend>>,
 ) {
     let ipc_services = ipc_services.clone();
-    let configs = generate_gateway_configurations(
+    let intended_rx = generate_gateway_configurations(
         join_set,
         ipc_services.clone(),
         primary_instance_ip_addr,
@@ -84,12 +87,11 @@ fn generate_gateway_configmaps(
         backends,
     );
 
-    let tracker = ObjectTracker::new();
     join_set.spawn(async move {
         loop {
             info!("Reconciling Gateway ConfigMaps");
-            let current_configs = configs.current().clone();
-            let config_values: Vec<_> = current_configs
+            let intended = intended_rx.current().clone();
+            let intended: Vec<_> = intended
                 .iter()
                 .map(|(gateway_ref, config)| {
                     let configmap_ref = ObjectRef::new_builder()
@@ -111,25 +113,28 @@ fn generate_gateway_configmaps(
                 })
                 .collect();
 
-            let configmaps_refs: HashSet<_> = config_values
-                .iter()
-                .map(|(ref_, _, _, _)| ref_.clone())
-                .collect();
+            if let Some(current_refs) = current_refs_rx.current().as_ref() {
+                let intended_refs: HashSet<_> = intended
+                    .iter()
+                    .map(|(ref_, _, _, _)| ref_.clone())
+                    .collect();
 
-            let deleted_refs = tracker.reconcile(configmaps_refs);
-            for deleted_ref in deleted_refs {
-                let ipc_services = ipc_services.clone();
-                let _ = tx
-                    .send(SyncObjectAction::Delete(deleted_ref.clone()))
-                    .inspect(move |_| {
-                        ipc_services.remove_gateway_configuration(&deleted_ref);
-                    })
-                    .inspect_err(|err| {
-                        error!("Failed to send delete action: {}", err);
-                    });
+                let deleted_refs = current_refs.difference(&intended_refs);
+
+                for deleted_ref in deleted_refs {
+                    let ipc_services = ipc_services.clone();
+                    let _ = tx
+                        .send(SyncObjectAction::Delete(deleted_ref.clone()))
+                        .inspect(move |_| {
+                            ipc_services.remove_gateway_configuration(&deleted_ref);
+                        })
+                        .inspect_err(|err| {
+                            error!("Failed to send delete action: {}", err);
+                        });
+                }
             }
 
-            for (service_ref, gateway_ref, template_values, config) in config_values.into_iter() {
+            for (service_ref, gateway_ref, template_values, config) in intended.into_iter() {
                 let ipc_services = ipc_services.clone();
                 let _ = tx
                     .send(SyncObjectAction::Upsert(
@@ -146,7 +151,11 @@ fn generate_gateway_configmaps(
                     });
             }
 
-            continue_after!(Duration::from_secs(60), configs.changed());
+            continue_after!(
+                Duration::from_secs(60),
+                intended_rx.changed(),
+                current_refs_rx.changed()
+            );
         }
     });
 }

@@ -1,21 +1,24 @@
 #[macro_export]
 macro_rules! sync_objects {
     ($join_set:ident, $object_type:ty, $kube_client:ident, $instance_role:ident, $template_value_type:ty, $template:ident) => {{
-        use $crate::kubernetes::objects::{ObjectRef, SyncObjectAction, SyncObjectAction::*};
+        use $crate::kubernetes::objects::{Objects, ObjectRef, SyncObjectAction, SyncObjectAction::*};
         use gtmpl::{Context, Template, gtmpl_fn, FuncError};
         use gtmpl_value::Value;
         use kube::{ Api, Resource, ResourceExt };
         use kube::api::{ Patch, ObjectMeta };
-        use kubera_api::constants::{MANAGED_BY_LABEL, MANAGED_BY_VALUE, PART_OF_LABEL};
+        use kubera_api::constants::{MANAGED_BY_LABEL, MANAGED_BY_VALUE, PART_OF_LABEL, MANAGED_BY_LABEL_QUERY};
         use k8s_openapi::DeepMerge;
         use std::collections::BTreeMap;
         use tokio::select;
         use tokio::signal::ctrl_c;
         use tokio::sync::broadcast::{channel, error::RecvError};
         use tracing::{debug, info, trace, warn};
-        use kubera_core::continue_on;
+        use kubera_core::{continue_after, continue_on};
+        use kubera_core::sync::signal::{channel as signal_channel, Receiver};
+        use std::collections::HashSet;
+        use std::time::Duration;
 
-        let (tx, mut rx) = channel::<SyncObjectAction<$template_value_type, $object_type>>(1);
+        let (tx, mut rx) = channel::<SyncObjectAction<$template_value_type, $object_type>>(50);
 
         const _: () = {
             fn assert_impl<T: Resource + ResourceExt>() {}
@@ -26,6 +29,37 @@ macro_rules! sync_objects {
 
         let kube_client: Receiver<Option<KubeClientCell>> = $kube_client.clone();
         let instance_role: Receiver<InstanceRole> = $instance_role.clone();
+
+        let current_object_refs = {
+            let (tx, rx) = signal_channel(None); // Use an Option here to flag that this has been processed
+            let current_objects: Receiver<Objects<$object_type>> = watch_objects!(
+                $join_set,
+                $object_type,
+                kube_client,
+                Config::default().labels(MANAGED_BY_LABEL_QUERY)
+            );
+
+            $join_set.spawn(async move {
+                loop {
+                    let object_refs: HashSet<_> = current_objects
+                        .current()
+                        .iter()
+                        .filter_map(|(object_ref, _, object)| {
+                            match object.metadata.deletion_timestamp {
+                                Some(_) => None,
+                                None => Some(object_ref.clone()),
+                            }
+                        })
+                        .collect();
+                    
+                    tx.replace(Some(object_refs));
+
+                    continue_after!(Duration::from_secs(60), current_objects.changed());
+                }
+            });
+
+            rx
+        };
 
         gtmpl_fn!(
             fn quote(s: String) -> Result<String, FuncError> {
@@ -163,6 +197,6 @@ macro_rules! sync_objects {
             }
         });
 
-        tx
-    }};
+        (tx, current_object_refs)
+    }}
 }
