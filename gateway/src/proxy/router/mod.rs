@@ -1,3 +1,4 @@
+pub mod endpoints;
 mod matches;
 mod routes;
 pub mod topology;
@@ -104,9 +105,6 @@ pub struct HttpBackend {
     weight: i32,
 
     #[getset(get = "pub")]
-    port: Option<u16>,
-
-    #[getset(get = "pub")]
     endpoints: HashMap<BitFlags<TopologyLocationMatch>, Vec<HttpBackendEndpoint>>,
 }
 
@@ -149,7 +147,6 @@ impl HttpBackendBuilder {
 
         HttpBackend {
             weight: self.weight,
-            port: self.port,
             endpoints,
         }
     }
@@ -199,7 +196,7 @@ impl HttpBackendEndpointBuilder {
 
     pub fn for_address(address: IpAddr) -> Self {
         HttpBackendEndpointBuilder {
-            location_builder: TopologyLocationBuilder::default(),
+            location_builder: TopologyLocation::new_builder(),
             address,
         }
     }
@@ -208,7 +205,7 @@ impl HttpBackendEndpointBuilder {
     where
         F: FnOnce(&mut TopologyLocationBuilder),
     {
-        let mut builder = TopologyLocationBuilder::default();
+        let mut builder = TopologyLocation::new_builder();
         factory(&mut builder);
         self.location_builder = builder;
         self

@@ -1,4 +1,4 @@
-use enumflags2::{BitFlags, bitflags};
+use enumflags2::{bitflags, BitFlags};
 use getset::Getters;
 
 #[bitflags]
@@ -33,11 +33,14 @@ pub struct TopologyLocation {
 
 impl TopologyLocation {
     pub fn new_builder() -> TopologyLocationBuilder {
-        TopologyLocationBuilder::default()
+        TopologyLocationBuilder {
+            node: None,
+            zone: None,
+        }
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct TopologyLocationBuilder {
     node: Option<String>,
     zone: Option<String>,
@@ -51,13 +54,13 @@ impl TopologyLocationBuilder {
         }
     }
 
-    pub fn on_node(&mut self, node: &Option<String>) -> &mut Self {
-        self.node = node.as_ref().cloned();
+    pub fn on_node(&mut self, node: Option<String>) -> &mut Self {
+        self.node = node;
         self
     }
 
-    pub fn in_zone(&mut self, zone: &Option<String>) -> &mut Self {
-        self.zone = zone.as_ref().cloned();
+    pub fn in_zone(&mut self, zone: Option<String>) -> &mut Self {
+        self.zone = zone;
         self
     }
 }

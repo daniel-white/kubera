@@ -1,10 +1,10 @@
 use crate::proxy::router::topology::TopologyLocation;
 use crate::proxy::router::{HttpRouter, HttpRouterBuilder};
 use http::HeaderValue;
-use kubera_core::config::gateway::types::GatewayConfiguration;
 use kubera_core::config::gateway::types::http::router::*;
+use kubera_core::config::gateway::types::GatewayConfiguration;
 use kubera_core::continue_on;
-use kubera_core::sync::signal::{Receiver, channel};
+use kubera_core::sync::signal::{channel, Receiver};
 use std::sync::Arc;
 use tokio::task::JoinSet;
 use tracing::debug;
@@ -133,8 +133,10 @@ pub fn synthesize_http_router(
                                                 *config_endpoint.address(),
                                                 |endpoint| {
                                                     endpoint.located(|l| {
-                                                        l.in_zone(config_endpoint.zone())
-                                                            .on_node(config_endpoint.node());
+                                                        l.in_zone(config_endpoint.zone().clone())
+                                                            .on_node(
+                                                                config_endpoint.node().clone(),
+                                                            );
                                                     });
                                                 },
                                             );

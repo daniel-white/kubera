@@ -6,7 +6,8 @@ metadata:
     app.kubernetes.io/name: {{ .gateway_name | quote }}
     app: {{ .gateway_name | quote }}
 spec:
-  type: ClusterIP
+  type: NodePort
+  ipFamilyPolicy: PreferDualStack
   ports:
     - port: 80
       targetPort: 8080

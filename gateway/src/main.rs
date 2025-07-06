@@ -4,12 +4,12 @@ mod proxy;
 mod util;
 
 use crate::cli::Cli;
-use crate::controllers::config::fs::{WatchConfigurationFileParams, watch_configuration_file};
+use crate::controllers::config::fs::{watch_configuration_file, WatchConfigurationFileParams};
 use crate::controllers::config::ipc::{
-    FetchConfigurationParams, fetch_configuration, watch_ipc_endpoint,
+    fetch_configuration, watch_ipc_endpoint, FetchConfigurationParams,
 };
-use crate::controllers::config::selector::{SelectorParams, select_configuration};
-use crate::controllers::ipc_events::{PollGatewayEventsParams, poll_gateway_events};
+use crate::controllers::config::selector::{select_configuration, SelectorParams};
+use crate::controllers::ipc_events::{poll_gateway_events, PollGatewayEventsParams};
 use crate::controllers::router::synthesize_http_router;
 use clap::Parser;
 use kubera_core::crypto::init_crypto;
@@ -19,11 +19,11 @@ use once_cell::sync::Lazy;
 use pingora::prelude::*;
 use pingora::server::Server;
 use pingora::services::listening::Service;
-use prometheus::{IntGauge, register_int_gauge};
+use prometheus::{register_int_gauge, IntGauge};
+use proxy::router::topology::TopologyLocation;
 use proxy::ProxyBuilder;
-use proxy::router::topology::TopologyLocationBuilder;
 use tokio::join;
-use tokio::task::{JoinSet, spawn_blocking};
+use tokio::task::{spawn_blocking, JoinSet};
 
 static MY_COUNTER: Lazy<IntGauge> =
     Lazy::new(|| register_int_gauge!("my_counter", "my counter").unwrap());
@@ -39,8 +39,8 @@ async fn main() {
         let zone_name = args.zone_name().filter(|z| !z.is_empty());
         let node_name = args.node_name().filter(|n| !n.is_empty());
 
-        let mut current_location = TopologyLocationBuilder::default();
-        current_location.in_zone(&zone_name).on_node(&node_name);
+        let mut current_location = TopologyLocation::new_builder();
+        current_location.in_zone(zone_name).on_node(node_name);
         current_location.build()
     };
 

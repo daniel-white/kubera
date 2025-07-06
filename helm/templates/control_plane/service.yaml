@@ -6,9 +6,10 @@ metadata:
   labels: {{ (include "labels" .) | nindent 4 }}
 spec:
   type: ClusterIP
-  selector:
-    app: {{ include "controlPlane.name" . }}
+  ipFamilyPolicy: PreferDualStack
   ports:
     - port: 80
       targetPort: 8000
       protocol: TCP
+  selector:
+    app: {{ include "controlPlane.name" . }}
