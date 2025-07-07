@@ -1,6 +1,6 @@
 #[macro_export]
 macro_rules! sync_objects {
-    ($join_set:ident, $object_type:ty, $kube_client:ident, $instance_role:ident, $template_value_type:ty, $template:ident) => {{
+    ($options:ident, $join_set:ident, $object_type:ty, $kube_client:ident, $instance_role:ident, $template_value_type:ty, $template:ident) => {{
         use $crate::kubernetes::objects::{Objects, ObjectRef, SyncObjectAction, SyncObjectAction::*};
         use gtmpl::{Context, Template, gtmpl_fn, FuncError};
         use gtmpl_value::Value;
@@ -16,7 +16,7 @@ macro_rules! sync_objects {
         use kubera_core::{continue_after, continue_on};
         use kubera_core::sync::signal::{channel as signal_channel, Receiver};
         use std::collections::HashSet;
-        use std::time::Duration;
+        use $crate::options::Options;
 
         let (tx, mut rx) = channel::<SyncObjectAction<$template_value_type, $object_type>>(50);
 
@@ -27,12 +27,14 @@ macro_rules! sync_objects {
             }
         };
 
+        let options: Arc<Options> = $options.clone();
         let kube_client: Receiver<Option<KubeClientCell>> = $kube_client.clone();
         let instance_role: Receiver<InstanceRole> = $instance_role.clone();
 
         let current_object_refs = {
             let (tx, rx) = signal_channel(None); // Use an Option here to flag that this has been processed
             let current_objects: Receiver<Objects<$object_type>> = watch_objects!(
+                $options,
                 $join_set,
                 $object_type,
                 kube_client,
@@ -51,10 +53,10 @@ macro_rules! sync_objects {
                             }
                         })
                         .collect();
-                    
+
                     tx.replace(Some(object_refs));
 
-                    continue_after!(Duration::from_secs(60), current_objects.changed());
+                    continue_after!(options.auto_cycle_duration(), current_objects.changed());
                 }
             });
 

@@ -1,11 +1,12 @@
 #[macro_export]
 macro_rules! watch_objects {
-    ($join_set:ident, $object_type:ty, $kube_client:ident) => {{
+    ($options:ident, $join_set:ident, $object_type:ty, $kube_client:ident) => {{
+        #[allow(unused_imports)]
         use kube::runtime::watcher::Config;
-        
-        watch_objects!($join_set, $object_type, $kube_client, Config::default())
+
+        watch_objects!($options, $join_set, $object_type, $kube_client, Config::default())
     }};
-    ($join_set:ident, $object_type:ty, $kube_client:ident, $config:expr) => {{
+    ($options:ident, $join_set:ident, $object_type:ty, $kube_client:ident, $config:expr) => {{
         use futures::StreamExt;
         use kube::Api;
         use kube::runtime::Controller;
@@ -14,21 +15,16 @@ macro_rules! watch_objects {
         use std::fmt::Debug;
         use std::future::ready;
         use std::sync::Arc;
-        use std::time::Duration;
         use thiserror::Error;
         use tracing::instrument;
         use tracing::debug;
         use kubera_core::continue_on;
         use $crate::kubernetes::objects::Objects;
+        use $crate::Options;
 
         struct ControllerContext {
+            options: Arc<Options>,
             tx: Sender<Objects<$object_type>>,
-        }
-
-        impl ControllerContext {
-            fn new(tx: Sender<Objects<$object_type>>) -> Self {
-                Self { tx }
-            }
         }
 
         #[derive(Error, Debug)]
@@ -60,19 +56,20 @@ macro_rules! watch_objects {
 
             ctx.tx.replace(new_objects);
 
-            Ok(Action::requeue(Duration::from_secs(60)))
+            Ok(Action::requeue(ctx.options.controller_requeue_duration()))
         }
 
         fn error_policy(
             _: Arc<$object_type>,
             _: &ControllerError,
-            _: Arc<ControllerContext>,
+            ctx: Arc<ControllerContext>,
         ) -> Action {
-            Action::requeue(Duration::from_secs(5))
+            Action::requeue(ctx.options.controller_error_requeue_duration())
         }
 
+        let options: Arc<Options> = $options.clone();
         let kube_client: Receiver<Option<KubeClientCell>> = $kube_client.clone();
-        let config = $config.clone();
+        let config: Config = $config.clone();
         let (tx, rx) = channel::<Objects<$object_type>>(Objects::default());
 
         debug!(
@@ -81,7 +78,10 @@ macro_rules! watch_objects {
         );
 
         $join_set.spawn(async move {
-            let controller_context = Arc::new(ControllerContext::new(tx));
+            let controller_context = Arc::new(ControllerContext{
+                options,
+                tx,
+            });
             loop {
                 if let Some(kube_client) = kube_client.current().as_ref() {
                     let object_api = Api::<$object_type>::all(kube_client.clone().into());

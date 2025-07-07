@@ -4,10 +4,12 @@ mod controllers;
 mod health;
 pub mod ipc;
 pub mod kubernetes;
+mod options;
 
-use crate::controllers::{SpawnControllersParams, spawn_controllers};
-use crate::ipc::{SpawnIpcParameters, spawn_ipc};
+use crate::controllers::{spawn_controllers, SpawnControllersParams};
+use crate::ipc::{spawn_ipc, SpawnIpcParameters};
 use crate::kubernetes::start_kubernetes_client;
+use crate::options::Options;
 use clap::Parser;
 use cli::Cli;
 use kubera_core::crypto::init_crypto;
@@ -18,6 +20,7 @@ use tokio::task::JoinSet;
 #[tokio::main(flavor = "multi_thread")]
 async fn main() {
     let args = Cli::parse();
+    let options = Arc::new(Options::default());
 
     init_crypto();
     init_instrumentation();
@@ -29,6 +32,7 @@ async fn main() {
     // IPC is half 1 - it is what the gateway use to ensure that they have the latest configuration
     let ipc_services = {
         let params = SpawnIpcParameters::new_builder()
+            .options(options.clone())
             .port(args.port())
             .kube_client(kube_client.clone())
             .build()
@@ -41,13 +45,13 @@ async fn main() {
     // through various controllers
     {
         let params = SpawnControllersParams::new_builder()
+            .options(options)
             .kube_client(kube_client)
             .ipc_services(Arc::new(ipc_services))
             .pod_namespace(args.pod_namespace())
             .pod_name(args.pod_name())
             .instance_name(args.instance_name())
-            .build()
-            .expect("Failed to build controller run parameters");
+            .build();
         spawn_controllers(&mut join_set, params);
     }
 

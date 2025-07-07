@@ -1,21 +1,21 @@
-use crate::kubernetes::KubeClientCell;
 use crate::kubernetes::objects::ObjectRef;
+use crate::kubernetes::KubeClientCell;
+use crate::options::Options;
 use futures::StreamExt;
 use k8s_openapi::api::coordination::v1::Lease;
 use k8s_openapi::api::core::v1::Pod;
-use kube::runtime::Controller;
 use kube::runtime::controller::Action;
 use kube::runtime::watcher::Config;
+use kube::runtime::Controller;
 use kube::{Api, Client};
 use kube_leader_election::{LeaseLock, LeaseLockParams, LeaseLockResult};
-use kubera_core::sync::signal::{Receiver, Sender, channel};
+use kubera_core::sync::signal::{channel, Receiver, Sender};
 use kubera_core::{continue_after, continue_on};
 use std::future::ready;
 use std::net::IpAddr;
 use std::ops::Deref;
 use std::str::FromStr;
 use std::sync::Arc;
-use std::time::Duration;
 use thiserror::Error;
 use tokio::select;
 use tokio::task::JoinSet;
@@ -23,11 +23,13 @@ use tracing::log::warn;
 use tracing::{debug, instrument};
 
 pub fn watch_leader_instance_ip_addr(
+    options: Arc<Options>,
     join_set: &mut JoinSet<()>,
     kube_client: &Receiver<Option<KubeClientCell>>,
     instance_role: &Receiver<InstanceRole>,
 ) -> Receiver<Option<IpAddr>> {
     struct ControllerContext {
+        options: Arc<Options>,
         tx: Sender<Option<IpAddr>>,
     }
 
@@ -50,11 +52,11 @@ pub fn watch_leader_instance_ip_addr(
             ip_addr
         );
         ctx.tx.replace(ip_addr);
-        Ok(Action::requeue(Duration::from_secs(60)))
+        Ok(Action::requeue(ctx.options.controller_requeue_duration()))
     }
 
-    fn error_policy(_: Arc<Pod>, _: &ControllerError, _: Arc<ControllerContext>) -> Action {
-        Action::requeue(Duration::from_secs(5))
+    fn error_policy(_: Arc<Pod>, _: &ControllerError, ctx: Arc<ControllerContext>) -> Action {
+        Action::requeue(ctx.options.controller_error_requeue_duration())
     }
 
     let instance_role = instance_role.clone();
@@ -62,7 +64,7 @@ pub fn watch_leader_instance_ip_addr(
     let (tx, rx) = channel(None);
 
     join_set.spawn(async move {
-        let controller_context = Arc::new(ControllerContext { tx });
+        let controller_context = Arc::new(ControllerContext { options, tx });
         loop {
             if let Some(kube_client2) = kube_client.current().as_ref()
                 && let Some(primary_pod_ref) = instance_role.current().primary_pod_ref()
@@ -121,6 +123,7 @@ impl InstanceRole {
 }
 
 pub fn determine_instance_role(
+    options: Arc<Options>,
     join_set: &mut JoinSet<()>,
     namespace: &str,
     instance_name: &str,
@@ -142,7 +145,7 @@ pub fn determine_instance_role(
             LeaseLockParams {
                 holder_id: pod_name.to_string(),
                 lease_name: format!("{instance_name}-primary"),
-                lease_ttl: Duration::from_secs(30),
+                lease_ttl: options.lease_duration(),
             },
         );
 
@@ -168,7 +171,7 @@ pub fn determine_instance_role(
                 tx.replace(new_role);
             }
 
-            continue_after!(Duration::from_secs(10));
+            continue_after!(options.lease_check_interval());
         }
     });
 

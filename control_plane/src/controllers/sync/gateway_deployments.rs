@@ -2,6 +2,7 @@ use crate::controllers::instances::InstanceRole;
 use crate::controllers::transformers::GatewayInstanceConfiguration;
 use crate::kubernetes::objects::{ObjectRef, SyncObjectAction};
 use crate::kubernetes::KubeClientCell;
+use crate::options::Options;
 use crate::{sync_objects, watch_objects};
 use derive_builder::Builder;
 use gtmpl_derive::Gtmpl;
@@ -10,7 +11,7 @@ use kube::runtime::watcher::Config;
 use kubera_core::continue_after;
 use kubera_core::sync::signal::Receiver;
 use std::collections::{HashMap, HashSet};
-use std::time::Duration;
+use std::sync::Arc;
 use tokio::sync::broadcast::Sender;
 use tokio::task::JoinSet;
 
@@ -25,12 +26,14 @@ struct TemplateValues {
 }
 
 pub fn sync_gateway_deployments(
+    options: Arc<Options>,
     join_set: &mut JoinSet<()>,
     kube_client: &Receiver<Option<KubeClientCell>>,
     instance_role: &Receiver<InstanceRole>,
     gateway_instances: &Receiver<HashMap<ObjectRef, GatewayInstanceConfiguration>>,
 ) {
     let (tx, current_refs) = sync_objects!(
+        options,
         join_set,
         Deployment,
         kube_client,
@@ -38,10 +41,11 @@ pub fn sync_gateway_deployments(
         TemplateValues,
         TEMPLATE
     );
-    generate_gateway_deployments(join_set, tx, current_refs, gateway_instances);
+    generate_gateway_deployments(options, join_set, tx, current_refs, gateway_instances);
 }
 
 fn generate_gateway_deployments(
+    options: Arc<Options>,
     join_set: &mut JoinSet<()>,
     tx: Sender<SyncObjectAction<TemplateValues, Deployment>>,
     current_refs_rx: Receiver<Option<HashSet<ObjectRef>>>,
@@ -106,7 +110,7 @@ fn generate_gateway_deployments(
             }
 
             continue_after!(
-                Duration::from_secs(60),
+                options.auto_cycle_duration(),
                 gateway_instances.changed(),
                 current_refs_rx.changed()
             );

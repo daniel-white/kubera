@@ -9,10 +9,11 @@ use crate::ipc::endpoints::liveness_check::liveness_check;
 use crate::ipc::events::EventStreamFactory;
 use crate::ipc::gateways::GatewayConfigurationReader;
 use crate::kubernetes::KubeClientCell;
-use axum::Router;
+use crate::options::Options;
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::routing::get;
+use axum::Router;
 use axum_health::Health;
 use derive_builder::Builder;
 use getset::{CloneGetters, CopyGetters, Getters};
@@ -20,13 +21,17 @@ use kubera_core::net::Port;
 use kubera_core::sync::signal::Receiver;
 use problemdetails::Problem;
 use std::net::SocketAddr;
+use std::sync::Arc;
 use tokio::net::TcpListener;
 use tokio::select;
 use tokio::task::JoinSet;
 use tracing::info;
 
-#[derive(Builder, Getters, Clone)]
+#[derive(Builder, Getters, CloneGetters, Clone)]
 struct IpcEndpointState {
+    #[getset(get_clone = "pub")]
+    options: Arc<Options>,
+    
     #[getset(get = "pub")]
     events: EventStreamFactory,
 
@@ -43,6 +48,9 @@ impl IpcEndpointState {
 #[derive(Builder, CloneGetters, CopyGetters)]
 #[builder(setter(into))]
 pub(super) struct SpawnIpcEndpointParameters {
+    #[getset(get_clone = "")]
+    options: Arc<Options>,
+
     #[getset(get_copy = "")]
     port: Port,
 
@@ -68,6 +76,7 @@ impl SpawnIpcEndpointParameters {
 pub(super) fn spawn_ipc_endpoint(join_set: &mut JoinSet<()>, params: SpawnIpcEndpointParameters) {
     join_set.spawn(async move {
         let initial_state = IpcEndpointState::new_builder()
+            .options(params.options())
             .gateways(params.gateways())
             .events(params.events())
             .build()

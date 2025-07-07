@@ -3,6 +3,7 @@ use crate::controllers::transformers::{Backend, GatewayInstanceConfiguration};
 use crate::ipc::IpcServices;
 use crate::kubernetes::objects::{ObjectRef, SyncObjectAction};
 use crate::kubernetes::KubeClientCell;
+use crate::options::Options;
 use crate::{sync_objects, watch_objects};
 use derive_builder::Builder;
 use gateway_api::apis::standard::httproutes::{
@@ -21,7 +22,6 @@ use kubera_core::{continue_after, continue_on};
 use std::collections::{HashMap, HashSet};
 use std::net::IpAddr;
 use std::sync::Arc;
-use std::time::Duration;
 use tokio::select;
 use tokio::sync::broadcast::Sender;
 use tokio::task::JoinSet;
@@ -37,6 +37,7 @@ struct TemplateValues {
 }
 
 pub fn sync_gateway_configmaps(
+    options: Arc<Options>,
     join_set: &mut JoinSet<()>,
     kube_client: &Receiver<Option<KubeClientCell>>,
     ipc_services: Arc<IpcServices>,
@@ -47,6 +48,7 @@ pub fn sync_gateway_configmaps(
     backends: &Receiver<HashMap<ObjectRef, Backend>>,
 ) {
     let (tx, current_refs) = sync_objects!(
+        options,
         join_set,
         ConfigMap,
         kube_client,
@@ -56,6 +58,7 @@ pub fn sync_gateway_configmaps(
     );
 
     generate_gateway_configmaps(
+        options,
         join_set,
         tx,
         ipc_services,
@@ -68,6 +71,7 @@ pub fn sync_gateway_configmaps(
 }
 
 fn generate_gateway_configmaps(
+    options: Arc<Options>,
     join_set: &mut JoinSet<()>,
     tx: Sender<SyncObjectAction<TemplateValues, ConfigMap>>,
     ipc_services: Arc<IpcServices>,
@@ -152,7 +156,7 @@ fn generate_gateway_configmaps(
             }
 
             continue_after!(
-                Duration::from_secs(60),
+                options.auto_cycle_duration(),
                 intended_rx.changed(),
                 current_refs_rx.changed()
             );

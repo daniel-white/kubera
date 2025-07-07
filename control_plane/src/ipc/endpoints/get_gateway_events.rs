@@ -4,7 +4,7 @@ use axum::extract::{Path, Query};
 use axum::response::sse::Event;
 use axum::{
     extract::State,
-    response::{IntoResponse, sse::Sse},
+    response::{sse::Sse, IntoResponse},
 };
 use futures::TryStreamExt;
 use gateway_api::apis::standard::gateways::Gateway;
@@ -58,7 +58,7 @@ pub async fn get_gateway_events(
     Sse::new(stream)
         .keep_alive(
             axum::response::sse::KeepAlive::new()
-                .interval(Duration::from_secs(15))
+                .interval(state.options().ipc_sse_keep_alive_interval())
                 .text("keep-alive"),
         )
         .into_response()
