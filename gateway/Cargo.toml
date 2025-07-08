@@ -27,6 +27,7 @@ prometheus = "0.14"
 rand = "0.9"
 rand_chacha = "0.9"
 reqwest = "0.12"
+trusted-proxies = "0.3"
 
 [dev-dependencies]
 rstest = { workspace = true }
