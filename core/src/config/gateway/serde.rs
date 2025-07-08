@@ -1,6 +1,6 @@
 use crate::config::gateway::types::GatewayConfiguration;
-use serde_valid::Validate;
 use serde_valid::validation::{Error, Errors};
+use serde_valid::Validate;
 use std::fmt::Debug;
 use std::io::{Read, Write};
 use thiserror::Error;
@@ -15,7 +15,7 @@ pub enum ReadError {
     InvalidConfiguration(#[from] Errors<Error>),
 }
 
-#[instrument(skip(reader))]
+#[instrument(skip(reader), level = "debug")]
 pub fn read_configuration(reader: impl Read) -> Result<GatewayConfiguration, ReadError> {
     let configuration = serde_yaml::from_reader::<_, GatewayConfiguration>(reader)
         .inspect_err(|e| warn!("Failed to parse configuration: {}", e))

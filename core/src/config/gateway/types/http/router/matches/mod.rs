@@ -20,7 +20,7 @@ use serde_valid::Validate;
 #[serde(rename_all = "camelCase")]
 pub struct HttpRouteRuleMatches {
     #[getset(get = "pub")]
-    #[serde(default, skip_serializing_if = "HttpPathMatch::is_default")]
+    #[serde(default)]
     path: HttpPathMatch,
 
     #[getset(get = "pub")]
@@ -34,8 +34,8 @@ pub struct HttpRouteRuleMatches {
     query_params: Option<Vec<HttpQueryParamMatch>>,
 
     #[getset(get = "pub")]
-    #[serde(default)]
-    method: HttpMethodMatch,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    method: Option<HttpMethodMatch>,
 }
 
 #[derive(Debug, Default)]
@@ -43,7 +43,7 @@ pub struct HttpRouteRuleMatchesBuilder {
     path: HttpPathMatch,
     headers: Option<Vec<HttpHeaderMatch>>,
     query_params: Option<Vec<HttpQueryParamMatch>>,
-    method: HttpMethodMatch,
+    method: Option<HttpMethodMatch>,
 }
 
 impl HttpRouteRuleMatchesBuilder {
@@ -75,7 +75,7 @@ impl HttpRouteRuleMatchesBuilder {
     }
 
     pub fn with_method(&mut self, method: HttpMethodMatch) -> &mut Self {
-        self.method = method;
+        self.method = Some(method);
         self
     }
 

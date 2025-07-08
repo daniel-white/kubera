@@ -1,0 +1,21 @@
+version: v1alpha1
+ipc:
+  endpoint: 10.244.0.146:8080
+listeners:
+  - name: http
+    port: 80
+    protocol: HTTP
+http_routes:
+  - rules:
+      - unique_id: db40fb98-9ab7-4e4b-a1d1-e40ceaace062:6f0b1e23-981f-4d2f-9357-ec909c403ba2:0
+        matches:
+          - path:
+              value: /
+        backends:
+          - weight: 1
+            port: 80
+            name: echo
+            namespace: default
+            endpoints:
+              - node: minikube
+                address: 10.244.0.90

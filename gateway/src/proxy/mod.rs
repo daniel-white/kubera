@@ -1,6 +1,8 @@
 mod context;
 pub mod router;
 
+use std::net::SocketAddr;
+use crate::proxy::context::MatchRouteResult;
 use async_trait::async_trait;
 use context::Context;
 use derive_builder::Builder;
@@ -10,11 +12,12 @@ use pingora::http::ResponseHeader;
 use pingora::prelude::*;
 use router::HttpRouter;
 use tracing::warn;
+use crate::proxy::router::endpoints::EndpointsResolver;
+use crate::proxy::router::topology::{TopologyLocation, TopologyLocationBuilder};
 
 #[derive(Debug, Builder)]
 pub struct Proxy {
     router: Receiver<Option<HttpRouter>>,
-    //addr_resolver: SocketAddrResolver,
 }
 
 #[async_trait]
@@ -30,14 +33,38 @@ impl ProxyHttp for Proxy {
         session: &mut Session,
         _ctx: &mut Self::CTX,
     ) -> Result<Box<HttpPeer>> {
-        match _ctx.find_route(session.req_header()) {
-            context::FindRouteResult::Found(route) => {
-                Err(Error::explain(HTTPStatus(400), "Not implemented")) // TODO implement route to upstream
+        match _ctx.set_route(session.req_header()) {
+            MatchRouteResult::Found(route, rule) => {
+                let mut location = TopologyLocation::new_builder();
+                location.on_node(Some("minikube".to_string()));
+                let location = location
+                    .build();
+                
+                let mut endpoints = EndpointsResolver::new_builder(location.clone());
+                for be in rule.backends() {
+                    for (_, addrs) in be.endpoints() {
+                        for addr in addrs {
+                            endpoints.insert(SocketAddr::new(*addr.address(), 80), location.clone());
+                        }
+                    }
+                }
+                
+                let endpoints = endpoints.build();
+                
+                let ep: Vec<_> = endpoints.resolve(None).collect();
+                
+                Ok(Box::new(HttpPeer::new(
+                    ep[0],
+                    false,
+                    "".to_string()
+                )))
+                
+                //Err(Error::explain(HTTPStatus(400), "Not implemented")) // TODO implement route to upstream
             }
-            context::FindRouteResult::NotFound => {
+            MatchRouteResult::NotFound => {
                 Err(Error::explain(HTTPStatus(404), "No matching route found"))
             }
-            context::FindRouteResult::MissingConfiguration => {
+            MatchRouteResult::MissingConfiguration => {
                 Err(Error::explain(HTTPStatus(503), "Missing configuration"))
             }
         }

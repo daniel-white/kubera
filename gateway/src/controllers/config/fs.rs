@@ -3,7 +3,7 @@ use kubera_core::config::gateway::serde::read_configuration;
 use kubera_core::config::gateway::types::GatewayConfiguration;
 use kubera_core::continue_after;
 use kubera_core::io::file_watcher::spawn_file_watcher;
-use kubera_core::sync::signal::{Receiver, channel};
+use kubera_core::sync::signal::{channel, Receiver};
 use std::io::Cursor;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
@@ -26,7 +26,6 @@ impl WatchConfigurationFileParams {
 pub struct WatchConfigurationFileParamsBuilder {
     file_path: Option<PathBuf>,
 }
-
 
 impl WatchConfigurationFileParamsBuilder {
     pub fn file_path<P: AsRef<Path>>(&mut self, p: P) -> &mut Self {
@@ -61,7 +60,7 @@ pub fn watch_configuration_file(
 
             if let Ok(config_reader) = read(&params.file_path).await.map(Cursor::new) {
                 if let Ok(config) = read_configuration(config_reader) {
-                    info!("Configuration file read");
+                    debug!("Configuration file read");
                     tx.replace(Some((serial, config)));
                 }
             }

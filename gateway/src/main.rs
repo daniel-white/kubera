@@ -93,9 +93,7 @@ async fn main() {
 
     let router = synthesize_http_router(&mut join_set, &config, current_location);
 
-    join_set.join_all().await;
-
-    join!(spawn_blocking(move || {
+    join_set.spawn_blocking(move || {
         let mut server = Server::new(None).unwrap();
         server.bootstrap();
         let proxy = ProxyBuilder::default()
@@ -113,5 +111,7 @@ async fn main() {
         server.add_service(prometheus_service_http);
 
         server.run_forever();
-    }));
+    });
+
+    join_set.join_all().await;
 }

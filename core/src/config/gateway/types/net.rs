@@ -144,6 +144,7 @@ pub struct Listener {
     name: String,
 
     #[getset(get = "pub")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     host: Option<HostnameMatch>,
 
     #[getset(get = "pub")]

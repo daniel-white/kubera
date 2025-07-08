@@ -4,7 +4,7 @@ mod routes;
 pub mod topology;
 
 use crate::proxy::router::matches::{HostMatch, HostValueMatch};
-use crate::proxy::router::routes::{HttpRoute, HttpRouteBuilder, HttpRouteMatchResult};
+use crate::proxy::router::routes::{HttpRouteBuilder, HttpRouteMatchResult};
 use crate::proxy::router::topology::{
     TopologyLocation, TopologyLocationBuilder, TopologyLocationMatch,
 };
@@ -19,10 +19,13 @@ use std::net::IpAddr;
 use std::sync::Arc;
 use tracing::debug;
 
+pub use routes::HttpRoute;
+pub use routes::HttpRouteRule;
+
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct HttpRouter {
     host_matches: HostMatch,
-    routes: Vec<HttpRoute>,
+    routes: Vec<Arc<HttpRoute>>,
 }
 
 pub struct HttpRouterBuilder {
@@ -50,7 +53,7 @@ impl HttpRouterBuilder {
             routes: self
                 .routes_builders
                 .into_iter()
-                .map(|b| b.build())
+                .map(|b| Arc::new(b.build()))
                 .collect(),
         }
     }
@@ -80,7 +83,7 @@ impl HttpRouterBuilder {
 }
 
 impl HttpRouter {
-    pub fn match_route(&self, parts: &Parts) -> Option<&HttpRoute> {
+    pub fn match_route(&self, parts: &Parts) -> Option<(Arc<HttpRoute>, Arc<HttpRouteRule>)> {
         self.routes
             .iter()
             .enumerate()
@@ -92,9 +95,9 @@ impl HttpRouter {
                 }
             })
             .min_by(|(_, _, _, lhs), (_, _, _, rhs)| lhs.cmp(rhs))
-            .map(|(i, route, _, _)| {
+            .map(|(i, route, rule, _)| {
                 debug!("Returning matched route at index {}", i);
-                route
+                (route.clone(), rule.clone())
             })
     }
 }
@@ -211,3 +214,4 @@ impl HttpBackendEndpointBuilder {
         self
     }
 }
+

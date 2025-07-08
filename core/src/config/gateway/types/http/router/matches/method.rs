@@ -9,6 +9,7 @@ use strum::EnumString;
     Default,
     Debug,
     Clone,
+    Copy,
     PartialEq,
     Eq,
     Serialize,

@@ -10,8 +10,8 @@ use kubera_core::net::Hostname;
 use std::sync::Arc;
 use tracing::{debug, instrument};
 
-pub enum HttpRouteMatchResult<'a> {
-    Matched(&'a HttpRouteRule, HttpRouteRuleMatchesScore),
+pub enum HttpRouteMatchResult {
+    Matched(Arc<HttpRouteRule>, HttpRouteRuleMatchesScore),
     NotMatched,
 }
 
@@ -21,7 +21,7 @@ pub struct HttpRoute {
     host_header_match: HostHeaderMatch,
 
     #[getset(get = "pub")]
-    rules: Vec<HttpRouteRule>,
+    rules: Vec<Arc<HttpRouteRule>>,
 }
 
 impl HttpRoute {
@@ -62,7 +62,7 @@ impl HttpRoute {
                     "Best match found for rule {:?} at path {}",
                     rule.unique_id, path
                 );
-                HttpRouteMatchResult::Matched(rule, score)
+                HttpRouteMatchResult::Matched(rule.clone(), score)
             }
             None => {
                 debug!("No matching rule found for the request");
@@ -90,7 +90,7 @@ impl HttpRouteBuilder {
     pub fn build(self) -> HttpRoute {
         HttpRoute {
             host_header_match: self.host_header_match_builder.build(),
-            rules: self.rule_builders.into_iter().map(|b| b.build()).collect(),
+            rules: self.rule_builders.into_iter().map(|b| Arc::new(b.build())).collect(),
         }
     }
 
