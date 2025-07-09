@@ -1,7 +1,7 @@
 use crate::controllers::instances::InstanceRole;
 use crate::controllers::transformers::GatewayInstanceConfiguration;
-use crate::kubernetes::objects::{ObjectRef, SyncObjectAction};
 use crate::kubernetes::KubeClientCell;
+use crate::kubernetes::objects::{ObjectRef, SyncObjectAction};
 use crate::options::Options;
 use crate::{sync_objects, watch_objects};
 use derive_builder::Builder;

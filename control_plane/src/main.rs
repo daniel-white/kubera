@@ -6,8 +6,8 @@ pub mod ipc;
 pub mod kubernetes;
 mod options;
 
-use crate::controllers::{spawn_controllers, SpawnControllersParams};
-use crate::ipc::{spawn_ipc, SpawnIpcParameters};
+use crate::controllers::{SpawnControllersParams, spawn_controllers};
+use crate::ipc::{SpawnIpcParameters, spawn_ipc};
 use crate::kubernetes::start_kubernetes_client;
 use crate::options::Options;
 use clap::Parser;

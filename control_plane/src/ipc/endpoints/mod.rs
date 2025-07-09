@@ -10,10 +10,10 @@ use crate::ipc::events::EventStreamFactory;
 use crate::ipc::gateways::GatewayConfigurationReader;
 use crate::kubernetes::KubeClientCell;
 use crate::options::Options;
+use axum::Router;
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::routing::get;
-use axum::Router;
 use axum_health::Health;
 use derive_builder::Builder;
 use getset::{CloneGetters, CopyGetters, Getters};
@@ -31,7 +31,7 @@ use tracing::info;
 struct IpcEndpointState {
     #[getset(get_clone = "pub")]
     options: Arc<Options>,
-    
+
     #[getset(get = "pub")]
     events: EventStreamFactory,
 

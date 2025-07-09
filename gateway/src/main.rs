@@ -20,10 +20,10 @@ use pingora::prelude::*;
 use pingora::server::Server;
 use pingora::services::listening::Service;
 use prometheus::{register_int_gauge, IntGauge};
+use proxy::filters::client_addrs::client_addr_filter;
 use proxy::router::topology::TopologyLocation;
 use proxy::ProxyBuilder;
-use tokio::join;
-use tokio::task::{spawn_blocking, JoinSet};
+use tokio::task::{JoinSet};
 
 static MY_COUNTER: Lazy<IntGauge> =
     Lazy::new(|| register_int_gauge!("my_counter", "my counter").unwrap());
@@ -92,11 +92,13 @@ async fn main() {
     watch_ipc_endpoint(&mut join_set, &config, ipc_endpoint_tx);
 
     let router = synthesize_http_router(&mut join_set, &config, current_location);
+    let client_addr_filter = client_addr_filter(&mut join_set, &config);
 
     join_set.spawn_blocking(move || {
         let mut server = Server::new(None).unwrap();
         server.bootstrap();
         let proxy = ProxyBuilder::default()
+            .client_addr_filter(client_addr_filter)
             .router(router)
             .build()
             .expect("Failed to build proxy");

@@ -16,6 +16,7 @@ getset = { workspace = true }
 gtmpl = { version = "0.7", features = ["gtmpl_dynamic_template"] }
 gtmpl_derive = "0.5"
 gtmpl_value = "0.5"
+ipnet = { workspace = true }
 itertools = { workspace = true }
 k8s-openapi = { workspace = true, features = ["v1_32"] }
 kube = { workspace = true }

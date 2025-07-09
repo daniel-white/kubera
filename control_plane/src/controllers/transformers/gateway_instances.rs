@@ -1,21 +1,22 @@
 use crate::kubernetes::objects::{ObjectRef, Objects};
 use gateway_api::apis::standard::gateways::Gateway;
 use getset::Getters;
-use k8s_openapi::DeepMerge;
 use k8s_openapi::api::apps::v1::{Deployment, DeploymentSpec, DeploymentStrategy};
 use k8s_openapi::api::core::v1::{Service, ServiceSpec};
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
+use k8s_openapi::DeepMerge;
 use kubera_api::v1alpha1::{
-    GatewayClassParameters, GatewayParameters, ImagePullPolicy as ApiImagePullPolicy,
+    GatewayClassParameters, GatewayConfiguration, GatewayParameters,
+    ImagePullPolicy as ApiImagePullPolicy,
 };
 use kubera_core::continue_on;
-use kubera_core::sync::signal::{Receiver, channel};
+use kubera_core::sync::signal::{channel, Receiver};
 use serde_json::{from_value, json};
 use std::collections::HashMap;
 use std::sync::Arc;
 use strum::IntoStaticStr;
 use tokio::task::JoinSet;
-use tracing::info;
+use tracing::{info, warn};
 
 #[derive(Default, Copy, Clone, Debug, PartialEq, IntoStaticStr)]
 #[strum(serialize_all = "PascalCase")]
@@ -49,6 +50,9 @@ pub struct GatewayInstanceConfiguration {
 
     #[getset(get = "pub")]
     image_pull_policy: ImagePullPolicy,
+
+    #[getset(get = "pub")]
+    configuration: GatewayConfiguration,
 }
 
 pub fn collect_gateway_instances(
@@ -84,6 +88,11 @@ pub fn collect_gateway_instances(
                         current_gateway_class_parameters.as_deref(),
                         gateway_parameters.as_deref(),
                     );
+                    let configuration = merge_gateway_configuration(
+                        &gateway,
+                        current_gateway_class_parameters.as_deref(),
+                        gateway_parameters.as_deref(),
+                    );
                     (
                         gateway_ref,
                         GatewayInstanceConfiguration {
@@ -91,6 +100,7 @@ pub fn collect_gateway_instances(
                             deployment_overrides,
                             service_overrides,
                             image_pull_policy,
+                            configuration,
                         },
                     )
                 })
@@ -205,5 +215,25 @@ fn merge_service_overrides(
         spec: Some(spec),
         metadata: merge_metadata(gateway),
         ..Default::default()
+    }
+}
+
+fn merge_gateway_configuration(
+    gateway: &Gateway,
+    gateway_class_parameters: Option<&GatewayClassParameters>,
+    gateway_parameters: Option<&GatewayParameters>,
+) -> GatewayConfiguration {
+    let gateway_class = gateway_class_parameters.and_then(|p| p.spec.common.gateway.as_ref());
+    let gateway = gateway_parameters
+        .and_then(|p| p.spec.common.as_ref())
+        .and_then(|c| c.gateway.as_ref());
+    warn!(
+        "Using gateway configuration: {:?} {:?}",
+        gateway_class, gateway
+    );
+    match (gateway_class, gateway) {
+        (_, Some(gateway)) => gateway.clone(),
+        (Some(gateway_class), _) => gateway_class.clone(),
+        _ => GatewayConfiguration::default(),
     }
 }

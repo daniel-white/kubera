@@ -1,15 +1,15 @@
-use crate::kubernetes::objects::ObjectRef;
 use crate::kubernetes::KubeClientCell;
+use crate::kubernetes::objects::ObjectRef;
 use crate::options::Options;
 use futures::StreamExt;
 use k8s_openapi::api::coordination::v1::Lease;
 use k8s_openapi::api::core::v1::Pod;
+use kube::runtime::Controller;
 use kube::runtime::controller::Action;
 use kube::runtime::watcher::Config;
-use kube::runtime::Controller;
 use kube::{Api, Client};
 use kube_leader_election::{LeaseLock, LeaseLockParams, LeaseLockResult};
-use kubera_core::sync::signal::{channel, Receiver, Sender};
+use kubera_core::sync::signal::{Receiver, Sender, channel};
 use kubera_core::{continue_after, continue_on};
 use std::future::ready;
 use std::net::IpAddr;

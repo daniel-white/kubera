@@ -1,11 +1,12 @@
 [package]
 name = "kubera_api"
 version = "0.1.0"
-edition = "2024"
+edition = "2021"
 
 [dependencies]
 derive_builder = { workspace = true }
 gateway-api = "0.16"
+ipnet = { workspace = true }
 k8s-openapi = { workspace = true, features = ["v1_32"] }
 kube = { workspace = true }
 schemars = { version = "0.8" }

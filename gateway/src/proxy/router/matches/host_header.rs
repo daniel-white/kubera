@@ -46,7 +46,7 @@ impl HostHeaderMatch {
             debug!("No host header matches configured");
             return true;
         }
-        
+
         let is_match = match headers.get(http_constant::HOST) {
             Some(host_header_value) => self
                 .host_header_value_matches

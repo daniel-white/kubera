@@ -13,7 +13,9 @@ use gateway_api::apis::standard::httproutes::{
 use gtmpl_derive::Gtmpl;
 use k8s_openapi::api::core::v1::{ConfigMap, Service};
 use kube::runtime::watcher::Config;
+use kubera_api::v1alpha1::{ClientAddresses, ClientAddressesSource, ProxyIpAddressHeaders};
 use kubera_core::config::gateway::types::http::router::HttpMethodMatch;
+use kubera_core::config::gateway::types::net::ProxyHeaders;
 use kubera_core::config::gateway::types::{GatewayConfiguration, GatewayConfigurationBuilder};
 use kubera_core::net::Hostname;
 use kubera_core::sync::signal;
@@ -195,6 +197,43 @@ fn generate_gateway_configurations(
                             cp.with_endpoint(ip_addr, &ipc_services.port());
                         });
                     }
+
+                    gateway_configuration.with_client_addrs(|c| {
+                        if let Some(client_addresses) = instance.configuration().client_addresses.as_ref() {
+                            warn!("Configuring client addresses for gateway: {:?}", client_addresses);
+                            match client_addresses.source {
+                                ClientAddressesSource::None => {
+                                    // No strategy, use default behavior
+                                }
+                                ClientAddressesSource::Header => {
+                                    c.trust_header(client_addresses.header.clone().expect("Header must be set when using source: Header"));
+                                }
+                                ClientAddressesSource::Proxies => {
+                                    c.trust_proxies(|p| {
+                                        let proxies = client_addresses.proxies.as_ref().expect("Proxies must be set when using source: Proxies");
+                                        if proxies.trust_local_ranges {
+                                            p.trust_local_ranges();
+                                        }
+                                        for trusted_ip in &proxies.trusted_ips {
+                                            p.add_trusted_ip(*trusted_ip);
+                                        }
+                                        for trusted_range in &proxies.trusted_ranges {
+                                            p.add_trusted_range(*trusted_range);
+                                        }
+                                        for trusted_header in &proxies.trusted_headers {
+                                            match trusted_header {
+                                                ProxyIpAddressHeaders::Forwarded => p.add_trusted_header(ProxyHeaders::Forwarded),
+                                                ProxyIpAddressHeaders::XForwardedFor => p.add_trusted_header(ProxyHeaders::XForwardedFor),
+                                                ProxyIpAddressHeaders::XForwardedHost => p.add_trusted_header(ProxyHeaders::XForwardedHost),
+                                                ProxyIpAddressHeaders::XForwardedProto => p.add_trusted_header(ProxyHeaders::XForwardedProto),
+                                                ProxyIpAddressHeaders::XForwardedBy => p.add_trusted_header(ProxyHeaders::XForwardedBy),
+                                            };
+                                        }
+                                    });
+                                }
+                            }
+                        }
+                    });
 
                     for listener in &instance.gateway().spec.listeners {
                         gateway_configuration.add_listener(|l| {

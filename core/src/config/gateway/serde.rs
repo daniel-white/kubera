@@ -1,6 +1,6 @@
 use crate::config::gateway::types::GatewayConfiguration;
-use serde_valid::validation::{Error, Errors};
 use serde_valid::Validate;
+use serde_valid::validation::{Error, Errors};
 use std::fmt::Debug;
 use std::io::{Read, Write};
 use thiserror::Error;

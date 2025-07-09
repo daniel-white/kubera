@@ -214,4 +214,3 @@ impl HttpBackendEndpointBuilder {
         self
     }
 }
-

@@ -2,7 +2,9 @@ pub mod http;
 pub mod net;
 
 use crate::config::gateway::types::http::router::{HttpRoute, HttpRouteBuilder};
-use crate::config::gateway::types::net::{Listener, ListenerBuilder};
+use crate::config::gateway::types::net::{
+    ClientAddrs, ClientAddrsBuilder, Listener, ListenerBuilder,
+};
 use crate::net::Port;
 use getset::Getters;
 use schemars::JsonSchema;
@@ -30,7 +32,7 @@ pub enum GatewayConfigurationVersion {
     V1Alpha1,
 }
 
-#[derive(Validate, Getters, Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Validate, Getters, Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct GatewayConfiguration {
     #[getset(get = "pub")]
     version: GatewayConfigurationVersion,
@@ -45,6 +47,9 @@ pub struct GatewayConfiguration {
     #[getset(get = "pub")]
     #[validate(max_items = 64)]
     http_routes: Vec<HttpRoute>,
+
+    #[getset(get = "pub")]
+    client_addrs: Option<ClientAddrs>,
 }
 
 #[derive(Debug, Default)]
@@ -53,6 +58,7 @@ pub struct GatewayConfigurationBuilder {
     ipc: Option<IpcConfigurationBuilder>,
     listeners: Vec<Listener>,
     http_route_builders: Vec<HttpRouteBuilder>,
+    client_addrs_builder: Option<ClientAddrsBuilder>,
 }
 
 impl GatewayConfigurationBuilder {
@@ -70,6 +76,7 @@ impl GatewayConfigurationBuilder {
                 .into_iter()
                 .map(HttpRouteBuilder::build)
                 .collect(),
+            client_addrs: self.client_addrs_builder.map(ClientAddrsBuilder::build),
         }
     }
 
@@ -106,6 +113,16 @@ impl GatewayConfigurationBuilder {
         let mut route_builder = HttpRouteBuilder::new();
         factory(&mut route_builder);
         self.http_route_builders.push(route_builder);
+        self
+    }
+
+    pub fn with_client_addrs<F>(&mut self, factory: F) -> &mut Self
+    where
+        F: FnOnce(&mut ClientAddrsBuilder),
+    {
+        let mut builder = ClientAddrsBuilder::new();
+        factory(&mut builder);
+        self.client_addrs_builder = Some(builder);
         self
     }
 }

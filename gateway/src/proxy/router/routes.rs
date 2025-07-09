@@ -90,7 +90,11 @@ impl HttpRouteBuilder {
     pub fn build(self) -> HttpRoute {
         HttpRoute {
             host_header_match: self.host_header_match_builder.build(),
-            rules: self.rule_builders.into_iter().map(|b| Arc::new(b.build())).collect(),
+            rules: self
+                .rule_builders
+                .into_iter()
+                .map(|b| Arc::new(b.build()))
+                .collect(),
         }
     }
 

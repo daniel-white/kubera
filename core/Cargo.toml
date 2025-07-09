@@ -11,6 +11,7 @@ derive_builder = { workspace = true }
 flexi_logger = { workspace = true }
 getset = { workspace = true }
 http = { workspace = true }
+ipnet = { workspace = true }
 notify = "8"
 rustls = { workspace = true }
 schemars = { workspace = true }

@@ -1,8 +1,8 @@
 mod constants;
 mod context;
 pub mod router;
+pub mod filters;
 
-use crate::proxy::constants::KUBERA_CLIENT_IP_HEADER;
 use crate::proxy::context::MatchRouteResult;
 use crate::proxy::router::endpoints::EndpointsResolver;
 use crate::proxy::router::topology::{TopologyLocation, TopologyLocationBuilder};
@@ -18,10 +18,12 @@ use std::net::SocketAddr;
 use std::ops::Deref;
 use tracing::warn;
 use trusted_proxies::{Config, Trusted};
+use filters::client_addrs::ClientAddrFilter;
 
 #[derive(Debug, Builder)]
 pub struct Proxy {
     router: Receiver<Option<HttpRouter>>,
+    client_addr_filter: Receiver<ClientAddrFilter>
 }
 
 #[async_trait]
@@ -37,26 +39,9 @@ impl ProxyHttp for Proxy {
         session: &mut Session,
         _ctx: &mut Self::CTX,
     ) -> Result<()> {
-        let client_addr = session
-            .client_addr()
-            .and_then(|a| a.as_inet())
-            .map(|a| a.ip());
-
-        match client_addr {
-            Some(client_addr) => {
-                let config = Config::new_local();
-                let trusted_ip = Trusted::from(client_addr, session.req_header().deref(), &config).ip();
-                let headers = session.req_header_mut();
-                headers.insert_header(
-                    KUBERA_CLIENT_IP_HEADER,
-                    HeaderValue::from_str(&trusted_ip.to_string()).unwrap(),
-                )?
-            }
-            None => {
-                let headers = session.req_header_mut();
-                headers.remove_header(&KUBERA_CLIENT_IP_HEADER); // **MUST** remove the header from the client if the address is not available
-            }
-        };
+        let client_addr_filter = self.client_addr_filter.current();
+        
+        client_addr_filter.filter(session);
         
         Ok(())
     }

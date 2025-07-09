@@ -17,7 +17,7 @@ pub struct Options {
 
     #[getset(get_copy = "pub")]
     controller_error_requeue_duration: Duration,
-    
+
     #[getset(get_copy = "pub")]
     ipc_sse_keep_alive_interval: Duration,
 }

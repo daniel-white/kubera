@@ -1,7 +1,7 @@
 use crate::proxy::router::topology::{TopologyLocation, TopologyLocationMatch};
 use getset::Getters;
-use rand::seq::SliceRandom;
 use rand::SeedableRng;
+use rand::seq::SliceRandom;
 use rand_chacha::ChaCha8Rng;
 use std::hash::{DefaultHasher, Hasher};
 use std::net::{IpAddr, SocketAddr};
