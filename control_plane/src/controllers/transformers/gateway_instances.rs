@@ -219,7 +219,7 @@ fn merge_service_overrides(
 }
 
 fn merge_gateway_configuration(
-    gateway: &Gateway,
+    _gateway: &Gateway,
     gateway_class_parameters: Option<&GatewayClassParameters>,
     gateway_parameters: Option<&GatewayParameters>,
 ) -> GatewayConfiguration {

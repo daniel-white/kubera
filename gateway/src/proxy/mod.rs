@@ -5,7 +5,7 @@ pub mod filters;
 
 use crate::proxy::context::MatchRouteResult;
 use crate::proxy::router::endpoints::EndpointsResolver;
-use crate::proxy::router::topology::{TopologyLocation, TopologyLocationBuilder};
+use crate::proxy::router::topology::TopologyLocation;
 use async_trait::async_trait;
 use context::Context;
 use derive_builder::Builder;
@@ -15,9 +15,7 @@ use pingora::http::ResponseHeader;
 use pingora::prelude::*;
 use router::HttpRouter;
 use std::net::SocketAddr;
-use std::ops::Deref;
 use tracing::warn;
-use trusted_proxies::{Config, Trusted};
 use filters::client_addrs::ClientAddrFilter;
 
 #[derive(Debug, Builder)]
@@ -52,14 +50,14 @@ impl ProxyHttp for Proxy {
         _ctx: &mut Self::CTX,
     ) -> Result<Box<HttpPeer>> {
         match _ctx.set_route(session.req_header()) {
-            MatchRouteResult::Found(route, rule) => {
+            MatchRouteResult::Found(_, rule) => {
                 let mut location = TopologyLocation::new_builder();
                 location.on_node(Some("minikube".to_string()));
                 let location = location.build();
 
                 let mut endpoints = EndpointsResolver::new_builder(location.clone());
                 for be in rule.backends() {
-                    for (_, addrs) in be.endpoints() {
+                    for addrs in be.endpoints().values() {
                         for addr in addrs {
                             endpoints
                                 .insert(SocketAddr::new(*addr.address(), 80), location.clone());

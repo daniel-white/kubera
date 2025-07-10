@@ -13,7 +13,7 @@ use gateway_api::apis::standard::httproutes::{
 use gtmpl_derive::Gtmpl;
 use k8s_openapi::api::core::v1::{ConfigMap, Service};
 use kube::runtime::watcher::Config;
-use kubera_api::v1alpha1::{ClientAddresses, ClientAddressesSource, ProxyIpAddressHeaders};
+use kubera_api::v1alpha1::{ClientAddressesSource, ProxyIpAddressHeaders};
 use kubera_core::config::gateway::types::http::router::HttpMethodMatch;
 use kubera_core::config::gateway::types::net::ProxyHeaders;
 use kubera_core::config::gateway::types::{GatewayConfiguration, GatewayConfigurationBuilder};
@@ -132,7 +132,7 @@ fn generate_gateway_configmaps(
                     let _ = tx
                         .send(SyncObjectAction::Delete(deleted_ref.clone()))
                         .inspect(move |_| {
-                            ipc_services.remove_gateway_configuration(&deleted_ref);
+                            ipc_services.remove_gateway_configuration(deleted_ref);
                         })
                         .inspect_err(|err| {
                             error!("Failed to send delete action: {}", err);

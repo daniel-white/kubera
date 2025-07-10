@@ -15,18 +15,13 @@ use clap::Parser;
 use kubera_core::crypto::init_crypto;
 use kubera_core::instrumentation::init_instrumentation;
 use kubera_core::sync::signal::channel;
-use once_cell::sync::Lazy;
 use pingora::prelude::*;
 use pingora::server::Server;
 use pingora::services::listening::Service;
-use prometheus::{register_int_gauge, IntGauge};
 use proxy::filters::client_addrs::client_addr_filter;
 use proxy::router::topology::TopologyLocation;
 use proxy::ProxyBuilder;
 use tokio::task::{JoinSet};
-
-static MY_COUNTER: Lazy<IntGauge> =
-    Lazy::new(|| register_int_gauge!("my_counter", "my counter").unwrap());
 
 #[tokio::main]
 async fn main() {

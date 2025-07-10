@@ -1,6 +1,6 @@
 use http::{HeaderName, HeaderValue};
 use ipnet::IpNet;
-use kubera_core::config::gateway::types::net::{ClientAddrs, ClientAddrsSource, ProxyHeaders};
+use kubera_core::config::gateway::types::net::{ClientAddrsSource, ProxyHeaders};
 use kubera_core::config::gateway::types::GatewayConfiguration;
 use kubera_core::continue_on;
 use kubera_core::sync::signal::{channel, Receiver};
@@ -216,7 +216,7 @@ impl ClientAddrExtractor for TrustedProxiesClientAddrExtractor {
 }
 
 impl PartialEq for TrustedProxiesClientAddrExtractor {
-    fn eq(&self, other: &Self) -> bool {
+    fn eq(&self, _other: &Self) -> bool {
         false // This extractor is not meant to be compared for equality, as it is stateful based on configuration.
     }
 }

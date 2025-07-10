@@ -10,7 +10,6 @@ use futures::TryStreamExt;
 use gateway_api::apis::standard::gateways::Gateway;
 use problemdetails::Problem;
 use serde::Deserialize;
-use std::time::Duration;
 use tracing::debug;
 
 #[derive(Deserialize)]

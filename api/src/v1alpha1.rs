@@ -7,7 +7,6 @@ use schemars::schema::SingleOrVec::Single;
 use schemars::schema::{InstanceType, Schema, SchemaObject};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeSet;
 use std::net::IpAddr;
 use strum::IntoStaticStr;
 
