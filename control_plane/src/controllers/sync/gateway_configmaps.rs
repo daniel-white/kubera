@@ -190,7 +190,7 @@ fn generate_gateway_configurations(
                 .iter()
                 .map(|(gateway_ref, instance)| {
                     info!("Generating configuration for gateway: {}", gateway_ref);
-                    let mut gateway_configuration = GatewayConfigurationBuilder::new();
+                    let mut gateway_configuration = GatewayConfigurationBuilder::default();
 
                     if let Some(ip_addr) = primary_instance_ip_addr.current().as_ref() {
                         gateway_configuration.with_ipc(|cp| {
@@ -402,7 +402,7 @@ fn generate_gateway_configurations(
                     }
 
 
-                    let gateway_configuration = gateway_configuration.build();
+                    let gateway_configuration = gateway_configuration.build().unwrap();
                     (gateway_ref.clone(), gateway_configuration)
                 })
                 .collect();

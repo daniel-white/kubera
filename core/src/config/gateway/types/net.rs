@@ -5,6 +5,7 @@ use schemars::{json_schema, JsonSchema, Schema, SchemaGenerator};
 use serde::{Deserialize, Serialize};
 use serde_valid::Validate;
 use std::net::IpAddr;
+use thiserror::Error;
 
 #[derive(
     Validate, Getters, Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, Hash,
@@ -36,11 +37,13 @@ pub struct BackendBuilder {
     endpoint_builders: Vec<EndpointBuilder>,
 }
 
-impl BackendBuilder {
-    pub fn new() -> Self {
-        Self::default()
-    }
+#[derive(Debug, Error)]
+pub enum BackendBuilderError {
+    #[error("Backend name is required")]
+    MissingName,
+}
 
+impl BackendBuilder {
     pub fn named<S: AsRef<str>>(&mut self, name: S) -> &mut Self {
         self.name = Some(name.as_ref().to_string());
         self
@@ -71,18 +74,19 @@ impl BackendBuilder {
         self
     }
 
-    pub fn build(self) -> Backend {
-        Backend {
+    pub fn build(self) -> Result<Backend, BackendBuilderError> {
+        let name = self.name.ok_or(BackendBuilderError::MissingName)?;
+        Ok(Backend {
             weight: self.weight,
             port: self.port,
-            name: self.name.expect("Backend name is required"),
+            name,
             namespace: self.namespace,
             endpoints: self
                 .endpoint_builders
                 .into_iter()
                 .map(EndpointBuilder::build)
                 .collect(),
-        }
+        })
     }
 }
 
@@ -169,14 +173,24 @@ pub struct ListenerBuilder {
     protocol: Option<String>,
 }
 
+#[derive(Debug, Error)]
+pub enum ListenerBuilderError {
+    #[error("Listener name is required")]
+    MissingName,
+    #[error("Listener port is required")]
+    MissingPort,
+    #[error("Listener protocol is required")]
+    MissingProtocol,
+}
+
 impl ListenerBuilder {
-    pub fn build(self) -> Listener {
-        Listener {
-            name: self.name.expect("Listener name is required"),
+    pub fn build(self) -> Result<Listener, ListenerBuilderError> {
+        Ok(Listener {
+            name: self.name.ok_or(ListenerBuilderError::MissingName)?,
             host: self.host,
-            port: self.port.expect("Listener port is required"),
-            protocol: self.protocol.expect("Listener protocol is required"),
-        }
+            port: self.port.ok_or(ListenerBuilderError::MissingPort)?,
+            protocol: self.protocol.ok_or(ListenerBuilderError::MissingProtocol)?,
+        })
     }
 
     pub fn with_name<S: AsRef<str>>(&mut self, name: S) -> &mut Self {
@@ -312,6 +326,7 @@ impl TrustedProxiesBuilder {
     }
 
     pub fn trust_local_ranges(&mut self) -> &mut Self {
+        #[allow(clippy::unwrap_used)] // These are hardcoded and should not fail
         let mut ranges: Vec<_> = vec![
             // IPV4 Loopback
             "127.0.0.0/8".parse().unwrap(),
@@ -408,7 +423,7 @@ impl ClientAddrsBuilder {
             },
             ClientAddrsSource::Proxies => ClientAddrs {
                 source: ClientAddrsSource::Proxies,
-                proxies: self.proxies.map(|b| b.build()),
+                proxies: self.proxies.map(TrustedProxiesBuilder::build),
                 ..Default::default()
             },
         }

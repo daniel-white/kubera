@@ -1,10 +1,10 @@
 use crate::proxy::router::topology::TopologyLocation;
 use crate::proxy::router::{HttpRouter, HttpRouterBuilder};
 use http::HeaderValue;
-use kubera_core::config::gateway::types::GatewayConfiguration;
 use kubera_core::config::gateway::types::http::router::*;
+use kubera_core::config::gateway::types::GatewayConfiguration;
 use kubera_core::continue_on;
-use kubera_core::sync::signal::{Receiver, channel};
+use kubera_core::sync::signal::{channel, Receiver};
 use std::sync::Arc;
 use tokio::task::JoinSet;
 use tracing::debug;
@@ -90,7 +90,7 @@ fn build_router(
                                     match config_header.match_type() {
                                         HttpHeaderMatchType::Exact => {
                                             matches.with_exact_header(
-                                                config_header.name().into(),
+                                                config_header.name().try_into().unwrap(),
                                                 HeaderValue::from_str(
                                                     config_header.value().as_str(),
                                                 )
@@ -99,7 +99,7 @@ fn build_router(
                                         }
                                         HttpHeaderMatchType::RegularExpression => {
                                             matches.with_header_matching(
-                                                config_header.name().into(),
+                                                config_header.name().try_into().unwrap(),
                                                 config_header.value().as_str(),
                                             );
                                         }

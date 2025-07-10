@@ -1,11 +1,13 @@
 mod matches;
 
-use crate::config::gateway::types::net::{Backend, BackendBuilder};
+use crate::config::gateway::types::net::{Backend, BackendBuilder, BackendBuilderError};
 use getset::Getters;
+use itertools::{Either, Itertools};
 pub use matches::*;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_valid::Validate;
+use thiserror::Error;
 
 #[derive(
     Validate, Getters, Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Hash, JsonSchema,
@@ -34,6 +36,12 @@ pub struct HttpRouteRule {
     backends: Vec<Backend>,
 }
 
+#[derive(Debug, Error)]
+pub enum HttpRouteRuleBuilderError {
+    #[error("Invalid backend configuration at index {0}: {1}")]
+    InvalidBackend(usize, BackendBuilderError),
+}
+
 #[derive(Debug)]
 pub struct HttpRouteRuleBuilder {
     unique_id: HttpRouteRuleUniqueId,
@@ -50,27 +58,37 @@ impl HttpRouteRuleBuilder {
         }
     }
 
-    pub fn build(self) -> HttpRouteRule {
-        HttpRouteRule {
+    pub fn build(self) -> Result<HttpRouteRule, HttpRouteRuleBuilderError> {
+        let (backends, errs): (Vec<_>, Vec<_>) = self
+            .backend_builders
+            .into_iter()
+            .enumerate()
+            .map(|(i, b)| (i, b.build()))
+            .partition_map(|(i, r)| match r {
+                Ok(backend) => Either::Left(backend),
+                Err(err) => Either::Right(HttpRouteRuleBuilderError::InvalidBackend(i, err)),
+            });
+
+        if let Some(err) = errs.into_iter().next() {
+            return Err(err);
+        }
+
+        Ok(HttpRouteRule {
             unique_id: self.unique_id,
             matches: self
                 .match_builders
                 .into_iter()
                 .map(HttpRouteRuleMatchesBuilder::build)
                 .collect(),
-            backends: self
-                .backend_builders
-                .into_iter()
-                .map(BackendBuilder::build)
-                .collect(),
-        }
+            backends,
+        })
     }
 
     pub fn add_match<F>(&mut self, factory: F) -> &mut Self
     where
         F: FnOnce(&mut HttpRouteRuleMatchesBuilder),
     {
-        let mut match_builder = HttpRouteRuleMatchesBuilder::new();
+        let mut match_builder = HttpRouteRuleMatchesBuilder::default();
         factory(&mut match_builder);
         self.match_builders.push(match_builder);
         self
@@ -80,7 +98,7 @@ impl HttpRouteRuleBuilder {
     where
         F: FnOnce(&mut BackendBuilder),
     {
-        let mut backend_builder = BackendBuilder::new();
+        let mut backend_builder = BackendBuilder::default();
         factory(&mut backend_builder);
         self.backend_builders.push(backend_builder);
         self
@@ -105,6 +123,12 @@ pub struct HttpRoute {
     rules: Vec<HttpRouteRule>,
 }
 
+#[derive(Debug, Error)]
+pub enum HttpRouteBuilderError {
+    #[error("Invalid rule at index {0}: {1}")]
+    InvalidRule(usize, HttpRouteRuleBuilderError),
+}
+
 #[derive(Debug, Default)]
 pub struct HttpRouteBuilder {
     host_header_matches: Vec<HostHeaderMatch>,
@@ -112,19 +136,25 @@ pub struct HttpRouteBuilder {
 }
 
 impl HttpRouteBuilder {
-    pub fn new() -> Self {
-        Self::default()
-    }
+    pub fn build(self) -> Result<HttpRoute, HttpRouteBuilderError> {
+        let (rules, errs): (Vec<_>, Vec<_>) = self
+            .rule_builders
+            .into_iter()
+            .enumerate()
+            .map(|(i, b)| (i, b.build()))
+            .partition_map(|(i, r)| match r {
+                Ok(rule) => Either::Left(rule),
+                Err(err) => Either::Right(HttpRouteBuilderError::InvalidRule(i, err)),
+            });
 
-    pub fn build(self) -> HttpRoute {
-        HttpRoute {
-            host_header_matches: self.host_header_matches,
-            rules: self
-                .rule_builders
-                .into_iter()
-                .map(HttpRouteRuleBuilder::build)
-                .collect(),
+        if let Some(err) = errs.into_iter().next() {
+            return Err(err);
         }
+
+        Ok(HttpRoute {
+            host_header_matches: self.host_header_matches,
+            rules,
+        })
     }
 
     pub fn add_exact_host_header<S: AsRef<str>>(&mut self, host: S) -> &mut Self {

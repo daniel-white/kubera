@@ -1,7 +1,7 @@
 use crate::CaseInsensitiveString;
 use getset::Getters;
 use http::HeaderName;
-use schemars::{JsonSchema, Schema, SchemaGenerator, json_schema};
+use schemars::{json_schema, JsonSchema, Schema, SchemaGenerator};
 use serde::{Deserialize, Serialize};
 use serde_valid::Validate;
 use std::borrow::Cow;
@@ -101,8 +101,9 @@ impl JsonSchema for HttpHeaderName {
     }
 }
 
-impl From<&HttpHeaderName> for HeaderName {
-    fn from(name: &HttpHeaderName) -> Self {
-        Self::from_bytes(name.0.to_string().as_bytes()).expect("Invalid header name")
+impl TryFrom<&HttpHeaderName> for HeaderName {
+    type Error = &'static str;
+    fn try_from(name: &HttpHeaderName) -> Result<Self, Self::Error> {
+        Self::from_bytes(name.0.to_string().as_bytes()).map_err(|_| "Invalid header name")
     }
 }

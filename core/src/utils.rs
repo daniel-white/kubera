@@ -24,6 +24,7 @@ impl<T> DerefMut for DropTracker<T> {
 
 #[cfg(debug_assertions)]
 impl<T> Drop for DropTracker<T> {
+    #[allow(clippy::panic)] // This is intentional to track dropped values in debug builds
     fn drop(&mut self) {
         panic!("Value of type {} was dropped", std::any::type_name::<T>());
     }

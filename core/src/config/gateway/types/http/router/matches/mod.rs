@@ -47,10 +47,8 @@ pub struct HttpRouteRuleMatchesBuilder {
 }
 
 impl HttpRouteRuleMatchesBuilder {
-    pub fn new() -> Self {
-        Self::default()
-    }
 
+    #[must_use]
     pub fn build(self) -> HttpRouteRuleMatches {
         HttpRouteRuleMatches {
             path: self.path,

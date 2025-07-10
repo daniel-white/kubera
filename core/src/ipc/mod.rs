@@ -37,8 +37,9 @@ pub enum GatewayEvent {
 impl GatewayEvent {
     pub fn gateway_ref(&self) -> &Ref {
         match self {
-            GatewayEvent::ConfigurationUpdate(gateway_ref) => gateway_ref,
-            GatewayEvent::Deleted(gateway_ref) => gateway_ref,
+            GatewayEvent::ConfigurationUpdate(gateway_ref) | GatewayEvent::Deleted(gateway_ref) => {
+                gateway_ref
+            }
         }
     }
 

@@ -62,6 +62,7 @@ impl HttpPathMatch {
         }
     }
 
+    #[must_use]
     pub fn is_default(&self) -> bool {
         self.match_type.is_default() && self.value == "/"
     }

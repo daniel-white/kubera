@@ -1,3 +1,18 @@
+#![warn(
+    clippy::pedantic,
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::todo,
+    clippy::unimplemented
+)]
+#![allow(
+    clippy::missing_errors_doc,
+    clippy::missing_panics_doc,
+    clippy::must_use_candidate,
+    clippy::struct_field_names
+)]
+
 use serde::{Deserialize, Serialize};
 use serde_valid::export::regex::Regex;
 use serde_valid::{

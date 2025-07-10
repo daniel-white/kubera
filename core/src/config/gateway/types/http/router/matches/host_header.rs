@@ -46,6 +46,7 @@ pub enum HostHeaderMatchType {
 }
 
 impl HostHeaderMatchType {
+    #[must_use]
     pub fn is_default(&self) -> bool {
         *self == Self::Exact
     }

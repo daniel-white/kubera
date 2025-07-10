@@ -23,9 +23,9 @@ pub fn read_configuration(reader: impl Read) -> Result<GatewayConfiguration, Rea
 
     configuration
         .validate()
-        .inspect(|_| debug!("Read configuration is valid"))
+        .inspect(|()| debug!("Read configuration is valid"))
         .inspect_err(|e| warn!("Invalid read configuration: {}", e))
-        .map(|_| configuration)
+        .map(|()| configuration)
         .map_err(ReadError::InvalidConfiguration)
 }
 

@@ -12,6 +12,7 @@ flexi_logger = { workspace = true }
 getset = { workspace = true }
 http = { workspace = true }
 ipnet = { workspace = true }
+itertools = { workspace = true }
 notify = "8"
 rustls = { workspace = true }
 schemars = { workspace = true }
