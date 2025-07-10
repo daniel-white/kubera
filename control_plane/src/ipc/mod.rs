@@ -2,19 +2,26 @@ pub mod endpoints;
 pub mod events;
 mod gateways;
 
-use crate::ipc::endpoints::{SpawnIpcEndpointParameters, spawn_ipc_endpoint};
+use crate::ipc::endpoints::{
+    SpawnIpcEndpointError, SpawnIpcEndpointParameters, SpawnIpcEndpointParametersBuilderError,
+    spawn_ipc_endpoint,
+};
 use crate::ipc::events::EventSender;
-use crate::ipc::gateways::{GatewayConfigurationManager, create_gateway_configuration_services};
+use crate::ipc::gateways::{
+    GatewayConfigurationManager, GatewayConfigurationManagerInsertError,
+    create_gateway_configuration_services,
+};
 use crate::kubernetes::KubeClientCell;
 use crate::kubernetes::objects::ObjectRef;
 use crate::options::Options;
 use derive_builder::Builder;
 use getset::{CopyGetters, Getters};
 use kubera_core::config::gateway::types::GatewayConfiguration;
-use kubera_core::ipc::{Event, GatewayEvent, Ref as IpcRef};
+use kubera_core::ipc::{Event, GatewayEvent, Ref as IpcRef, RefBuilderError as IpcRefBuilderError};
 use kubera_core::net::Port;
 use kubera_core::sync::signal::Receiver;
 use std::sync::Arc;
+use thiserror::Error;
 use tokio::task::JoinSet;
 
 #[derive(Debug, Builder, Getters, CopyGetters)]
@@ -28,25 +35,45 @@ pub struct IpcServices {
     port: Port,
 }
 
-impl From<ObjectRef> for IpcRef {
-    fn from(object_ref: ObjectRef) -> Self {
-        (&object_ref).into()
+#[derive(Debug, Error)]
+pub enum TryFromObjectRefError {
+    #[error("ObjectRef is missing a namespace")]
+    MissingNamespace,
+    #[error("Failed to create IpcRef from ObjectRef: {0}")]
+    CreationError(#[from] IpcRefBuilderError),
+}
+
+impl TryFrom<ObjectRef> for IpcRef {
+    type Error = TryFromObjectRefError;
+
+    fn try_from(object_ref: ObjectRef) -> Result<Self, Self::Error> {
+        (&object_ref).try_into()
     }
 }
 
-impl From<&ObjectRef> for IpcRef {
-    fn from(object_ref: &ObjectRef) -> Self {
-        IpcRef::new_builder()
-            .namespace(
-                object_ref
-                    .namespace()
-                    .clone()
-                    .expect("ObjectRef must have a namespace"),
-            )
+impl TryFrom<&ObjectRef> for IpcRef {
+    type Error = TryFromObjectRefError;
+
+    fn try_from(object_ref: &ObjectRef) -> Result<Self, Self::Error> {
+        let namespace = object_ref
+            .namespace()
+            .clone()
+            .ok_or(TryFromObjectRefError::MissingNamespace)?;
+
+        let ipc_ref = IpcRef::new_builder()
+            .namespace(namespace)
             .name(object_ref.name())
-            .build()
-            .expect("Failed to create IpcRef from ObjectRef")
+            .build()?;
+
+        Ok(ipc_ref)
     }
+}
+
+#[derive(Debug, Error)]
+#[error("Failed to insert gateway configuration")]
+pub enum IpcInsertGatewayConfigurationError {
+    Insert(#[from] GatewayConfigurationManagerInsertError),
+    InvalidGatewayRef(#[from] TryFromObjectRefError),
 }
 
 impl IpcServices {
@@ -54,23 +81,31 @@ impl IpcServices {
         IpcServicesBuilder::default()
     }
 
-    pub fn insert_gateway_configuration(
+    pub fn try_insert_gateway_configuration(
         &self,
         gateway_ref: ObjectRef,
-        configuration: &GatewayConfiguration,
-    ) {
+        configuration: GatewayConfiguration,
+    ) -> Result<(), IpcInsertGatewayConfigurationError> {
         self.gateway_configuration_manager
-            .insert(gateway_ref.clone(), configuration);
+            .try_insert(gateway_ref.clone(), configuration)?;
+
+        let gateway_ref: IpcRef = gateway_ref.try_into()?;
+
         self.events
             .send(Event::Gateway(GatewayEvent::ConfigurationUpdate(
-                gateway_ref.into(),
+                gateway_ref,
             )));
+
+        Ok(())
     }
 
     pub fn remove_gateway_configuration(&self, gateway_ref: &ObjectRef) {
-        self.gateway_configuration_manager.remove(gateway_ref);
-        self.events
-            .send(Event::Gateway(GatewayEvent::Deleted(gateway_ref.into())));
+        if self.gateway_configuration_manager.remove(gateway_ref)
+            && let Ok(gateway_ref) = gateway_ref.try_into()
+        {
+            self.events
+                .send(Event::Gateway(GatewayEvent::Deleted(gateway_ref)));
+        }
     }
 }
 
@@ -88,7 +123,20 @@ impl SpawnIpcParameters {
     }
 }
 
-pub fn spawn_ipc(join_set: &mut JoinSet<()>, params: SpawnIpcParameters) -> IpcServices {
+#[derive(Debug, Error)]
+pub enum SpawnIpcError {
+    #[error("Failed to build IPC endpoint parameters")]
+    EndpointParameters(#[from] SpawnIpcEndpointParametersBuilderError),
+    #[error("Failed to create IPC services")]
+    Services(#[from] IpcServicesBuilderError),
+    #[error("Failed to spawn IPC endpoint")]
+    SpawnEndpoint(#[from] SpawnIpcEndpointError),
+}
+
+pub async fn spawn_ipc(
+    join_set: &mut JoinSet<()>,
+    params: SpawnIpcParameters,
+) -> Result<IpcServices, SpawnIpcError> {
     let (event_sender, events_factory) = events::events_channel();
     let (reader, gateway_manager) = create_gateway_configuration_services();
 
@@ -98,15 +146,15 @@ pub fn spawn_ipc(join_set: &mut JoinSet<()>, params: SpawnIpcParameters) -> IpcS
         .events(events_factory)
         .gateways(reader)
         .kube_client(params.kube_client)
-        .build()
-        .expect("Failed to build IPC endpoint parameters");
+        .build()?;
 
-    spawn_ipc_endpoint(join_set, ipc_endpoint_params);
+    spawn_ipc_endpoint(join_set, ipc_endpoint_params).await?;
 
-    IpcServices::new_builder()
+    let ipc_services = IpcServices::new_builder()
         .events(event_sender)
         .gateway_configuration_manager(gateway_manager)
         .port(params.port)
-        .build()
-        .expect("Failed to build IpcServices")
+        .build()?;
+
+    Ok(ipc_services)
 }

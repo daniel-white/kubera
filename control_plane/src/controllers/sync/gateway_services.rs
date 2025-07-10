@@ -91,9 +91,7 @@ fn generate_gateway_services(
                 }
             }
 
-            for (service_ref, gateway_ref, template_values, service_overrides) in
-                intended.into_iter()
-            {
+            for (service_ref, gateway_ref, template_values, service_overrides) in intended {
                 tx.send(SyncObjectAction::Upsert(
                     service_ref,
                     gateway_ref.clone(),

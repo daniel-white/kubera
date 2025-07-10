@@ -4,15 +4,25 @@ mod macros;
 mod sync;
 mod transformers;
 
-use self::filters::*;
-use self::sync::*;
-use self::transformers::*;
+use self::filters::{
+    filter_gateway_class_parameters, filter_gateway_classes, filter_gateway_parameters,
+    filter_gateways, filter_http_routes,
+};
+use self::sync::{
+    sync_gateway_configmaps, sync_gateway_deployments, sync_gateway_services,
+    SyncGatewayConfigmapsParams, SyncGatewayConfigmapsParamsBuilderError,
+};
+use self::transformers::{
+    collect_gateway_instances, collect_http_route_backends, collect_http_routes_by_gateway,
+    collect_service_backends,
+};
 use crate::controllers::instances::{determine_instance_role, watch_leader_instance_ip_addr};
 use crate::ipc::IpcServices;
 use crate::kubernetes::KubeClientCell;
 use crate::options::Options;
 use crate::watch_objects;
 use anyhow::Result;
+use derive_builder::Builder;
 use gateway_api::apis::standard::gatewayclasses::GatewayClass;
 use gateway_api::apis::standard::gateways::Gateway;
 use gateway_api::apis::standard::httproutes::HTTPRoute;
@@ -21,9 +31,11 @@ use k8s_openapi::api::discovery::v1::EndpointSlice;
 use kubera_api::v1alpha1::{GatewayClassParameters, GatewayParameters};
 use kubera_core::sync::signal::Receiver;
 use std::sync::Arc;
+use thiserror::Error;
 use tokio::task::JoinSet;
 
-#[derive(Getters)]
+#[derive(Getters, Builder)]
+#[builder(setter(into))]
 pub struct SpawnControllersParams {
     options: Arc<Options>,
     kube_client: Receiver<Option<KubeClientCell>>,
@@ -39,60 +51,16 @@ impl SpawnControllersParams {
     }
 }
 
-#[derive(Default)]
-pub struct SpawnControllersParamsBuilder {
-    options: Option<Arc<Options>>,
-    kube_client: Option<Receiver<Option<KubeClientCell>>>,
-    ipc_services: Option<Arc<IpcServices>>,
-    pod_namespace: Option<String>,
-    pod_name: Option<String>,
-    instance_name: Option<String>,
+#[derive(Debug, Error)]
+pub enum SpawnControllersError {
+    #[error("Failed to build SyncGatewayConfigmapsParams: {0}")]
+    SyncGatewayConfigmapsParams(#[from] SyncGatewayConfigmapsParamsBuilderError),
 }
 
-impl SpawnControllersParamsBuilder {
-    pub fn options(mut self, options: Arc<Options>) -> Self {
-        self.options = Some(options);
-        self
-    }
-
-    pub fn kube_client(mut self, kube_client: Receiver<Option<KubeClientCell>>) -> Self {
-        self.kube_client = Some(kube_client);
-        self
-    }
-
-    pub fn ipc_services(mut self, ipc_services: Arc<IpcServices>) -> Self {
-        self.ipc_services = Some(ipc_services);
-        self
-    }
-
-    pub fn pod_namespace(mut self, pod_namespace: &String) -> Self {
-        self.pod_namespace = Some(pod_namespace.to_string());
-        self
-    }
-
-    pub fn pod_name(mut self, pod_name: &String) -> Self {
-        self.pod_name = Some(pod_name.to_string());
-        self
-    }
-
-    pub fn instance_name(mut self, instance_name: &String) -> Self {
-        self.instance_name = Some(instance_name.to_string());
-        self
-    }
-
-    pub fn build(self) -> SpawnControllersParams {
-        SpawnControllersParams {
-            options: self.options.expect("Options are required"),
-            kube_client: self.kube_client.expect("Kube client is required"),
-            ipc_services: self.ipc_services.expect("IPC services are required"),
-            pod_namespace: self.pod_namespace.expect("Pod namespace is required"),
-            pod_name: self.pod_name.expect("Pod name is required"),
-            instance_name: self.instance_name.expect("Instance name is required"),
-        }
-    }
-}
-
-pub fn spawn_controllers(join_set: &mut JoinSet<()>, params: SpawnControllersParams) {
+pub fn spawn_controllers(
+    join_set: &mut JoinSet<()>,
+    params: SpawnControllersParams,
+) -> Result<(), SpawnControllersError> {
     let options = params.options.clone();
     let kube_client = params.kube_client;
 
@@ -130,17 +98,21 @@ pub fn spawn_controllers(join_set: &mut JoinSet<()>, params: SpawnControllersPar
     let service_backends = collect_http_route_backends(join_set, &http_routes);
     let backends = collect_service_backends(join_set, &service_backends, &endpoint_slices);
 
-    sync_gateway_configmaps(
-        params.options.clone(),
-        join_set,
-        &kube_client,
-        params.ipc_services,
-        &instance_role,
-        &leader_instance_ip_addr,
-        &gateway_instances,
-        &http_routes_by_gateway,
-        &backends,
-    );
+    {
+        let params = SyncGatewayConfigmapsParams::new_builder()
+            .options(options.clone())
+            .kube_client(kube_client.clone())
+            .ipc_services(params.ipc_services.clone())
+            .instance_role(instance_role.clone())
+            .primary_instance_ip_addr(leader_instance_ip_addr.clone())
+            .gateway_instances(gateway_instances.clone())
+            .http_routes(http_routes_by_gateway.clone())
+            .backends(backends.clone())
+            .build()?;
+
+        sync_gateway_configmaps(join_set, params);
+    }
+
     sync_gateway_services(
         params.options.clone(),
         join_set,
@@ -155,4 +127,6 @@ pub fn spawn_controllers(join_set: &mut JoinSet<()>, params: SpawnControllersPar
         &instance_role,
         &gateway_instances,
     );
+
+    Ok(())
 }

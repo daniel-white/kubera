@@ -6,6 +6,8 @@ use kube::{Resource, ResourceExt};
 use std::collections::{HashMap, HashSet};
 use std::fmt::{Display, Formatter, Write};
 use std::sync::Arc;
+use thiserror::Error;
+use tracing::warn;
 
 #[derive(Builder, Getters, Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[builder(setter(into))]
@@ -63,22 +65,24 @@ impl ObjectRefBuilder {
 
         self.kind(kind).version(version);
 
-        if !group.is_empty() {
-            self.group(group.into_owned());
-        } else {
+        if group.is_empty() {
             self.group(None);
+        } else {
+            self.group(group.into_owned());
         }
 
         self
     }
 
-    pub fn from_object<K: Resource + ResourceExt>(&mut self, object: &K) -> &mut Self
+    pub fn for_object<K: Resource + ResourceExt>(&mut self, object: &K) -> &mut Self
     where
         K::DynamicType: 'static + Default,
     {
-        self.of_kind::<K>()
-            .namespace(object.namespace())
-            .name(object.name().expect("Object must have a name"))
+        self.of_kind::<K>();
+
+        self.namespace = Some(object.namespace());
+        self.name = object.name().map(|s| s.to_string());
+        self
     }
 }
 
@@ -112,6 +116,12 @@ impl<K: Resource + ResourceExt> Default for Objects<K> {
     }
 }
 
+#[derive(Clone, Debug, Error)]
+pub enum ObjectsError {
+    #[error("Keys are invalid")]
+    InvalidKeys,
+}
+
 impl<K: Resource + ResourceExt> Objects<K>
 where
     K::DynamicType: 'static + Default,
@@ -124,25 +134,28 @@ where
         self.by_ref.is_empty()
     }
 
-    fn keys(object: &K) -> (ObjectRef, ObjectUniqueId) {
+    fn keys(object: &K) -> Option<(ObjectRef, ObjectUniqueId)> {
         let object_ref = ObjectRefBuilder::default()
-            .from_object(object)
+            .for_object(object)
             .build()
-            .expect("Failed to build ObjectRef");
-        let unique_id = ObjectUniqueId::new(object.uid().expect("Object must have a UID"));
-        (object_ref, unique_id)
+            .ok()?;
+        let uid = object.uid()?;
+        let unique_id = ObjectUniqueId::new(uid);
+        Some((object_ref, unique_id))
     }
 
-    pub fn insert(&mut self, object: Arc<K>) {
-        let (object_ref, unique_id) = Self::keys(&object);
+    pub fn insert(&mut self, object: Arc<K>) -> Result<(), ObjectsError> {
+        let (object_ref, unique_id) = Self::keys(&object).ok_or(ObjectsError::InvalidKeys)?;
         self.by_ref.insert(object_ref, object.clone());
         self.by_unique_id.insert(unique_id, object);
+        Ok(())
     }
 
-    pub fn remove(&mut self, object: Arc<K>) {
-        let (object_ref, unique_id) = Self::keys(&object);
+    pub fn remove(&mut self, object: &K) -> Result<(), ObjectsError> {
+        let (object_ref, unique_id) = Self::keys(object).ok_or(ObjectsError::InvalidKeys)?;
         self.by_ref.remove(&object_ref);
         self.by_unique_id.remove(&unique_id);
+        Ok(())
     }
 
     pub fn get_by_ref(&self, object_ref: &ObjectRef) -> Option<Arc<K>> {
@@ -166,9 +179,12 @@ where
     }
 
     pub fn iter(&self) -> impl Iterator<Item = (ObjectRef, ObjectUniqueId, Arc<K>)> {
-        self.by_ref.iter().map(|(r, s)| {
-            let uid = ObjectUniqueId::new(s.as_ref().uid().unwrap());
-            (r.clone(), uid, s.clone())
+        self.by_ref.iter().filter_map(|(r, s)| match s.uid() {
+            None => {
+                warn!("Object {} does not have a UID, skipping", r);
+                None
+            }
+            Some(uid) => Some((r.clone(), ObjectUniqueId::new(uid), s.clone())),
         })
     }
 }
@@ -209,8 +225,8 @@ pub enum SyncObjectAction<T: Into<Value>, K: Resource + ResourceExt> {
 impl<T: Into<Value>, K: Resource + ResourceExt> SyncObjectAction<T, K> {
     pub fn object_ref(&self) -> &ObjectRef {
         match self {
-            SyncObjectAction::Upsert(object_ref, _, _, _) => object_ref,
-            SyncObjectAction::Delete(object_ref) => object_ref,
+            SyncObjectAction::Upsert(object_ref, _, _, _)
+            | SyncObjectAction::Delete(object_ref) => object_ref,
         }
     }
 }

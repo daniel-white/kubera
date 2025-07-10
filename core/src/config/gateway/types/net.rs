@@ -54,8 +54,8 @@ impl BackendBuilder {
         self
     }
 
-    pub fn with_port(&mut self, port: Option<u16>) -> &mut Self {
-        self.port = port.map(Port::new);
+    pub fn with_port(&mut self, port: Option<Port>) -> &mut Self {
+        self.port = port;
         self
     }
 
@@ -208,8 +208,8 @@ impl ListenerBuilder {
         self
     }
 
-    pub fn with_port(&mut self, port: u16) -> &mut Self {
-        self.port = Some(Port::new(port));
+    pub fn with_port(&mut self, port: Port) -> &mut Self {
+        self.port = Some(port);
         self
     }
 

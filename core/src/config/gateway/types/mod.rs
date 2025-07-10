@@ -178,8 +178,8 @@ impl IpcConfigurationBuilder {
         Self::default()
     }
 
-    pub fn with_endpoint(&mut self, ip_addr: &IpAddr, port: &Port) -> &mut Self {
-        let endpoint = SocketAddr::new(*ip_addr, (*port).into());
+    pub fn with_endpoint(&mut self, ip_addr: IpAddr, port: Port) -> &mut Self {
+        let endpoint = SocketAddr::new(ip_addr, port.into());
         self.endpoint = Some(endpoint);
         self
     }

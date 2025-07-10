@@ -1,16 +1,17 @@
 use crate::ipc::endpoints::IpcEndpointState;
 use crate::kubernetes::objects::ObjectRef;
 use axum::extract::{Path, Query};
+use axum::http::StatusCode;
 use axum::response::sse::Event;
 use axum::{
     extract::State,
     response::{IntoResponse, sse::Sse},
 };
-use futures::TryStreamExt;
+use futures::{TryStreamExt};
 use gateway_api::apis::standard::gateways::Gateway;
 use problemdetails::Problem;
 use serde::Deserialize;
-use tracing::debug;
+use tracing::{debug, info, warn};
 
 #[derive(Deserialize)]
 pub struct PathParams {
@@ -28,12 +29,21 @@ pub async fn get_gateway_events(
     Path(path_params): Path<PathParams>,
     Query(query_params): Query<QueryParams>,
 ) -> impl IntoResponse {
-    let gateway_ref = ObjectRef::new_builder()
+    let gateway_ref = match ObjectRef::new_builder()
         .of_kind::<Gateway>()
         .name(path_params.gateway_name)
         .namespace(Some(path_params.gateway_namespace))
         .build()
-        .unwrap();
+    {
+        Ok(gateway_ref) => gateway_ref,
+        Err(err) => {
+            info!("Failed to create gateway reference: {err}");
+            return Problem::from(StatusCode::BAD_REQUEST)
+                .with_title("Invalid Gateway Reference")
+                .with_detail(format!("Failed to create gateway reference: {err}"))
+                .into_response();
+        }
+    };
 
     debug!(
         "Pod {} requesting events for {}",
@@ -41,18 +51,24 @@ pub async fn get_gateway_events(
     );
 
     if !state.gateways.exists(&gateway_ref) {
-        return Problem::from(axum::http::StatusCode::NOT_FOUND)
+        return Problem::from(StatusCode::NOT_FOUND)
             .with_title("Gateway Not Found")
             .with_detail(format!("Object {gateway_ref} not found"))
             .into_response();
     }
 
-    let stream = state.events.named_gateway_events(gateway_ref).map_ok(|e| {
-        Event::default()
-            .event(&e)
-            .json_data(e.gateway_ref())
-            .expect("Failed to serialize event")
-    });
+    let stream = state
+        .events
+        .named_gateway_events(gateway_ref)
+        .map_ok(|event| {
+            Event::default()
+                .event(&event)
+                .json_data(event.gateway_ref())
+                .unwrap_or_else(|err| {
+                    warn!("Failed to serialize event for SSE: {err}");
+                    Event::default().comment("keep-alive")
+                })
+        });
 
     Sse::new(stream)
         .keep_alive(

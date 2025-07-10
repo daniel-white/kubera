@@ -41,7 +41,7 @@ pub fn start_kubernetes_client(join_set: &mut JoinSet<()>) -> Receiver<Option<Ku
                 Box::leak(tx); // Leak the sender to keep it alive
             }
             Err(e) => error!("Failed to create Kubernetes client: {}", e),
-        };
+        }
     });
 
     rx

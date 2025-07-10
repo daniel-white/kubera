@@ -2,25 +2,26 @@ use crate::kubernetes::objects::{ObjectRef, Objects};
 use derive_builder::Builder;
 use gateway_api::apis::standard::gateways::Gateway;
 use gateway_api::apis::standard::httproutes::HTTPRoute;
-use getset::Getters;
+use getset::{CopyGetters, Getters};
 use k8s_openapi::api::core::v1::Service;
 use kubera_core::continue_on;
+use kubera_core::net::Port;
 use kubera_core::sync::signal::{Receiver, channel};
 use std::collections::HashMap;
 use std::collections::hash_map::Entry;
 use std::sync::Arc;
 use tokio::task::JoinSet;
-use tracing::{debug, info};
+use tracing::{debug, info, warn};
 
-#[derive(Debug, Builder, Getters, Clone, Hash, PartialEq, Eq)]
+#[derive(Debug, Builder, Getters, CopyGetters, Clone, Hash, PartialEq, Eq)]
 pub struct HttpRouteBackend {
     #[getset(get = "pub")]
     object_ref: ObjectRef,
 
-    #[getset(get = "pub")]
-    port: Option<i32>,
+    #[getset(get_copy = "pub")]
+    port: Option<Port>,
 
-    #[getset(get = "pub")]
+    #[getset(get_copy = "pub")]
     weight: Option<i32>,
 }
 
@@ -48,31 +49,59 @@ pub fn collect_http_route_backends(
                     "Collecting backends for HTTPRoute: object.ref={}",
                     http_route_ref
                 );
-                for rules in http_route.spec.rules.iter() {
-                    for rule in rules {
-                        for backend_ref in rule.backend_refs.iter().flatten() {
-                            if let Some(kind) = backend_ref.kind.as_deref() {
-                                if kind == "Service" {
-                                    let service_ref = ObjectRef::new_builder()
-                                        .of_kind::<Service>()
-                                        .namespace(
-                                            backend_ref
-                                                .namespace
-                                                .clone()
-                                                .or_else(|| http_route.metadata.namespace.clone()),
-                                        )
-                                        .name(&backend_ref.name)
-                                        .build()
-                                        .unwrap();
+                for (rule_idx, rule) in http_route.spec.rules.iter().flatten().enumerate() {
+                    'backend_refs:
+                    for (backend_idx, backend_ref) in rule.backend_refs.iter().flatten().enumerate() {
+                        #[allow(clippy::single_match_else)] // We'll likely add more kinds later
+                        match backend_ref.kind.as_deref() {
+                            Some("Service") => {
+                                let service_ref = match ObjectRef::new_builder()
+                                    .of_kind::<Service>()
+                                    .namespace(
+                                        backend_ref
+                                            .namespace
+                                            .clone()
+                                            .or_else(|| http_route.metadata.namespace.clone()),
+                                    )
+                                    .name(&backend_ref.name)
+                                    .build() {
+                                    Ok(service_ref) => service_ref,
+                                    Err(err) => {
+                                        warn!(
+                                                "Failed to create service reference for HTTPRoute {http_route_ref} at rule index {rule_idx}, backend index {backend_idx}: {err}"
+                                            );
+                                        continue 'backend_refs;
+                                    }
+                                };
 
-                                    let http_route_backend = HttpRouteBackend::new_builder()
-                                        .object_ref(service_ref.clone())
-                                        .port(backend_ref.port)
-                                        .weight(backend_ref.weight)
-                                        .build()
-                                        .unwrap();
-                                    http_route_backends.insert(service_ref, http_route_backend);
-                                }
+                                let http_route_backend = match HttpRouteBackend::new_builder()
+                                    .object_ref(service_ref.clone())
+                                    .port(
+                                        backend_ref
+                                            .port
+                                            .map(|p| {
+                                                u16::try_from(p).expect("Port must be u16")
+                                            })
+                                            .map(Port::new),
+                                    )
+                                    .weight(backend_ref.weight).build() {
+                                    Ok(http_route_backend) => http_route_backend,
+                                    Err(err) => {
+                                        warn!(
+                                                "Failed to create HttpRouteBackend for HTTPRoute {http_route_ref} at rule index {rule_idx}, backend index {backend_idx}: {err}"
+                                            );
+                                        continue 'backend_refs;
+                                    }
+                                };
+
+                                http_route_backends.insert(service_ref, http_route_backend);
+                            }
+                            _ => {
+                                warn!(
+                                        "Skipping backend reference at rule index {rule_idx}, backend index {backend_idx} for HTTPRoute {http_route_ref}: unsupported kind {}",
+                                        backend_ref.kind.as_deref().unwrap_or("{unknown}")
+                                    );
+                                continue 'backend_refs;
                             }
                         }
                     }
@@ -104,8 +133,9 @@ pub fn collect_http_routes_by_gateway(
 
             for (http_route_ref, _, http_route) in http_routes.current().iter() {
                 info!("Collecting HTTPRoute: object.ref={}", http_route_ref);
-                for parent_ref in http_route.spec.parent_refs.iter().flatten() {
-                    let gateway_ref = ObjectRef::new_builder()
+                'parent_refs:
+                for (parent_idx, parent_ref) in http_route.spec.parent_refs.iter().flatten().enumerate() {
+                    let gateway_ref = match ObjectRef::new_builder()
                         .of_kind::<Gateway>()
                         .namespace(
                             parent_ref
@@ -115,7 +145,13 @@ pub fn collect_http_routes_by_gateway(
                         )
                         .name(&parent_ref.name)
                         .build()
-                        .unwrap();
+                    {
+                        Ok(gateway_ref) => gateway_ref,
+                        Err(err) => {
+                            warn!("Failed to create parent gateway reference for {http_route_ref} at index {parent_idx}: {err}");
+                            continue 'parent_refs;
+                        }
+                    };
 
                     match new_routes.entry(gateway_ref) {
                         Entry::Occupied(mut entry) => {

@@ -1,16 +1,16 @@
 use crate::kubernetes::objects::{ObjectRef, Objects};
 use gateway_api::apis::standard::gateways::Gateway;
 use getset::Getters;
+use k8s_openapi::DeepMerge;
 use k8s_openapi::api::apps::v1::{Deployment, DeploymentSpec, DeploymentStrategy};
 use k8s_openapi::api::core::v1::{Service, ServiceSpec};
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
-use k8s_openapi::DeepMerge;
 use kubera_api::v1alpha1::{
     GatewayClassParameters, GatewayConfiguration, GatewayParameters,
     ImagePullPolicy as ApiImagePullPolicy,
 };
 use kubera_core::continue_on;
-use kubera_core::sync::signal::{channel, Receiver};
+use kubera_core::sync::signal::{Receiver, channel};
 use serde_json::{from_value, json};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -97,8 +97,8 @@ pub fn collect_gateway_instances(
                         gateway_ref,
                         GatewayInstanceConfiguration {
                             gateway,
-                            deployment_overrides,
                             service_overrides,
+                            deployment_overrides,
                             image_pull_policy,
                             configuration,
                         },
@@ -163,6 +163,7 @@ fn merge_deployment_overrides(
         .and_then(|p| p.log_level)
         .or_else(|| gateway_params.and_then(|p| p.log_level));
 
+    #[allow(clippy::expect_used)]
     if let Some(log_level) = log_level {
         let log_level: &'static str = log_level.into();
 
@@ -176,7 +177,8 @@ fn merge_deployment_overrides(
             }],
         });
 
-        spec.template.spec = from_value(template_spec).unwrap();
+        spec.template.spec =
+            from_value(template_spec).expect("Failed to parse containers template spec");
     }
 
     (
@@ -193,8 +195,8 @@ fn merge_metadata(gateway: &Gateway) -> ObjectMeta {
     let mut metadata = ObjectMeta::default();
 
     if let Some(infrastructure) = gateway.spec.infrastructure.as_ref() {
-        metadata.annotations = infrastructure.annotations.clone();
-        metadata.labels = infrastructure.labels.clone();
+        metadata.annotations.clone_from(&infrastructure.annotations);
+        metadata.labels.clone_from(&infrastructure.labels);
     }
 
     metadata
@@ -208,7 +210,7 @@ fn merge_service_overrides(
     let mut spec = ServiceSpec::default();
 
     if let Some(param_spec) = gateway_parameters.and_then(|p| p.spec.service.as_ref()) {
-        spec.merge_from(param_spec.clone())
+        spec.merge_from(param_spec.clone());
     }
 
     Service {

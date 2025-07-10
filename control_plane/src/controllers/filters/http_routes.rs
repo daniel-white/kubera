@@ -1,11 +1,11 @@
 use crate::kubernetes::objects::{ObjectRef, Objects};
 use gateway_api::apis::standard::gateways::Gateway;
 use gateway_api::apis::standard::httproutes::HTTPRoute;
-use itertools::*;
+use itertools::Itertools;
 use kubera_core::continue_on;
 use kubera_core::sync::signal::{Receiver, channel};
 use tokio::task::JoinSet;
-use tracing::{debug, info};
+use tracing::{debug, info, warn};
 
 pub fn filter_http_routes(
     join_set: &mut JoinSet<()>,
@@ -29,7 +29,7 @@ pub fn filter_http_routes(
                         .parent_refs
                         .iter()
                         .flat_map(|parent_ref| parent_ref.iter())
-                        .map(|parent_ref| {
+                        .filter_map(|parent_ref| {
                             ObjectRef::new_builder()
                                 .of_kind::<Gateway>() // Assuming v1 for simplicity, adjust as needed
                                 .namespace(
@@ -40,7 +40,13 @@ pub fn filter_http_routes(
                                 )
                                 .name(parent_ref.name.clone())
                                 .build()
-                                .unwrap()
+                                .inspect_err(|err| {
+                                    warn!(
+                                        "Error creating Gateway reference for HTTPRoute {}: {}",
+                                        http_route_ref, err
+                                    );
+                                })
+                                .ok()
                         })
                         .unique()
                         .any(|r| current_gateways.contains_by_ref(&r));

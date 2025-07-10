@@ -4,7 +4,7 @@ macro_rules! sync_objects {
         use $crate::kubernetes::objects::{Objects, ObjectRef, SyncObjectAction, SyncObjectAction::*};
         use gtmpl::{Context, Template, gtmpl_fn, FuncError};
         use gtmpl_value::Value;
-        use kube::{ Api, Resource, ResourceExt };
+        use kube::Api;
         use kube::api::{ Patch, ObjectMeta };
         use kubera_api::constants::{MANAGED_BY_LABEL, MANAGED_BY_VALUE, PART_OF_LABEL, MANAGED_BY_LABEL_QUERY};
         use k8s_openapi::DeepMerge;
@@ -19,13 +19,6 @@ macro_rules! sync_objects {
         use $crate::options::Options;
 
         let (tx, mut rx) = channel::<SyncObjectAction<$template_value_type, $object_type>>(50);
-
-        const _: () = {
-            fn assert_impl<T: Resource + ResourceExt>() {}
-            fn assert_type_bounds() {
-                assert_impl::<$object_type>();
-            }
-        };
 
         let options: Arc<Options> = $options.clone();
         let kube_client: Receiver<Option<KubeClientCell>> = $kube_client.clone();

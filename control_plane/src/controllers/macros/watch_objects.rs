@@ -17,7 +17,7 @@ macro_rules! watch_objects {
         use std::sync::Arc;
         use thiserror::Error;
         use tracing::instrument;
-        use tracing::debug;
+        use tracing::{debug, warn};
         use kubera_core::continue_on;
         use $crate::kubernetes::objects::Objects;
         use $crate::Options;
@@ -45,13 +45,23 @@ macro_rules! watch_objects {
                     "reconciled object; object.namespace={:?} object.name={:?} object.state=active",
                     metadata.namespace, metadata.name
                 );
-                new_objects.insert(object);
+                if let Err(err) = new_objects.insert(object) {
+                    warn!(
+                        "Failed to insert object into objects set: {}",
+                        err
+                    );
+                }
             } else {
                 debug!(
                     "reconciled object; object.namespace={:?} object.name={:?} object.state=deleted",
                     metadata.namespace, metadata.name
                 );
-                new_objects.remove(object);
+                if let Err(err) = new_objects.remove(&object) {
+                    warn!(
+                        "Failed to remove object from objects set: {}",
+                        err
+                    );
+                }
             }
 
             ctx.tx.replace(new_objects);

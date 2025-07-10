@@ -47,7 +47,7 @@ pub fn write_configuration<W: Write>(
         .validate()
         .map_err(WriteError::InvalidConfiguration)?;
 
-    serde_yaml::to_writer(writer, config).map_err(|_| WriteError::Error)
+    serde_yaml::to_writer(writer, &config).map_err(|_| WriteError::Error)
 }
 
 #[cfg(test)]
@@ -69,7 +69,7 @@ mod tests {
     #[test]
     fn round_trip_simple() {
         let yaml = include_str!("tests/simple.yaml").as_bytes();
-        let config = read_configuration(yaml).unwrap();
+        let config = read_configuration(yaml).unwrap();;
 
         let mut buffer = Vec::new();
         write_configuration(&config, &mut buffer).unwrap();

@@ -97,9 +97,7 @@ fn generate_gateway_deployments(
                 }
             }
 
-            for (deployment_ref, gateway_ref, template_values, deployment_overrides) in
-                intended.into_iter()
-            {
+            for (deployment_ref, gateway_ref, template_values, deployment_overrides) in intended {
                 tx.send(SyncObjectAction::Upsert(
                     deployment_ref,
                     gateway_ref.clone(),

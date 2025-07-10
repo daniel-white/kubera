@@ -55,6 +55,7 @@ pub fn watch_leader_instance_ip_addr(
         Ok(Action::requeue(ctx.options.controller_requeue_duration()))
     }
 
+    #[allow(clippy::needless_pass_by_value)]
     fn error_policy(_: Arc<Pod>, _: &ControllerError, ctx: Arc<ControllerContext>) -> Action {
         Action::requeue(ctx.options.controller_error_requeue_duration())
     }
@@ -66,22 +67,19 @@ pub fn watch_leader_instance_ip_addr(
     join_set.spawn(async move {
         let controller_context = Arc::new(ControllerContext { options, tx });
         loop {
-            if let Some(kube_client2) = kube_client.current().as_ref()
+            if let Some(client) = kube_client.current().as_ref()
                 && let Some(primary_pod_ref) = instance_role.current().primary_pod_ref()
+                && let Some(primary_pod_namespace) = primary_pod_ref.namespace()
             {
-                let api = Api::<Pod>::namespaced(
-                    kube_client2.deref().clone(),
-                    primary_pod_ref.namespace().clone().unwrap().as_str(),
-                );
+                let api = Api::<Pod>::namespaced(client.deref().clone(), primary_pod_namespace);
                 let config = Config::default()
                     .fields(format!("metadata.name={}", primary_pod_ref.name()).as_str());
                 let controller = Controller::new(api, config)
                     .shutdown_on_signal()
                     .run(reconcile, error_policy, controller_context.clone())
-                    .filter_map(|x| async move { Some(x) })
                     .for_each(|_| ready(()));
                 select! {
-                    _ = controller => {
+                    () = controller => {
                         break;
                     },
                     _ = kube_client.changed() => {
@@ -111,8 +109,7 @@ pub enum InstanceRole {
 impl InstanceRole {
     pub fn primary_pod_ref(&self) -> Option<&ObjectRef> {
         match self {
-            InstanceRole::Primary(pod_ref) => Some(pod_ref),
-            InstanceRole::Redundant(pod_ref) => Some(pod_ref),
+            InstanceRole::Primary(pod_ref) | InstanceRole::Redundant(pod_ref) => Some(pod_ref),
             InstanceRole::Undetermined => None,
         }
     }
@@ -153,12 +150,12 @@ pub fn determine_instance_role(
             let new_role = match lock.try_acquire_or_renew().await {
                 Ok(LeaseLockResult::Acquired(lease)) => {
                     debug!("Acquired lease, assuming primary role");
-                    let pod_ref = get_pod_ref(&namespace, lease);
+                    let pod_ref = get_pod_ref(&namespace, &lease);
                     Some(InstanceRole::Primary(pod_ref))
                 }
                 Ok(LeaseLockResult::NotAcquired(lease)) => {
                     debug!("Lease renewed, assuming redundant role");
-                    let pod_ref = get_pod_ref(&namespace, lease);
+                    let pod_ref = get_pod_ref(&namespace, &lease);
                     Some(InstanceRole::Redundant(pod_ref))
                 }
                 Err(e) => {
@@ -178,7 +175,7 @@ pub fn determine_instance_role(
     rx
 }
 
-fn get_pod_ref(namespace: &str, lease: Lease) -> ObjectRef {
+fn get_pod_ref(namespace: &str, lease: &Lease) -> ObjectRef {
     let lease = lease
         .spec
         .as_ref()
