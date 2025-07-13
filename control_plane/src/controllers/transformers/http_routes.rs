@@ -6,11 +6,11 @@ use getset::{CopyGetters, Getters};
 use k8s_openapi::api::core::v1::Service;
 use kubera_core::continue_on;
 use kubera_core::net::Port;
-use kubera_core::sync::signal::{signal, Receiver};
-use std::collections::hash_map::Entry;
+use kubera_core::sync::signal::{Receiver, signal};
+use kubera_core::task::Builder as TaskBuilder;
 use std::collections::HashMap;
+use std::collections::hash_map::Entry;
 use std::sync::Arc;
-use tokio::task::JoinSet;
 use tracing::{debug, info, warn};
 
 #[derive(Debug, Builder, Getters, CopyGetters, Clone, Hash, PartialEq, Eq)]
@@ -32,13 +32,13 @@ impl HttpRouteBackend {
 }
 
 pub fn collect_http_route_backends(
-    join_set: &mut JoinSet<()>,
+    task_builder: &TaskBuilder,
     http_routes_rx: &Receiver<Objects<HTTPRoute>>,
 ) -> Receiver<HashMap<ObjectRef, HttpRouteBackend>> {
     let (tx, rx) = signal();
     let http_routes_rx = http_routes_rx.clone();
 
-    join_set.spawn(async move {
+    task_builder.new_task(stringify!(collect_http_route_backends)).spawn(async move {
         loop {
             if let Some(http_routes) = http_routes_rx.get() {
                 let mut http_route_backends = HashMap::new();
@@ -118,13 +118,15 @@ pub fn collect_http_route_backends(
 }
 
 pub fn collect_http_routes_by_gateway(
-    join_set: &mut JoinSet<()>,
+    task_builder: &TaskBuilder,
     http_routes_rx: &Receiver<Objects<HTTPRoute>>,
 ) -> Receiver<HashMap<ObjectRef, Vec<Arc<HTTPRoute>>>> {
     let (tx, rx) = signal();
     let http_routes_rx = http_routes_rx.clone();
 
-    join_set.spawn(async move {
+    task_builder
+        .new_task("collect_http_routes_by_gateway")
+        .spawn(async move {
         loop {
             if let Some(http_routes) = http_routes_rx.get() {
                 info!("Collecting HTTPRoutes by Gateway");

@@ -9,8 +9,8 @@ use self::filters::{
     filter_gateways, filter_http_routes,
 };
 use self::sync::{
-    SyncGatewayConfigmapsParams, SyncGatewayConfigmapsParamsBuilderError, sync_gateway_configmaps,
-    sync_gateway_deployments, sync_gateway_services,
+    sync_gateway_configmaps, sync_gateway_deployments, sync_gateway_services,
+    SyncGatewayConfigmapsParams, SyncGatewayConfigmapsParamsBuilderError,
 };
 use self::transformers::{
     collect_gateway_instances, collect_http_route_backends, collect_http_routes_by_gateway,
@@ -30,9 +30,9 @@ use getset::Getters;
 use k8s_openapi::api::discovery::v1::EndpointSlice;
 use kubera_api::v1alpha1::{GatewayClassParameters, GatewayParameters};
 use kubera_core::sync::signal::Receiver;
+use kubera_core::task::Builder as TaskBuilder;
 use std::sync::Arc;
 use thiserror::Error;
-use tokio::task::JoinSet;
 
 #[derive(Getters, Builder)]
 #[builder(setter(into))]
@@ -58,7 +58,7 @@ pub enum SpawnControllersError {
 }
 
 pub fn spawn_controllers(
-    join_set: &mut JoinSet<()>,
+    task_builder: &TaskBuilder,
     params: SpawnControllersParams,
 ) -> Result<(), SpawnControllersError> {
     let options = params.options.clone();
@@ -66,43 +66,51 @@ pub fn spawn_controllers(
 
     let instance_role_rx = determine_instance_role(
         options.clone(),
-        join_set,
+        task_builder,
         &params.pod_namespace,
         &params.instance_name,
         &params.pod_name,
     );
     let leader_instance_ip_addr_rx = watch_leader_instance_ip_addr(
         options.clone(),
-        join_set,
+        task_builder,
         &kube_client_rx,
         &instance_role_rx,
     );
 
-    let gateway_classes_rx = watch_objects!(options, join_set, GatewayClass, kube_client_rx);
-    let gateways_rx = watch_objects!(options, join_set, Gateway, kube_client_rx);
-    let http_routes_rx = watch_objects!(options, join_set, HTTPRoute, kube_client_rx);
-    let endpoint_slices_rx = watch_objects!(options, join_set, EndpointSlice, kube_client_rx);
-    let gateway_class_parameters_rx =
-        watch_objects!(options, join_set, GatewayClassParameters, kube_client_rx);
+    let gateway_classes_rx = watch_objects!(options, task_builder, GatewayClass, kube_client_rx);
+    let gateways_rx = watch_objects!(options, task_builder, Gateway, kube_client_rx);
+    let http_routes_rx = watch_objects!(options, task_builder, HTTPRoute, kube_client_rx);
+    let endpoint_slices_rx = watch_objects!(options, task_builder, EndpointSlice, kube_client_rx);
+    let gateway_class_parameters_rx = watch_objects!(
+        options,
+        task_builder,
+        GatewayClassParameters,
+        kube_client_rx
+    );
     let gateway_parameters_rx =
-        watch_objects!(options, join_set, GatewayParameters, kube_client_rx);
+        watch_objects!(options, task_builder, GatewayParameters, kube_client_rx);
 
-    let gateway_class_rx = filter_gateway_classes(join_set, &gateway_classes_rx);
-    let gateway_class_parameters_rx =
-        filter_gateway_class_parameters(join_set, &gateway_class_rx, &gateway_class_parameters_rx);
-    let gateways_rx = filter_gateways(join_set, &gateway_class_rx, &gateways_rx);
+    let gateway_class_rx = filter_gateway_classes(task_builder, &gateway_classes_rx);
+    let gateway_class_parameters_rx = filter_gateway_class_parameters(
+        task_builder,
+        &gateway_class_rx,
+        &gateway_class_parameters_rx,
+    );
+    let gateways_rx = filter_gateways(task_builder, &gateway_class_rx, &gateways_rx);
     let gateway_parameters_rx =
-        filter_gateway_parameters(join_set, &gateways_rx, &gateway_parameters_rx);
+        filter_gateway_parameters(task_builder, &gateways_rx, &gateway_parameters_rx);
     let gateway_instances_rx = collect_gateway_instances(
-        join_set,
+        task_builder,
         &gateways_rx,
         &gateway_class_parameters_rx,
         &gateway_parameters_rx,
     );
-    let http_routes_rx = filter_http_routes(join_set, &gateways_rx, &http_routes_rx);
-    let http_routes_by_gateway_rx = collect_http_routes_by_gateway(join_set, &http_routes_rx);
-    let service_backends_rx = collect_http_route_backends(join_set, &http_routes_rx);
-    let backends_rx = collect_service_backends(join_set, &service_backends_rx, &endpoint_slices_rx);
+    let http_routes_rx = filter_http_routes(task_builder, &gateways_rx, &http_routes_rx);
+    let http_routes_by_gateway_rx = collect_http_routes_by_gateway(task_builder, &http_routes_rx);
+    let service_backends_rx = collect_http_route_backends(task_builder, &http_routes_rx);
+    let backends_rx =
+        collect_service_backends(task_builder, &service_backends_rx, &endpoint_slices_rx);
 
     {
         let params = SyncGatewayConfigmapsParams::new_builder()
@@ -116,19 +124,19 @@ pub fn spawn_controllers(
             .backends_rx(backends_rx)
             .build()?;
 
-        sync_gateway_configmaps(join_set, params);
+        sync_gateway_configmaps(task_builder, params);
     }
 
     sync_gateway_services(
         params.options.clone(),
-        join_set,
+        task_builder,
         &kube_client_rx,
         &instance_role_rx,
         &gateway_instances_rx,
     );
     sync_gateway_deployments(
         params.options.clone(),
-        join_set,
+        task_builder,
         &kube_client_rx,
         &instance_role_rx,
         &gateway_instances_rx,

@@ -3,14 +3,14 @@ use gateway_api::apis::standard::gatewayclasses::GatewayClass;
 use gateway_api::apis::standard::gateways::Gateway;
 use kubera_api::v1alpha1::GatewayParameters;
 use kubera_core::continue_on;
-use kubera_core::sync::signal::{signal, Receiver};
+use kubera_core::sync::signal::{Receiver, signal};
+use kubera_core::task::Builder as TaskBuilder;
 use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::task::JoinSet;
 use tracing::{debug, warn};
 
 pub fn filter_gateways(
-    join_set: &mut JoinSet<()>,
+    task_builder: &TaskBuilder,
     gateway_class_tx: &Receiver<(ObjectRef, GatewayClass)>,
     gateways_rx: &Receiver<Objects<Gateway>>,
 ) -> Receiver<Objects<Gateway>> {
@@ -18,42 +18,44 @@ pub fn filter_gateways(
     let gateway_class_rx = gateway_class_tx.clone();
     let gateways_rx = gateways_rx.clone();
 
-    join_set.spawn(async move {
-        loop {
-            if let Some((gateway_class_ref, _)) = gateway_class_rx.get().as_deref()
-                && let Some(gateways) = gateways_rx.get()
-            {
-                let gateways = gateways
-                    .iter()
-                    .filter(|(gateway_ref, _, gateway)| {
-                        ObjectRef::new_builder()
-                            .of_kind::<GatewayClass>()
-                            .namespace(None)
-                            .name(&gateway.spec.gateway_class_name)
-                            .build()
-                            .inspect_err(|err| {
-                                warn!(
-                                    "Error creating GatewayClass reference for gateway {}: {}",
-                                    gateway_ref, err
-                                );
-                            })
-                            .ok()
-                            .is_some_and(|ref_| gateway_class_ref == &ref_)
-                    })
-                    .collect();
+    task_builder
+        .new_task(stringify!(filter_gateways))
+        .spawn(async move {
+            loop {
+                if let Some((gateway_class_ref, _)) = gateway_class_rx.get().as_deref()
+                    && let Some(gateways) = gateways_rx.get()
+                {
+                    let gateways = gateways
+                        .iter()
+                        .filter(|(gateway_ref, _, gateway)| {
+                            ObjectRef::new_builder()
+                                .of_kind::<GatewayClass>()
+                                .namespace(None)
+                                .name(&gateway.spec.gateway_class_name)
+                                .build()
+                                .inspect_err(|err| {
+                                    warn!(
+                                        "Error creating GatewayClass reference for gateway {}: {}",
+                                        gateway_ref, err
+                                    );
+                                })
+                                .ok()
+                                .is_some_and(|ref_| gateway_class_ref == &ref_)
+                        })
+                        .collect();
 
-                tx.set(gateways);
+                    tx.set(gateways);
+                }
+
+                continue_on!(gateway_class_rx.changed(), gateways_rx.changed());
             }
-
-            continue_on!(gateway_class_rx.changed(), gateways_rx.changed());
-        }
-    });
+        });
 
     rx
 }
 
 pub fn filter_gateway_parameters(
-    join_set: &mut JoinSet<()>,
+    task_builder: &TaskBuilder,
     gateways_rx: &Receiver<Objects<Gateway>>,
     gateway_parameters_rx: &Receiver<Objects<GatewayParameters>>,
 ) -> Receiver<HashMap<ObjectRef, Arc<GatewayParameters>>> {
@@ -61,52 +63,55 @@ pub fn filter_gateway_parameters(
     let gateways_rx = gateways_rx.clone();
     let gateway_parameters_tx = gateway_parameters_rx.clone();
 
-    join_set.spawn(async move {
-        loop {
-            if let Some(gateways) = gateways_rx.get()
-                && let Some(gateway_parameters) = gateway_parameters_tx.get()
-            {
-                let new_parameters = gateways
-                    .iter()
-                    .filter_map(|(gateway_ref, _, gateway)| {
-                        if let Some(parameters_ref) = &gateway
-                            .spec
-                            .infrastructure
-                            .as_ref()
-                            .and_then(|i| i.parameters_ref.as_ref())
-                        {
-                            let parameters_ref = ObjectRef::new_builder()
-                                .group(Some(parameters_ref.group.clone()))
-                                .kind(parameters_ref.kind.clone())
-                                .namespace(gateway_ref.namespace().clone())
-                                .name(&parameters_ref.name)
-                                .build()
-                                .expect("Failed to build parameters reference from Gateway");
-
-                            if let Some(parameters) = gateway_parameters.get_by_ref(&parameters_ref)
+    task_builder
+        .new_task(stringify!(filter_gateway_parameters))
+        .spawn(async move {
+            loop {
+                if let Some(gateways) = gateways_rx.get()
+                    && let Some(gateway_parameters) = gateway_parameters_tx.get()
+                {
+                    let new_parameters = gateways
+                        .iter()
+                        .filter_map(|(gateway_ref, _, gateway)| {
+                            if let Some(parameters_ref) = &gateway
+                                .spec
+                                .infrastructure
+                                .as_ref()
+                                .and_then(|i| i.parameters_ref.as_ref())
                             {
-                                debug!(
-                                    "Found parameters for gateway {}: {:?}",
-                                    gateway_ref, parameters
-                                );
-                                Some((gateway_ref.clone(), parameters.clone()))
+                                let parameters_ref = ObjectRef::new_builder()
+                                    .group(Some(parameters_ref.group.clone()))
+                                    .kind(parameters_ref.kind.clone())
+                                    .namespace(gateway_ref.namespace().clone())
+                                    .name(&parameters_ref.name)
+                                    .build()
+                                    .expect("Failed to build parameters reference from Gateway");
+
+                                if let Some(parameters) =
+                                    gateway_parameters.get_by_ref(&parameters_ref)
+                                {
+                                    debug!(
+                                        "Found parameters for gateway {}: {:?}",
+                                        gateway_ref, parameters
+                                    );
+                                    Some((gateway_ref.clone(), parameters.clone()))
+                                } else {
+                                    debug!("No parameters found for gateway {}", gateway_ref);
+                                    None
+                                }
                             } else {
-                                debug!("No parameters found for gateway {}", gateway_ref);
+                                debug!("Gateway {} has no infrastructure defined", gateway_ref);
                                 None
                             }
-                        } else {
-                            debug!("Gateway {} has no infrastructure defined", gateway_ref);
-                            None
-                        }
-                    })
-                    .collect();
+                        })
+                        .collect();
 
-                tx.set(new_parameters);
+                    tx.set(new_parameters);
+                }
+
+                continue_on!(gateways_rx.changed(), gateway_parameters_tx.changed());
             }
-
-            continue_on!(gateways_rx.changed(), gateway_parameters_tx.changed());
-        }
-    });
+        });
 
     rx
 }

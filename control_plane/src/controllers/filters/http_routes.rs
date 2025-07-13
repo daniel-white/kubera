@@ -3,12 +3,12 @@ use gateway_api::apis::standard::gateways::Gateway;
 use gateway_api::apis::standard::httproutes::HTTPRoute;
 use itertools::Itertools;
 use kubera_core::continue_on;
-use kubera_core::sync::signal::{signal, Receiver};
-use tokio::task::JoinSet;
-use tracing::{debug, info, warn};
+use kubera_core::sync::signal::{Receiver, signal};
+use kubera_core::task::Builder as TaskBuilder;
+use tracing::{debug, debug_span, info, warn};
 
 pub fn filter_http_routes(
-    join_set: &mut JoinSet<()>,
+    task_builder: &TaskBuilder,
     gateways_rx: &Receiver<Objects<Gateway>>,
     http_routes_rx: &Receiver<Objects<HTTPRoute>>,
 ) -> Receiver<Objects<HTTPRoute>> {
@@ -16,15 +16,18 @@ pub fn filter_http_routes(
     let gateways_rx = gateways_rx.clone();
     let http_routes_rx = http_routes_rx.clone();
 
-    join_set.spawn(async move {
-        loop {
-            if let Some(gateways) = gateways_rx.get()
-                && let Some(http_routes) = http_routes_rx.get()
-            {
-                let http_routes = http_routes
+    task_builder
+        .new_task(stringify!(filter_http_routes))
+        .spawn(async move {
+            loop {
+                warn!("Waiting for HTTPRoute updates - continue please");
+                if let Some(gateways) = gateways_rx.get()
+                    && let Some(http_routes) = http_routes_rx.get()
+                {
+                    let http_routes = http_routes
                     .iter()
                     .filter(|(http_route_ref, _, http_route)| {
-                        let result = http_route
+                        let result = debug_span!("inner").in_scope(|| { http_route
                             .spec
                             .parent_refs
                             .iter()
@@ -49,7 +52,7 @@ pub fn filter_http_routes(
                                     .ok()
                             })
                             .unique()
-                            .any(|r| gateways.contains_by_ref(&r));
+                            .any(|r| gateways.contains_by_ref(&r)) });
 
                         if result {
                             info!(
@@ -67,12 +70,12 @@ pub fn filter_http_routes(
                     })
                     .collect();
 
-                tx.set(http_routes);
+                    tx.set(http_routes);
+                }
+                warn!("Waiting for HTTPRoute updates");
+                continue_on!(gateways_rx.changed(), http_routes_rx.changed());
             }
-
-            continue_on!(gateways_rx.changed(), http_routes_rx.changed());
-        }
-    });
+        });
 
     rx
 }

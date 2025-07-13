@@ -34,9 +34,9 @@ use clap::Parser;
 use cli::Cli;
 use kubera_core::crypto::init_crypto;
 use kubera_core::instrumentation::init_instrumentation;
+use kubera_core::task::Builder as TaskBuilder;
 use std::sync::Arc;
 use thiserror::Error;
-use tokio::task::JoinSet;
 use tracing::error;
 
 #[derive(Debug, Error)]
@@ -60,12 +60,11 @@ async fn main() -> Result<(), MainError> {
     init_crypto();
     init_instrumentation();
 
-    let mut join_set = JoinSet::new();
+    let task_builder = TaskBuilder::default();
 
-    let kube_client_rx = start_kubernetes_client(&mut join_set);
+    let kube_client_rx = start_kubernetes_client(&task_builder);
 
     // IPC is half 1 - it is what the gateway use to ensure that they have the latest configuration
-
     let ipc_services = {
         let params = SpawnIpcParameters::new_builder()
             .options(options.clone())
@@ -76,7 +75,7 @@ async fn main() -> Result<(), MainError> {
                 error!("Failed to build IPC parameters: {}", err);
             })?;
 
-        spawn_ipc(&mut join_set, params)
+        spawn_ipc(&task_builder, params)
             .await
             .inspect_err(|err| error!("Failed to spawn IPC services: {}", err))?
     };
@@ -94,11 +93,11 @@ async fn main() -> Result<(), MainError> {
             .build()
             .inspect_err(|err| error!("Failed to build controllers parameters: {}", err))?;
 
-        spawn_controllers(&mut join_set, params)
+        spawn_controllers(&task_builder, params)
             .inspect_err(|err| error!("Failed to spawn controllers: {}", err))?;
     }
 
-    join_set.join_all().await;
+    task_builder.join_all().await;
 
     Ok(())
 }

@@ -1,6 +1,6 @@
 #[macro_export]
 macro_rules! sync_objects {
-    ($options:ident, $join_set:ident, $object_type:ty, $kube_client_rx:ident, $instance_role_rx:ident, $template_value_type:ty, $template:ident) => {{
+    ($options:ident, $task_builder:ident, $object_type:ty, $kube_client_rx:ident, $instance_role_rx:ident, $template_value_type:ty, $template:ident) => {{
         use $crate::kubernetes::objects::{Objects, ObjectRef, SyncObjectAction, SyncObjectAction::*};
         use gtmpl::{Context, Template, gtmpl_fn, FuncError};
         use kube::Api;
@@ -17,46 +17,50 @@ macro_rules! sync_objects {
         use kubera_core::sync::signal::{signal, Receiver};
         use std::collections::HashSet;
         use $crate::options::Options;
+        use kubera_core::task::Builder as TaskBuilder;
 
         let (tx, mut rx) = channel::<SyncObjectAction<$template_value_type, $object_type>>(50);
 
         let options: Arc<Options> = $options.clone();
         let kube_client_rx: Receiver<KubeClientCell> = $kube_client_rx.clone();
         let instance_role_rx: Receiver<InstanceRole> = $instance_role_rx.clone();
+        let task_builder: &TaskBuilder = $task_builder;
 
         let current_object_refs_rx = {
             let (tx, rx) = signal();
             let current_objects_rx: Receiver<Objects<$object_type>> = watch_objects!(
                 $options,
-                $join_set,
+                task_builder,
                 $object_type,
                 kube_client_rx,
                 Config::default().labels(MANAGED_BY_LABEL_QUERY)
             );
 
-            $join_set.spawn(async move {
-                loop {
-                    if let Some(current_objects) = current_objects_rx.get() {
-                        debug!("Reconciling {} object refs", stringify!($object_type));
-                        
-                        let object_refs: HashSet<_> = current_objects
-                            .iter()
-                            .filter_map(|(object_ref, _, object)| {
-                                match object.metadata.deletion_timestamp {
-                                    Some(_) => None,
-                                    None => Some(object_ref.clone()),
-                                }
-                            })
-                            .collect();
+            task_builder
+                .new_task(concat!("current_object_refs_", stringify!($object_type)))
+                .spawn(async move {
+                    loop {
+                        if let Some(current_objects) = current_objects_rx.get() {
+                            debug!("Reconciling {} object refs", stringify!($object_type));
 
-                        tx.set(object_refs);
-                    } else {
-                        debug!("Signal for {} hasn't signaled yet for reconciling object refs", stringify!($object_type));
+                            let object_refs: HashSet<_> = current_objects
+                                .iter()
+                                .filter_map(|(object_ref, _, object)| {
+                                    match object.metadata.deletion_timestamp {
+                                        Some(_) => None,
+                                        None => Some(object_ref.clone()),
+                                    }
+                                })
+                                .collect();
+
+                            tx.set(object_refs);
+                        } else {
+                            debug!("Signal for {} hasn't signaled yet for reconciling object refs", stringify!($object_type));
+                        }
+
+                        continue_after!(options.auto_cycle_duration(), current_objects_rx.changed());
                     }
-
-                    continue_after!(options.auto_cycle_duration(), current_objects_rx.changed());
-                }
-            });
+                });
 
             rx
         };
@@ -162,37 +166,39 @@ macro_rules! sync_objects {
             stringify!($object_type)
         );
 
-        $join_set.spawn(async move {
-            loop {
-                if let Some(kube_client) = kube_client_rx.get()
-                    && let Some(instance_role) = instance_role_rx.get()
-                {
-                    let _ = select! {
-                        action = rx.recv() => match action {
-                            Ok(action) if instance_role.is_primary() => apply_action(kube_client.clone().into(), &template, action).await,
-                            Ok(_) => debug!("Skipping action for {} objects, not primary instance", stringify!($object_type)),
-                            Err(RecvError::Lagged(_)) => {
-                                debug!("Queue lagged for {} objects", stringify!($object_type));
+        task_builder
+            .new_task(concat!("current_objects_", stringify!($object_type)))
+            .spawn(async move {
+                loop {
+                    if let Some(kube_client) = kube_client_rx.get()
+                        && let Some(instance_role) = instance_role_rx.get()
+                    {
+                        let _ = select! {
+                            action = rx.recv() => match action {
+                                Ok(action) if instance_role.is_primary() => apply_action(kube_client.clone().into(), &template, action).await,
+                                Ok(_) => debug!("Skipping action for {} objects, not primary instance", stringify!($object_type)),
+                                Err(RecvError::Lagged(_)) => {
+                                    debug!("Queue lagged for {} objects", stringify!($object_type));
+                                    continue;
+                                }
+                                Err(err) => {
+                                    debug!("Queue closed, shutting down controller for {} objects: {}", stringify!($object_type), err);
+                                    break;
+                                }
+                            },
+                            _ = instance_role_rx.changed() => {
                                 continue;
-                            }
-                            Err(err) => {
-                                debug!("Queue closed, shutting down controller for {} objects: {}", stringify!($object_type), err);
+                            },
+                            _ = ctrl_c() => {
+                                debug!("Received Ctrl+C, shutting down controller for {} objects", stringify!($object_type));
                                 break;
                             }
-                        },
-                        _ = instance_role_rx.changed() => {
-                            continue;
-                        },
-                        _ = ctrl_c() => {
-                            debug!("Received Ctrl+C, shutting down controller for {} objects", stringify!($object_type));
-                            break;
-                        }
-                    };
-                }
+                        };
+                    }
 
-                continue_on!(kube_client_rx.changed(), instance_role_rx.changed());
-            }
-        });
+                    continue_on!(kube_client_rx.changed(), instance_role_rx.changed());
+                }
+            });
 
         (tx, current_object_refs_rx)
     }}

@@ -1,12 +1,12 @@
 #[macro_export]
 macro_rules! watch_objects {
-    ($options:ident, $join_set:ident, $object_type:ty, $kube_client_rx:ident) => {{
+    ($options:ident, $task_builder:ident, $object_type:ty, $kube_client_rx:ident) => {{
         #[allow(unused_imports)]
         use kube::runtime::watcher::Config;
 
-        watch_objects!($options, $join_set, $object_type, $kube_client_rx, Config::default())
+        watch_objects!($options, $task_builder, $object_type, $kube_client_rx, Config::default())
     }};
-    ($options:ident, $join_set:ident, $object_type:ty, $kube_client_rx:ident, $config:expr) => {{
+    ($options:ident, $task_builder:ident, $object_type:ty, $kube_client_rx:ident, $config:expr) => {{
         use futures::StreamExt;
         use kube::Api;
         use kube::runtime::Controller;
@@ -19,6 +19,9 @@ macro_rules! watch_objects {
         use tracing::instrument;
         use tracing::{debug, warn};
         use kubera_core::continue_on;
+        use tokio::select;
+        use tokio::signal::ctrl_c;
+        use kubera_core::task::Builder as TaskBuilder;
         use $crate::kubernetes::objects::Objects;
         use $crate::Options;
 
@@ -82,6 +85,7 @@ macro_rules! watch_objects {
         let options: Arc<Options> = $options.clone();
         let kube_client_rx: Receiver<KubeClientCell> = $kube_client_rx.clone();
         let config: Config = $config.clone();
+        let task_builder: &TaskBuilder = $task_builder;
         let (tx, rx) = signal();
 
         debug!(
@@ -89,29 +93,60 @@ macro_rules! watch_objects {
             stringify!($object_type)
         );
 
-        $join_set.spawn(async move {
-            let controller_context = Arc::new(ControllerContext{
-                options,
-                tx,
-            });
-            loop {
-                if let Some(kube_client) = kube_client_rx.get() {
-                    let object_api = Api::<$object_type>::all(kube_client.clone().into());
-                    Controller::new(object_api, config.clone())
-                        .shutdown_on_signal()
-                        .run(
-                            reconcile,
-                            error_policy,
-                            controller_context.clone(),
-                        )
-                        .filter_map(|x| async move { Some(x) })
-                        .for_each(|_| ready(()))
-                        .await;
-                }
+        task_builder
+            .new_task(concat!("watch_objects_", stringify!($object_type)))
+            .spawn(async move
+            {
+                let controller_context = Arc::new(ControllerContext{
+                    options,
+                    tx,
+                });
+                loop {
+                    if let Some(kube_client) = kube_client_rx.get() {
+                        debug!(
+                            "Starting controller for watching {} objects",
+                            stringify!($object_type)
+                        );
+                        let object_api = Api::<$object_type>::all(kube_client.clone().into());
 
-                continue_on!(kube_client_rx.changed());
-            }
-        });
+                        let controller = Controller::new(object_api, config.clone())
+                            .shutdown_on_signal()
+                            .run(
+                                reconcile,
+                                error_policy,
+                                controller_context.clone(),
+                            )
+                            .filter_map(|x| async move { Some(x) })
+                            .for_each(|_| ready(()));
+
+                        select! {
+                            _ = controller => {
+                                debug!(
+                                    "Controller for watching {} objects has stopped",
+                                    stringify!($object_type)
+                                );
+                                break;
+                            },
+                            _ = ctrl_c() => {
+                                debug!(
+                                    "Received Ctrl+C signal, stopping controller for watching {} objects",
+                                    stringify!($object_type)
+                                );
+                                break;
+                            },
+                            _ = kube_client_rx.changed() => {
+                                debug!(
+                                    "Kube client changed, restarting controller for watching {} objects",
+                                    stringify!($object_type)
+                                );
+                                continue;
+                            }
+                        }
+                    }
+
+                    continue_on!(kube_client_rx.changed());
+                }
+            });
 
         rx
     }};

@@ -30,6 +30,7 @@ pub mod io;
 pub mod ipc;
 pub mod net;
 pub mod sync;
+pub mod task;
 pub mod utils;
 
 #[derive(Validate, Debug, Clone, PartialEq, Eq, Hash)]

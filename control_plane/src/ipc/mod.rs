@@ -20,9 +20,9 @@ use kubera_core::config::gateway::types::GatewayConfiguration;
 use kubera_core::ipc::{Event, GatewayEvent, Ref as IpcRef, RefBuilderError as IpcRefBuilderError};
 use kubera_core::net::Port;
 use kubera_core::sync::signal::Receiver;
+use kubera_core::task::Builder as TaskBuilder;
 use std::sync::Arc;
 use thiserror::Error;
-use tokio::task::JoinSet;
 
 #[derive(Debug, Builder, Getters, CopyGetters)]
 #[builder(setter(into))]
@@ -134,7 +134,7 @@ pub enum SpawnIpcError {
 }
 
 pub async fn spawn_ipc(
-    join_set: &mut JoinSet<()>,
+    task_builder: &TaskBuilder,
     params: SpawnIpcParameters,
 ) -> Result<IpcServices, SpawnIpcError> {
     let (event_sender, events_factory) = events::events_channel();
@@ -148,7 +148,7 @@ pub async fn spawn_ipc(
         .kube_client_rx(params.kube_client_rx)
         .build()?;
 
-    spawn_ipc_endpoint(join_set, ipc_endpoint_params).await?;
+    spawn_ipc_endpoint(task_builder, ipc_endpoint_params).await?;
 
     let ipc_services = IpcServices::new_builder()
         .events(event_sender)

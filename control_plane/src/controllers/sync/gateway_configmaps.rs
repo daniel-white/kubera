@@ -24,13 +24,13 @@ use kubera_core::config::gateway::types::net::ProxyHeaders;
 use kubera_core::config::gateway::types::{GatewayConfiguration, GatewayConfigurationBuilder};
 use kubera_core::net::{Hostname, Port};
 use kubera_core::sync::signal::{signal, Receiver};
+use kubera_core::task::Builder as TaskBuilder;
 use kubera_core::{continue_after, continue_on};
 use std::collections::{HashMap, HashSet};
 use std::net::IpAddr;
 use std::sync::Arc;
 use tokio::select;
 use tokio::sync::broadcast::Sender;
-use tokio::task::JoinSet;
 use tracing::{debug, error, info, warn};
 
 const TEMPLATE: &str = include_str!("./templates/gateway_configmap.kubernetes-helm-yaml");
@@ -69,14 +69,14 @@ impl SyncGatewayConfigmapsParams {
     }
 }
 
-pub fn sync_gateway_configmaps(join_set: &mut JoinSet<()>, params: SyncGatewayConfigmapsParams) {
+pub fn sync_gateway_configmaps(task_builder: &TaskBuilder, params: SyncGatewayConfigmapsParams) {
     let options = params.options();
     let kube_client_rx = params.kube_client_rx();
     let instance_role_rx = params.instance_role_rx();
 
     let (tx, current_refs_rx) = sync_objects!(
         options,
-        join_set,
+        task_builder,
         ConfigMap,
         kube_client_rx,
         instance_role_rx,
@@ -96,7 +96,7 @@ pub fn sync_gateway_configmaps(join_set: &mut JoinSet<()>, params: SyncGatewayCo
         .build()
         .expect("Failed to build GenerateGatewayConfigmapsParams");
 
-    generate_gateway_configmaps(join_set, params);
+    generate_gateway_configmaps(task_builder, params);
 }
 
 #[derive(Builder, CloneGetters, Clone)]
@@ -121,11 +121,11 @@ struct GenerateGatewayConfigmapsParams {
 }
 
 fn generate_gateway_configmaps(
-    join_set: &mut JoinSet<()>,
+    task_builder: &TaskBuilder,
     params: GenerateGatewayConfigmapsParams,
 ) {
     let gateway_configurations_tx = generate_gateway_configurations(
-        join_set,
+        task_builder,
         params.ipc_services(),
         params.primary_instance_ip_addr_rx(),
         params.gateway_instances_rx(),
@@ -133,66 +133,68 @@ fn generate_gateway_configmaps(
         params.backends_rx(),
     );
 
-    join_set.spawn(async move {
-        loop {
-            if let Some(gateway_configurations) = gateway_configurations_tx.get()
-                && let Some(current_configmap_refs) = params.current_refs_rx().get()
-            {
-                info!("Reconciling Gateway ConfigMaps");
-                let desired_gateway_configurations = expand(&gateway_configurations);
+    task_builder
+        .new_task(stringify!(sync_gateway_configmaps))
+        .spawn(async move {
+            loop {
+                if let Some(gateway_configurations) = gateway_configurations_tx.get()
+                    && let Some(current_configmap_refs) = params.current_refs_rx().get()
+                {
+                    info!("Reconciling Gateway ConfigMaps");
+                    let desired_gateway_configurations = expand(&gateway_configurations);
 
-                let desire_configmap_refs: HashSet<_> = desired_gateway_configurations
-                    .iter()
-                    .map(|state| state.configmap_ref.clone())
-                    .collect();
+                    let desire_configmap_refs: HashSet<_> = desired_gateway_configurations
+                        .iter()
+                        .map(|state| state.configmap_ref.clone())
+                        .collect();
 
-                let deleted_refs = current_configmap_refs.difference(&desire_configmap_refs);
-                for deleted_ref in deleted_refs {
-                    let _ = params
-                        .sync_tx
-                        .send(SyncObjectAction::Delete(deleted_ref.clone()))
-                        .inspect(|_| {
-                            params
-                                .ipc_services()
-                                .remove_gateway_configuration(deleted_ref);
-                        })
-                        .inspect_err(|err| {
-                            error!("Failed to send delete action: {}", err);
-                        });
-                }
-
-                'send_and_insert: for gateway_state in desired_gateway_configurations {
-                    let Some((template_values, config)) = gateway_state.values else {
-                        continue 'send_and_insert;
-                    };
-
-                    if let Err(err) = params.sync_tx.send(SyncObjectAction::Upsert(
-                        gateway_state.configmap_ref,
-                        gateway_state.gateway_ref.clone(),
-                        template_values,
-                        None,
-                    )) {
-                        warn!("Failed to send upsert action: {}", err);
-                        continue 'send_and_insert;
+                    let deleted_refs = current_configmap_refs.difference(&desire_configmap_refs);
+                    for deleted_ref in deleted_refs {
+                        let _ = params
+                            .sync_tx
+                            .send(SyncObjectAction::Delete(deleted_ref.clone()))
+                            .inspect(|_| {
+                                params
+                                    .ipc_services()
+                                    .remove_gateway_configuration(deleted_ref);
+                            })
+                            .inspect_err(|err| {
+                                error!("Failed to send delete action: {}", err);
+                            });
                     }
 
-                    if let Err(err) = params
-                        .ipc_services()
-                        .try_insert_gateway_configuration(gateway_state.gateway_ref, config)
-                    {
-                        warn!("Failed to insert gateway configuration: {}", err);
-                        continue 'send_and_insert;
+                    'send_and_insert: for gateway_state in desired_gateway_configurations {
+                        let Some((template_values, config)) = gateway_state.values else {
+                            continue 'send_and_insert;
+                        };
+
+                        if let Err(err) = params.sync_tx.send(SyncObjectAction::Upsert(
+                            gateway_state.configmap_ref,
+                            gateway_state.gateway_ref.clone(),
+                            template_values,
+                            None,
+                        )) {
+                            warn!("Failed to send upsert action: {}", err);
+                            continue 'send_and_insert;
+                        }
+
+                        if let Err(err) = params
+                            .ipc_services()
+                            .try_insert_gateway_configuration(gateway_state.gateway_ref, config)
+                        {
+                            warn!("Failed to insert gateway configuration: {}", err);
+                            continue 'send_and_insert;
+                        }
                     }
                 }
+
+                continue_after!(
+                    params.options.auto_cycle_duration(),
+                    gateway_configurations_tx.changed(),
+                    params.current_refs_rx.changed()
+                );
             }
-
-            continue_after!(
-                params.options.auto_cycle_duration(),
-                gateway_configurations_tx.changed(),
-                params.current_refs_rx.changed()
-            );
-        }
-    });
+        });
 }
 
 #[derive(Clone, Debug, Builder)]
@@ -240,7 +242,7 @@ fn expand(configurations: &HashMap<ObjectRef, Option<GatewayConfiguration>>) -> 
 }
 
 fn generate_gateway_configurations(
-    join_set: &mut JoinSet<()>,
+    task_builder: &TaskBuilder,
     ipc_services: Arc<IpcServices>,
     primary_instance_ip_addr_rx: Receiver<IpAddr>,
     gateway_instances_rx: Receiver<HashMap<ObjectRef, GatewayInstanceConfiguration>>,
@@ -249,7 +251,9 @@ fn generate_gateway_configurations(
 ) -> Receiver<HashMap<ObjectRef, Option<GatewayConfiguration>>> {
     let (tx, rx) = signal();
 
-    join_set.spawn(async move {
+    task_builder
+        .new_task(stringify!(generate_gateway_configurations))
+        .spawn(async move {
         loop {
             match (
                 primary_instance_ip_addr_rx.get(),

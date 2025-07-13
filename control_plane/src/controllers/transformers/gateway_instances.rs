@@ -1,21 +1,21 @@
 use crate::kubernetes::objects::{ObjectRef, Objects};
 use gateway_api::apis::standard::gateways::Gateway;
 use getset::Getters;
+use k8s_openapi::DeepMerge;
 use k8s_openapi::api::apps::v1::{Deployment, DeploymentSpec, DeploymentStrategy};
 use k8s_openapi::api::core::v1::{Service, ServiceSpec};
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
-use k8s_openapi::DeepMerge;
 use kubera_api::v1alpha1::{
     GatewayClassParameters, GatewayConfiguration, GatewayParameters,
     ImagePullPolicy as ApiImagePullPolicy,
 };
 use kubera_core::continue_on;
-use kubera_core::sync::signal::{signal, Receiver};
+use kubera_core::sync::signal::{Receiver, signal};
+use kubera_core::task::Builder as TaskBuilder;
 use serde_json::{from_value, json};
 use std::collections::HashMap;
 use std::sync::Arc;
 use strum::IntoStaticStr;
-use tokio::task::JoinSet;
 use tracing::{info, warn};
 
 #[derive(Default, Copy, Clone, Debug, PartialEq, IntoStaticStr)]
@@ -56,7 +56,7 @@ pub struct GatewayInstanceConfiguration {
 }
 
 pub fn collect_gateway_instances(
-    join_set: &mut JoinSet<()>,
+    task_builder: &TaskBuilder,
     gateways_rx: &Receiver<Objects<Gateway>>,
     gateway_class_parameters_rx: &Receiver<Arc<GatewayClassParameters>>,
     gateway_parameters_rx: &Receiver<HashMap<ObjectRef, Arc<GatewayParameters>>>,
@@ -67,55 +67,58 @@ pub fn collect_gateway_instances(
     let gateway_class_parameters_rx = gateway_class_parameters_rx.clone();
     let gateway_parameters_rx = gateway_parameters_rx.clone();
 
-    join_set.spawn(async move {
-        loop {
-            if let Some(gateways) = gateways_rx.get()
-                && let Some(gateway_parameters) = gateway_parameters_rx.get()
-            {
-                let gateway_class_parameters = gateway_class_parameters_rx.get();
-                let instances = gateways
-                    .iter()
-                    .map(|(gateway_ref, _, gateway)| {
-                        info!("Processing gateway instance: {}", gateway_ref);
-                        let gateway_parameters = gateway_parameters.get(&gateway_ref).cloned();
-                        let (deployment_overrides, image_pull_policy) = merge_deployment_overrides(
-                            &gateway,
-                            gateway_class_parameters.as_deref().map(Arc::as_ref),
-                            gateway_parameters.as_deref(),
-                        );
-                        let service_overrides = merge_service_overrides(
-                            &gateway,
-                            gateway_class_parameters.as_deref().map(Arc::as_ref),
-                            gateway_parameters.as_deref(),
-                        );
-                        let configuration = merge_gateway_configuration(
-                            &gateway,
-                            gateway_class_parameters.as_deref().map(Arc::as_ref),
-                            gateway_parameters.as_deref(),
-                        );
-                        (
-                            gateway_ref,
-                            GatewayInstanceConfiguration {
-                                gateway,
-                                service_overrides,
-                                deployment_overrides,
-                                image_pull_policy,
-                                configuration,
-                            },
-                        )
-                    })
-                    .collect();
+    task_builder
+        .new_task(stringify!(collect_gateway_instances))
+        .spawn(async move {
+            loop {
+                if let Some(gateways) = gateways_rx.get()
+                    && let Some(gateway_parameters) = gateway_parameters_rx.get()
+                {
+                    let gateway_class_parameters = gateway_class_parameters_rx.get();
+                    let instances = gateways
+                        .iter()
+                        .map(|(gateway_ref, _, gateway)| {
+                            info!("Processing gateway instance: {}", gateway_ref);
+                            let gateway_parameters = gateway_parameters.get(&gateway_ref).cloned();
+                            let (deployment_overrides, image_pull_policy) =
+                                merge_deployment_overrides(
+                                    &gateway,
+                                    gateway_class_parameters.as_deref().map(Arc::as_ref),
+                                    gateway_parameters.as_deref(),
+                                );
+                            let service_overrides = merge_service_overrides(
+                                &gateway,
+                                gateway_class_parameters.as_deref().map(Arc::as_ref),
+                                gateway_parameters.as_deref(),
+                            );
+                            let configuration = merge_gateway_configuration(
+                                &gateway,
+                                gateway_class_parameters.as_deref().map(Arc::as_ref),
+                                gateway_parameters.as_deref(),
+                            );
+                            (
+                                gateway_ref,
+                                GatewayInstanceConfiguration {
+                                    gateway,
+                                    service_overrides,
+                                    deployment_overrides,
+                                    image_pull_policy,
+                                    configuration,
+                                },
+                            )
+                        })
+                        .collect();
 
-                tx.set(instances);
+                    tx.set(instances);
+                }
+
+                continue_on!(
+                    gateways_rx.changed(),
+                    gateway_class_parameters_rx.changed(),
+                    gateway_parameters_rx.changed()
+                );
             }
-
-            continue_on!(
-                gateways_rx.changed(),
-                gateway_class_parameters_rx.changed(),
-                gateway_parameters_rx.changed()
-            );
-        }
-    });
+        });
 
     rx
 }

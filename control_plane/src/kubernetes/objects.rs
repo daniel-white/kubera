@@ -1,6 +1,7 @@
 use derive_builder::Builder;
 use getset::Getters;
 use gtmpl_value::Value;
+use itertools::Itertools;
 use kube::runtime::reflector::Lookup;
 use kube::{Resource, ResourceExt};
 use std::collections::{HashMap, HashSet};
@@ -179,13 +180,20 @@ where
     }
 
     pub fn iter(&self) -> impl Iterator<Item = (ObjectRef, ObjectUniqueId, Arc<K>)> {
-        self.by_ref.iter().filter_map(|(r, s)| match s.uid() {
-            None => {
-                warn!("Object {} does not have a UID, skipping", r);
-                None
-            }
-            Some(uid) => Some((r.clone(), ObjectUniqueId::new(uid), s.clone())),
-        })
+        warn!("Iterating over objects, this may be expensive");
+        let v = self
+            .by_ref
+            .iter()
+            .filter_map(|(r, s)| match s.uid() {
+                None => {
+                    warn!("Object {} does not have a UID, skipping", r);
+                    None
+                }
+                Some(uid) => Some((r.clone(), ObjectUniqueId::new(uid), s.clone())),
+            })
+            .collect_vec();
+        warn!("Iterated over {} objects", v.len());
+        v.into_iter()
     }
 }
 

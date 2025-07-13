@@ -19,13 +19,13 @@ use derive_builder::Builder;
 use getset::{CloneGetters, CopyGetters, Getters};
 use kubera_core::net::Port;
 use kubera_core::sync::signal::Receiver;
+use kubera_core::task::Builder as TaskBuilder;
 use problemdetails::Problem;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use thiserror::Error;
 use tokio::net::TcpListener;
 use tokio::select;
-use tokio::task::JoinSet;
 use tracing::info;
 
 #[derive(Builder, Getters, CloneGetters, Clone)]
@@ -85,7 +85,7 @@ pub enum SpawnIpcEndpointError {
 }
 
 pub async fn spawn_ipc_endpoint(
-    join_set: &mut JoinSet<()>,
+    task_builder: &TaskBuilder,
     params: SpawnIpcEndpointParameters,
 ) -> Result<(), SpawnIpcEndpointError> {
     let initial_state = IpcEndpointState::new_builder()
@@ -100,12 +100,14 @@ pub async fn spawn_ipc_endpoint(
     let endpoint = params.endpoint();
     let tcp_listener = TcpListener::bind(endpoint).await?;
 
-    join_set.spawn(async move {
-        select! {
-            _ = axum::serve(tcp_listener, router(initial_state, health)) => info!("IPC service stopped"),
-            _ = tokio::signal::ctrl_c() => info!("Received shutdown signal, stopping IPC service")
-        }
-    });
+    task_builder
+        .new_task("ipc_endpoint")
+        .spawn(async move {
+            select! {
+                _ = axum::serve(tcp_listener, router(initial_state, health)) => info!("IPC service stopped"),
+                _ = tokio::signal::ctrl_c() => info!("Received shutdown signal, stopping IPC service")
+            }
+        });
 
     Ok(())
 }

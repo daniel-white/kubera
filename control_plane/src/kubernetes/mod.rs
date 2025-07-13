@@ -1,7 +1,7 @@
 use kube::Client;
-use kubera_core::sync::signal::{signal, Receiver};
+use kubera_core::sync::signal::{Receiver, signal};
+use kubera_core::task::Builder as TaskBuilder;
 use std::ops::Deref;
-use tokio::task::JoinSet;
 use tracing::error;
 
 pub mod objects;
@@ -29,20 +29,22 @@ impl From<KubeClientCell> for Client {
     }
 }
 
-pub fn start_kubernetes_client(join_set: &mut JoinSet<()>) -> Receiver<KubeClientCell> {
+pub fn start_kubernetes_client(task_builder: &TaskBuilder) -> Receiver<KubeClientCell> {
     let (tx, rx) = signal();
 
-    join_set.spawn(async move {
-        match Client::try_default().await {
-            Ok(client) => {
-                let client_cell = KubeClientCell(client);
-                tx.set(client_cell);
-                let tx = Box::new(tx);
-                Box::leak(tx); // Leak the sender to keep it alive
+    task_builder
+        .new_task("kubernetes_client")
+        .spawn(async move {
+            match Client::try_default().await {
+                Ok(client) => {
+                    let client_cell = KubeClientCell(client);
+                    tx.set(client_cell);
+                    let tx = Box::new(tx);
+                    Box::leak(tx); // Leak the sender to keep it alive
+                }
+                Err(e) => error!("Failed to create Kubernetes client: {}", e),
             }
-            Err(e) => error!("Failed to create Kubernetes client: {}", e),
-        }
-    });
+        });
 
     rx
 }

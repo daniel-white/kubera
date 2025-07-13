@@ -10,4 +10,6 @@ pub fn init_instrumentation() {
         .expect("Failed to initialize logger")
         .start()
         .expect("Failed to start logger");
+
+    console_subscriber::init();
 }
