@@ -3,7 +3,7 @@ use ipnet::IpNet;
 use kubera_core::config::gateway::types::net::{ClientAddrsSource, ProxyHeaders};
 use kubera_core::config::gateway::types::GatewayConfiguration;
 use kubera_core::continue_on;
-use kubera_core::sync::signal::{channel, Receiver};
+use kubera_core::sync::signal::{signal, Receiver};
 use pingora::proxy::Session;
 use std::net::IpAddr;
 use std::str::FromStr;
@@ -16,85 +16,81 @@ const KUBERA_CLIENT_IP_HEADER: HeaderName = HeaderName::from_static("kubera-clie
 
 pub fn client_addr_filter(
     join_set: &mut JoinSet<()>,
-    configuration: &Receiver<Option<GatewayConfiguration>>,
+    gateway_configuration_rx: &Receiver<GatewayConfiguration>,
 ) -> Receiver<ClientAddrFilter> {
-    let (tx, rx) = channel(ClientAddrFilter::default());
+    let (tx, rx) = signal();
+    let gateway_configuration_rx = gateway_configuration_rx.clone();
 
-    let configuration = configuration.clone();
     join_set.spawn(async move {
         loop {
-            let filter = if let Some(config) = configuration.current().as_ref() {
-                warn!("Using client address filter configuration: {:?}", config);
-                match config.client_addrs().as_ref() {
-                    None => ClientAddrFilter::default(),
-                    Some(client_addrs) => match client_addrs.source() {
-                        ClientAddrsSource::None => ClientAddrFilter::default(),
-                        ClientAddrsSource::Header => {
-                            if let Some(header_name) = client_addrs
-                                .header()
-                                .as_ref()
-                                .and_then(|h| HeaderName::from_str(h).ok())
-                            {
-                                ClientAddrFilter::new(ClientAddrExtractorType::TrustedHeader(
-                                    Arc::new(TrustedHeaderClientAddrExtractor::new(header_name)),
-                                ))
-                            } else {
-                                ClientAddrFilter::default()
-                            }
+            if let Some(gateway_configuration) = gateway_configuration_rx.get()
+                && let Some(client_addrs) = gateway_configuration.client_addrs()
+            {
+                let filter = match client_addrs.source() {
+                    ClientAddrsSource::None => None,
+                    ClientAddrsSource::Header => {
+                        if let Some(header_name) = client_addrs
+                            .header()
+                            .as_ref()
+                            .and_then(|h| HeaderName::from_str(h).ok())
+                        {
+                            Some(ClientAddrFilter::new(
+                                ClientAddrExtractorType::TrustedHeader(Arc::new(
+                                    TrustedHeaderClientAddrExtractor::new(header_name),
+                                )),
+                            ))
+                        } else {
+                            None
                         }
-                        ClientAddrsSource::Proxies => {
-                            if let Some(proxies) = client_addrs.proxies().as_ref() {
-                                let mut extractor_builder =
-                                    TrustedProxiesClientAddrExtractor::new_builder();
+                    }
+                    ClientAddrsSource::Proxies => {
+                        if let Some(proxies) = client_addrs.proxies().as_ref() {
+                            let mut extractor_builder =
+                                TrustedProxiesClientAddrExtractor::new_builder();
 
-                                for ip in proxies.trusted_ips().iter().cloned() {
-                                    extractor_builder.add_trusted_ip(ip);
-                                }
+                            for ip in proxies.trusted_ips().iter().cloned() {
+                                extractor_builder.add_trusted_ip(ip);
+                            }
 
-                                for range in proxies.trusted_ranges().iter().cloned() {
-                                    extractor_builder.add_trusted_ip_range(range);
-                                }
+                            for range in proxies.trusted_ranges().iter().cloned() {
+                                extractor_builder.add_trusted_ip_range(range);
+                            }
 
-                                for header in proxies.trusted_headers() {
-                                    match header {
-                                        ProxyHeaders::Forwarded => {
-                                            extractor_builder.trust_forwarded_header()
-                                        }
-                                        ProxyHeaders::XForwardedFor => {
-                                            extractor_builder.trust_x_forwarded_for_header()
-                                        }
-                                        ProxyHeaders::XForwardedProto => {
-                                            extractor_builder.trust_x_forwarded_proto_header()
-                                        }
-                                        ProxyHeaders::XForwardedHost => {
-                                            extractor_builder.trust_x_forwarded_host_header()
-                                        }
-                                        ProxyHeaders::XForwardedBy => {
-                                            extractor_builder.trust_x_forwarded_by_header()
-                                        }
+                            for header in proxies.trusted_headers() {
+                                match header {
+                                    ProxyHeaders::Forwarded => {
+                                        extractor_builder.trust_forwarded_header()
+                                    }
+                                    ProxyHeaders::XForwardedFor => {
+                                        extractor_builder.trust_x_forwarded_for_header()
+                                    }
+                                    ProxyHeaders::XForwardedProto => {
+                                        extractor_builder.trust_x_forwarded_proto_header()
+                                    }
+                                    ProxyHeaders::XForwardedHost => {
+                                        extractor_builder.trust_x_forwarded_host_header()
+                                    }
+                                    ProxyHeaders::XForwardedBy => {
+                                        extractor_builder.trust_x_forwarded_by_header()
                                     }
                                 }
-
-                                let extractor = extractor_builder.build();
-
-                                ClientAddrFilter::new(ClientAddrExtractorType::TrustedProxies(
-                                    Arc::new(extractor),
-                                ))
-                            } else {
-                                ClientAddrFilter::default()
                             }
+
+                            let extractor = extractor_builder.build();
+
+                            Some(ClientAddrFilter::new(
+                                ClientAddrExtractorType::TrustedProxies(Arc::new(extractor)),
+                            ))
+                        } else {
+                            None
                         }
-                    },
-                }
-            } else {
-                ClientAddrFilter::default()
-            };
+                    }
+                };
 
-            debug!("Using client address filter: {:?}", filter);
+                tx.replace(filter);
+            }
 
-            tx.replace(filter);
-
-            continue_on!(configuration.changed());
+            continue_on!(gateway_configuration_rx.changed());
         }
     });
 
@@ -103,7 +99,6 @@ pub fn client_addr_filter(
 
 #[derive(Debug, Clone, PartialEq)]
 enum ClientAddrExtractorType {
-    Default(Arc<DefaultClientAddrExtractor>),
     TrustedHeader(Arc<TrustedHeaderClientAddrExtractor>),
     TrustedProxies(Arc<TrustedProxiesClientAddrExtractor>),
 }
@@ -111,7 +106,6 @@ enum ClientAddrExtractorType {
 impl ClientAddrExtractorType {
     pub fn extractor(&self) -> Arc<dyn ClientAddrExtractor> {
         match self {
-            Self::Default(extractor) => extractor.clone(),
             Self::TrustedHeader(extractor) => extractor.clone(),
             Self::TrustedProxies(extractor) => extractor.clone(),
         }
@@ -150,25 +144,8 @@ impl ClientAddrFilter {
     }
 }
 
-impl Default for ClientAddrFilter {
-    fn default() -> Self {
-        Self::new(ClientAddrExtractorType::Default(Arc::new(
-            DefaultClientAddrExtractor,
-        )))
-    }
-}
-
 trait ClientAddrExtractor {
     fn extract(&self, session: &Session) -> Option<IpAddr>;
-}
-
-#[derive(Debug, Default, Clone, PartialEq)]
-struct DefaultClientAddrExtractor;
-
-impl ClientAddrExtractor for DefaultClientAddrExtractor {
-    fn extract(&self, _session: &Session) -> Option<IpAddr> {
-        None
-    }
 }
 
 #[derive(Debug, Clone, PartialEq)]

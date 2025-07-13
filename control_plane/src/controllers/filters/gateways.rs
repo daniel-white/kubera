@@ -3,27 +3,27 @@ use gateway_api::apis::standard::gatewayclasses::GatewayClass;
 use gateway_api::apis::standard::gateways::Gateway;
 use kubera_api::v1alpha1::GatewayParameters;
 use kubera_core::continue_on;
-use kubera_core::sync::signal::{Receiver, channel};
+use kubera_core::sync::signal::{signal, Receiver};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::task::JoinSet;
-use tracing::{debug, info, warn};
+use tracing::{debug, warn};
 
 pub fn filter_gateways(
     join_set: &mut JoinSet<()>,
-    gateway_class: &Receiver<Option<(ObjectRef, Arc<GatewayClass>)>>,
-    gateways: &Receiver<Objects<Gateway>>,
+    gateway_class_tx: &Receiver<(ObjectRef, GatewayClass)>,
+    gateways_rx: &Receiver<Objects<Gateway>>,
 ) -> Receiver<Objects<Gateway>> {
-    let (tx, rx) = channel(Objects::default());
-
-    let gateway_class = gateway_class.clone();
-    let gateways = gateways.clone();
+    let (tx, rx) = signal();
+    let gateway_class_rx = gateway_class_tx.clone();
+    let gateways_rx = gateways_rx.clone();
 
     join_set.spawn(async move {
         loop {
-            if let Some((expected_gateway_class_ref, _)) = gateway_class.current().as_ref() {
-                let filtered = gateways
-                    .current()
+            if let Some((gateway_class_ref, _)) = gateway_class_rx.get().as_deref()
+                && let Some(gateways) = gateways_rx.get()
+            {
+                let gateways = gateways
                     .iter()
                     .filter(|(gateway_ref, _, gateway)| {
                         ObjectRef::new_builder()
@@ -38,19 +38,14 @@ pub fn filter_gateways(
                                 );
                             })
                             .ok()
-                            .is_some_and(|gateway_class_ref| {
-                                expected_gateway_class_ref == &gateway_class_ref
-                            })
+                            .is_some_and(|ref_| gateway_class_ref == &ref_)
                     })
                     .collect();
 
-                tx.replace(filtered);
-            } else {
-                info!("No GatewayClass supported available");
-                tx.replace(Objects::default());
+                tx.set(gateways);
             }
 
-            continue_on!(gateway_class.changed(), gateways.changed());
+            continue_on!(gateway_class_rx.changed(), gateways_rx.changed());
         }
     });
 
@@ -59,56 +54,57 @@ pub fn filter_gateways(
 
 pub fn filter_gateway_parameters(
     join_set: &mut JoinSet<()>,
-    gateways: &Receiver<Objects<Gateway>>,
-    gateway_parameters: &Receiver<Objects<GatewayParameters>>,
+    gateways_rx: &Receiver<Objects<Gateway>>,
+    gateway_parameters_rx: &Receiver<Objects<GatewayParameters>>,
 ) -> Receiver<HashMap<ObjectRef, Arc<GatewayParameters>>> {
-    let (tx, rx) = channel(HashMap::default());
-
-    let gateways = gateways.clone();
-    let gateway_parameters = gateway_parameters.clone();
+    let (tx, rx) = signal();
+    let gateways_rx = gateways_rx.clone();
+    let gateway_parameters_tx = gateway_parameters_rx.clone();
 
     join_set.spawn(async move {
         loop {
-            let current_gateways = gateways.current();
+            if let Some(gateways) = gateways_rx.get()
+                && let Some(gateway_parameters) = gateway_parameters_tx.get()
+            {
+                let new_parameters = gateways
+                    .iter()
+                    .filter_map(|(gateway_ref, _, gateway)| {
+                        if let Some(parameters_ref) = &gateway
+                            .spec
+                            .infrastructure
+                            .as_ref()
+                            .and_then(|i| i.parameters_ref.as_ref())
+                        {
+                            let parameters_ref = ObjectRef::new_builder()
+                                .group(Some(parameters_ref.group.clone()))
+                                .kind(parameters_ref.kind.clone())
+                                .namespace(gateway_ref.namespace().clone())
+                                .name(&parameters_ref.name)
+                                .build()
+                                .expect("Failed to build parameters reference from Gateway");
 
-            let new_parameters = current_gateways
-                .iter()
-                .filter_map(|(gateway_ref, _, gateway)| {
-                    if let Some(parameters_ref) = &gateway
-                        .spec
-                        .infrastructure
-                        .as_ref()
-                        .and_then(|i| i.parameters_ref.as_ref())
-                    {
-                        let parameters_ref = ObjectRef::new_builder()
-                            .group(Some(parameters_ref.group.clone()))
-                            .kind(parameters_ref.kind.clone())
-                            .namespace(gateway_ref.namespace().clone())
-                            .name(&parameters_ref.name)
-                            .build()
-                            .expect("Failed to build parameters reference from Gateway");
-
-                        let current_parameters = gateway_parameters.current();
-                        if let Some(parameters) = current_parameters.get_by_ref(&parameters_ref) {
-                            debug!(
-                                "Found parameters for gateway {}: {:?}",
-                                gateway_ref, parameters
-                            );
-                            Some((gateway_ref.clone(), parameters.clone()))
+                            if let Some(parameters) = gateway_parameters.get_by_ref(&parameters_ref)
+                            {
+                                debug!(
+                                    "Found parameters for gateway {}: {:?}",
+                                    gateway_ref, parameters
+                                );
+                                Some((gateway_ref.clone(), parameters.clone()))
+                            } else {
+                                debug!("No parameters found for gateway {}", gateway_ref);
+                                None
+                            }
                         } else {
-                            debug!("No parameters found for gateway {}", gateway_ref);
+                            debug!("Gateway {} has no infrastructure defined", gateway_ref);
                             None
                         }
-                    } else {
-                        debug!("Gateway {} has no infrastructure defined", gateway_ref);
-                        None
-                    }
-                })
-                .collect();
+                    })
+                    .collect();
 
-            tx.replace(new_parameters);
+                tx.set(new_parameters);
+            }
 
-            continue_on!(gateways.changed(), gateway_parameters.changed());
+            continue_on!(gateways_rx.changed(), gateway_parameters_tx.changed());
         }
     });
 

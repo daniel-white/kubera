@@ -47,7 +47,6 @@ pub struct HttpRouteRuleMatchesBuilder {
 }
 
 impl HttpRouteRuleMatchesBuilder {
-
     #[must_use]
     pub fn build(self) -> HttpRouteRuleMatches {
         HttpRouteRuleMatches {

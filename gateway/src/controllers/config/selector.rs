@@ -2,17 +2,15 @@ use derive_builder::Builder;
 use getset::Getters;
 use kubera_core::config::gateway::types::GatewayConfiguration;
 use kubera_core::continue_on;
-use kubera_core::sync::signal::{Receiver, channel};
+use kubera_core::sync::signal::{signal, Receiver};
 use std::time::Instant;
 use tokio::task::JoinSet;
 use tracing::debug;
 
 #[derive(Getters, Debug, Clone, Builder)]
 pub struct SelectorParams {
-    #[getset(get = "pub")]
-    ipc_configuration_source: Receiver<Option<(Instant, GatewayConfiguration)>>,
-    #[getset(get = "pub")]
-    fs_configuration_source: Receiver<Option<(Instant, GatewayConfiguration)>>,
+    ipc_configuration_source_rx: Receiver<(Instant, GatewayConfiguration)>,
+    fs_configuration_source_rx: Receiver<(Instant, GatewayConfiguration)>,
 }
 
 impl SelectorParams {
@@ -24,18 +22,18 @@ impl SelectorParams {
 pub fn select_configuration(
     join_set: &mut JoinSet<()>,
     params: SelectorParams,
-) -> Receiver<Option<GatewayConfiguration>> {
-    let (tx, rx) = channel(None);
+) -> Receiver<GatewayConfiguration> {
+    let (tx, rx) = signal();
 
-    let ipc_config_source = params.ipc_configuration_source.clone();
-    let fs_config_source = params.fs_configuration_source.clone();
+    let ipc_config_source = params.ipc_configuration_source_rx.clone();
+    let fs_config_source = params.fs_configuration_source_rx.clone();
 
     join_set.spawn(async move {
         loop {
-            let ipc_config = ipc_config_source.current();
-            let fs_config = fs_config_source.current();
+            let ipc_config = ipc_config_source.get();
+            let fs_config = fs_config_source.get();
 
-            let config = match (ipc_config.as_ref(), fs_config.as_ref()) {
+            let config = match (ipc_config.as_deref(), fs_config.as_deref()) {
                 (None, None) => {
                     debug!("No configuration available from either source");
                     None
@@ -63,8 +61,8 @@ pub fn select_configuration(
             tx.replace(config.cloned());
 
             continue_on!(
-                params.ipc_configuration_source().changed(),
-                params.fs_configuration_source().changed()
+                params.ipc_configuration_source_rx.changed(),
+                params.fs_configuration_source_rx.changed()
             );
         }
     });

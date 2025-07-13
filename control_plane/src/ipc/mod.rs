@@ -113,7 +113,7 @@ impl IpcServices {
 #[builder(setter(into))]
 pub struct SpawnIpcParameters {
     port: Port,
-    kube_client: Receiver<Option<KubeClientCell>>,
+    kube_client_rx: Receiver<KubeClientCell>,
     options: Arc<Options>,
 }
 
@@ -145,7 +145,7 @@ pub async fn spawn_ipc(
         .port(params.port)
         .events(events_factory)
         .gateways(reader)
-        .kube_client(params.kube_client)
+        .kube_client_rx(params.kube_client_rx)
         .build()?;
 
     spawn_ipc_endpoint(join_set, ipc_endpoint_params).await?;

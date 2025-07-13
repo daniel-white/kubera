@@ -223,10 +223,10 @@ pub enum SyncObjectAction<T: Into<Value>, K: Resource + ResourceExt> {
 }
 
 impl<T: Into<Value>, K: Resource + ResourceExt> SyncObjectAction<T, K> {
-    pub fn object_ref(&self) -> &ObjectRef {
+    pub fn object_ref(&self) -> ObjectRef {
         match self {
             SyncObjectAction::Upsert(object_ref, _, _, _)
-            | SyncObjectAction::Delete(object_ref) => object_ref,
+            | SyncObjectAction::Delete(object_ref) => object_ref.clone(),
         }
     }
 }

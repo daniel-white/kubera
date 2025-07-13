@@ -7,14 +7,14 @@ use kubera_core::sync::signal::Receiver;
 use std::net::SocketAddr;
 use tokio::select;
 use tokio::signal::ctrl_c;
-use tokio::sync::broadcast::{Sender, channel};
+use tokio::sync::broadcast::{channel, Sender};
 use tokio::task::JoinSet;
 use tracing::info;
 use url::Url;
 
 #[derive(Debug, Getters)]
 pub struct PollGatewayEventsParams {
-    ipc_endpoint: Receiver<Option<SocketAddr>>,
+    ipc_endpoint_rx: Receiver<SocketAddr>,
     pod_name: String,
     gateway_namespace: String,
     gateway_name: String,
@@ -28,15 +28,15 @@ impl PollGatewayEventsParams {
 
 #[derive(Default)]
 pub struct PollGatewayEventsParamsBuilder {
-    ipc_endpoint: Option<Receiver<Option<SocketAddr>>>,
+    ipc_endpoint_rx: Option<Receiver<SocketAddr>>,
     pod_name: Option<String>,
     gateway_namespace: Option<String>,
     gateway_name: Option<String>,
 }
 
 impl PollGatewayEventsParamsBuilder {
-    pub fn ipc_endpoint(&mut self, addr: &Receiver<Option<SocketAddr>>) -> &mut Self {
-        self.ipc_endpoint = Some(addr.clone());
+    pub fn ipc_endpoint_rx(&mut self, addr: &Receiver<SocketAddr>) -> &mut Self {
+        self.ipc_endpoint_rx = Some(addr.clone());
         self
     }
 
@@ -57,8 +57,8 @@ impl PollGatewayEventsParamsBuilder {
 
     pub fn build(self) -> PollGatewayEventsParams {
         PollGatewayEventsParams {
-            ipc_endpoint: self
-                .ipc_endpoint
+            ipc_endpoint_rx: self
+                .ipc_endpoint_rx
                 .expect("Primary socket address is required"),
             pod_name: self.pod_name.expect("Pod name is required"),
             gateway_namespace: self
@@ -75,14 +75,14 @@ pub fn poll_gateway_events(
 ) -> Sender<GatewayEvent> {
     let (tx, _) = channel(20);
 
-    let ipc_endpoint = params.ipc_endpoint.clone();
+    let ipc_endpoint = params.ipc_endpoint_rx.clone();
 
     let events_tx = tx.clone();
     join_set.spawn(async move {
         'primary: loop {
-            if let Some(ipc_endpoint_addr) = ipc_endpoint.current().as_ref() {
+            if let Some(ipc_endpoint_addr) = ipc_endpoint.get() {
                 let url = {
-                    let mut url = Url::parse(&format!("http://{ipc_endpoint_addr}"))
+                    let mut url = Url::parse(&format!("http://{}", *ipc_endpoint_addr))
                         .expect("Failed to parse URL");
                     url.set_path(&format!(
                         "/ipc/namespaces/{}/gateways/{}/events",

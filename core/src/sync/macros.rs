@@ -4,7 +4,7 @@ macro_rules! continue_after {
         use tokio::signal::ctrl_c;
         use tokio::time;
         use tracing::debug;
-        
+
         #[allow(clippy::needless_continue)]
 
         let sleep = time::sleep($duration);
@@ -26,7 +26,7 @@ macro_rules! continue_after {
         use tokio::signal::ctrl_c;
         use tokio::time;
         use tracing::debug;
-        
+
         #[allow(clippy::needless_continue)]
 
         let sleep = time::sleep($duration);
@@ -62,7 +62,7 @@ macro_rules! continue_on {
     ($($fut:expr),+ $(,)?) => {{
         use tokio::signal::ctrl_c;
         use tracing::debug;
-        
+
         #[allow(clippy::needless_continue)]
 
         tokio::select! {

@@ -1,7 +1,7 @@
 use crate::net::{Hostname, Port};
 use getset::Getters;
 use ipnet::IpNet;
-use schemars::{json_schema, JsonSchema, Schema, SchemaGenerator};
+use schemars::{JsonSchema, Schema, SchemaGenerator, json_schema};
 use serde::{Deserialize, Serialize};
 use serde_valid::Validate;
 use std::net::IpAddr;

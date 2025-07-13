@@ -1,17 +1,17 @@
 #[macro_export]
 macro_rules! watch_objects {
-    ($options:ident, $join_set:ident, $object_type:ty, $kube_client:ident) => {{
+    ($options:ident, $join_set:ident, $object_type:ty, $kube_client_rx:ident) => {{
         #[allow(unused_imports)]
         use kube::runtime::watcher::Config;
 
-        watch_objects!($options, $join_set, $object_type, $kube_client, Config::default())
+        watch_objects!($options, $join_set, $object_type, $kube_client_rx, Config::default())
     }};
-    ($options:ident, $join_set:ident, $object_type:ty, $kube_client:ident, $config:expr) => {{
+    ($options:ident, $join_set:ident, $object_type:ty, $kube_client_rx:ident, $config:expr) => {{
         use futures::StreamExt;
         use kube::Api;
         use kube::runtime::Controller;
         use kube::runtime::controller::Action;
-        use kubera_core::sync::signal::{Sender, channel};
+        use kubera_core::sync::signal::{Sender, signal};
         use std::fmt::Debug;
         use std::future::ready;
         use std::sync::Arc;
@@ -35,8 +35,10 @@ macro_rules! watch_objects {
             object: Arc<$object_type>,
             ctx: Arc<ControllerContext>,
         ) -> Result<Action, ControllerError> {
-            let objects = ctx.tx.current();
-            let mut new_objects = objects.as_ref().clone();
+            let mut objects = match ctx.tx.get() {
+                Some(objects) => (*objects).clone(),
+                None => Objects::default()
+            };
 
             let metadata = &object.metadata;
 
@@ -45,7 +47,7 @@ macro_rules! watch_objects {
                     "reconciled object; object.namespace={:?} object.name={:?} object.state=active",
                     metadata.namespace, metadata.name
                 );
-                if let Err(err) = new_objects.insert(object) {
+                if let Err(err) = objects.insert(object) {
                     warn!(
                         "Failed to insert object into objects set: {}",
                         err
@@ -56,7 +58,7 @@ macro_rules! watch_objects {
                     "reconciled object; object.namespace={:?} object.name={:?} object.state=deleted",
                     metadata.namespace, metadata.name
                 );
-                if let Err(err) = new_objects.remove(&object) {
+                if let Err(err) = objects.remove(&object) {
                     warn!(
                         "Failed to remove object from objects set: {}",
                         err
@@ -64,7 +66,7 @@ macro_rules! watch_objects {
                 }
             }
 
-            ctx.tx.replace(new_objects);
+            ctx.tx.set(objects);
 
             Ok(Action::requeue(ctx.options.controller_requeue_duration()))
         }
@@ -78,9 +80,9 @@ macro_rules! watch_objects {
         }
 
         let options: Arc<Options> = $options.clone();
-        let kube_client: Receiver<Option<KubeClientCell>> = $kube_client.clone();
+        let kube_client_rx: Receiver<KubeClientCell> = $kube_client_rx.clone();
         let config: Config = $config.clone();
-        let (tx, rx) = channel::<Objects<$object_type>>(Objects::default());
+        let (tx, rx) = signal();
 
         debug!(
             "Spawning controller for watching {} objects",
@@ -93,7 +95,7 @@ macro_rules! watch_objects {
                 tx,
             });
             loop {
-                if let Some(kube_client) = kube_client.current().as_ref() {
+                if let Some(kube_client) = kube_client_rx.get() {
                     let object_api = Api::<$object_type>::all(kube_client.clone().into());
                     Controller::new(object_api, config.clone())
                         .shutdown_on_signal()
@@ -105,9 +107,9 @@ macro_rules! watch_objects {
                         .filter_map(|x| async move { Some(x) })
                         .for_each(|_| ready(()))
                         .await;
-                } else {
-                    continue_on!(kube_client.changed());
                 }
+
+                continue_on!(kube_client_rx.changed());
             }
         });
 

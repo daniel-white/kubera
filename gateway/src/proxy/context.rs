@@ -5,7 +5,7 @@ use std::sync::{Arc, OnceLock};
 
 #[derive(Debug)]
 pub struct Context {
-    router: Receiver<Option<HttpRouter>>,
+    router_rx: Receiver<HttpRouter>,
     route: OnceLock<MatchRouteResult>,
 }
 
@@ -21,16 +21,16 @@ pub enum MatchRouteResult {
 }
 
 impl Context {
-    pub fn new(router: Receiver<Option<HttpRouter>>) -> Self {
+    pub fn new(router_rx: &Receiver<HttpRouter>) -> Self {
         Self {
-            router,
+            router_rx: router_rx.clone(),
             route: OnceLock::new(),
         }
     }
 
     pub fn set_route(&self, parts: &Parts) -> &MatchRouteResult {
         self.route
-            .get_or_init(|| match self.router.current().as_ref() {
+            .get_or_init(|| match self.router_rx.get() {
                 None => MatchRouteResult::MissingConfiguration,
                 Some(router) => match router.match_route(parts) {
                     Some((route, rule)) => MatchRouteResult::Found(route, rule),

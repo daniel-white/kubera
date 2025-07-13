@@ -1,11 +1,11 @@
 #[macro_export]
 macro_rules! sync_objects {
-    ($options:ident, $join_set:ident, $object_type:ty, $kube_client:ident, $instance_role:ident, $template_value_type:ty, $template:ident) => {{
+    ($options:ident, $join_set:ident, $object_type:ty, $kube_client_rx:ident, $instance_role_rx:ident, $template_value_type:ty, $template:ident) => {{
         use $crate::kubernetes::objects::{Objects, ObjectRef, SyncObjectAction, SyncObjectAction::*};
         use gtmpl::{Context, Template, gtmpl_fn, FuncError};
-        use gtmpl_value::Value;
         use kube::Api;
         use kube::api::{ Patch, ObjectMeta };
+        use kube::Client;
         use kubera_api::constants::{MANAGED_BY_LABEL, MANAGED_BY_VALUE, PART_OF_LABEL, MANAGED_BY_LABEL_QUERY};
         use k8s_openapi::DeepMerge;
         use std::collections::BTreeMap;
@@ -14,42 +14,47 @@ macro_rules! sync_objects {
         use tokio::sync::broadcast::{channel, error::RecvError};
         use tracing::{debug, info, trace, warn};
         use kubera_core::{continue_after, continue_on};
-        use kubera_core::sync::signal::{channel as signal_channel, Receiver};
+        use kubera_core::sync::signal::{signal, Receiver};
         use std::collections::HashSet;
         use $crate::options::Options;
 
         let (tx, mut rx) = channel::<SyncObjectAction<$template_value_type, $object_type>>(50);
 
         let options: Arc<Options> = $options.clone();
-        let kube_client: Receiver<Option<KubeClientCell>> = $kube_client.clone();
-        let instance_role: Receiver<InstanceRole> = $instance_role.clone();
+        let kube_client_rx: Receiver<KubeClientCell> = $kube_client_rx.clone();
+        let instance_role_rx: Receiver<InstanceRole> = $instance_role_rx.clone();
 
-        let current_object_refs = {
-            let (tx, rx) = signal_channel(None); // Use an Option here to flag that this has been processed
-            let current_objects: Receiver<Objects<$object_type>> = watch_objects!(
+        let current_object_refs_rx = {
+            let (tx, rx) = signal();
+            let current_objects_rx: Receiver<Objects<$object_type>> = watch_objects!(
                 $options,
                 $join_set,
                 $object_type,
-                kube_client,
+                kube_client_rx,
                 Config::default().labels(MANAGED_BY_LABEL_QUERY)
             );
 
             $join_set.spawn(async move {
                 loop {
-                    let object_refs: HashSet<_> = current_objects
-                        .current()
-                        .iter()
-                        .filter_map(|(object_ref, _, object)| {
-                            match object.metadata.deletion_timestamp {
-                                Some(_) => None,
-                                None => Some(object_ref.clone()),
-                            }
-                        })
-                        .collect();
+                    if let Some(current_objects) = current_objects_rx.get() {
+                        debug!("Reconciling {} object refs", stringify!($object_type));
+                        
+                        let object_refs: HashSet<_> = current_objects
+                            .iter()
+                            .filter_map(|(object_ref, _, object)| {
+                                match object.metadata.deletion_timestamp {
+                                    Some(_) => None,
+                                    None => Some(object_ref.clone()),
+                                }
+                            })
+                            .collect();
 
-                    tx.replace(Some(object_refs));
+                        tx.set(object_refs);
+                    } else {
+                        debug!("Signal for {} hasn't signaled yet for reconciling object refs", stringify!($object_type));
+                    }
 
-                    continue_after!(options.auto_cycle_duration(), current_objects.changed());
+                    continue_after!(options.auto_cycle_duration(), current_objects_rx.changed());
                 }
             });
 
@@ -75,11 +80,11 @@ macro_rules! sync_objects {
             template
         };
 
-        fn render_object<V: Into<Value>>(
+        fn render_object(
             template: &Template,
             object_ref: &ObjectRef,
             parent_ref: ObjectRef,
-            value: V,
+            value: $template_value_type,
             object_overrides: Option<$object_type>
         ) -> $object_type {
             let context = Context::from(value);
@@ -102,10 +107,54 @@ macro_rules! sync_objects {
             object.metadata = existing_metadata;
 
             if let Some(object_overrides) = object_overrides {
-                object.merge_from(object_overrides);
+                object.merge_from(object_overrides.clone());
             }
 
             object
+        }
+
+        async fn apply_action(kube_client: Client, template: &Template, action: SyncObjectAction<$template_value_type, $object_type>) {
+            let object_ref = action.object_ref();
+            let api = Api::<$object_type>::namespaced(
+                kube_client,
+                object_ref.namespace().as_ref().expect("Missing namespace"),
+            );
+
+            let exists = api.get_metadata(object_ref.name()).await.is_ok();
+
+            trace!(
+                "Processing action: {:?} for object: {} {}",
+                action,
+                object_ref,
+                exists
+            );
+
+             match (action, exists) {
+                (Upsert(_, parent_ref, value, object_overrides), false) => {
+                    let object = render_object(&template, &object_ref, parent_ref, value, object_overrides);
+                    info!("Creating object: {}", object_ref);
+                    api.create(&Default::default(), &object)
+                        .await
+                        .map_err(|e| warn!("Failed to create object: {}: {}", object_ref, e))
+                        .ok();
+                }
+                (Upsert(_, parent_ref, value, object_overrides), true) => {
+                    let object = render_object(&template, &object_ref, parent_ref, value, object_overrides);
+                    info!("Patching object: {}", object_ref);
+                    api.patch(object_ref.name(), &Default::default(), &Patch::Strategic(object))
+                        .await
+                        .map_err(|e| warn!("Failed to patch object: {}: {}", object_ref, e))
+                        .ok();
+                }
+                (Delete(_), true) => {
+                    info!("Deleting object: {}", object_ref);
+                    api.delete(object_ref.name(), &Default::default())
+                        .await
+                        .map_err(|e| warn!("Failed to delete object: {}: {}", object_ref, e))
+                        .ok();
+                }
+                _ => info!("Skipping action for object: {}", &object_ref),
+            };
         }
 
         debug!(
@@ -115,83 +164,36 @@ macro_rules! sync_objects {
 
         $join_set.spawn(async move {
             loop {
-                let (kube_client, action) = select! {
-                    action = rx.recv() => match action {
-                        Ok(action) => {
-                            if let Some(kube_client) = kube_client.current().as_ref() {
-                                if instance_role.current().is_primary() {
-                                    (kube_client.clone(), action)
-                                } else {
-                                    debug!("Skipping action for {} objects as instance is not primary", stringify!($object_type));
-                                    continue;
-                                }
-                            } else {
-                                continue_on!(kube_client.changed());
+                if let Some(kube_client) = kube_client_rx.get()
+                    && let Some(instance_role) = instance_role_rx.get()
+                {
+                    let _ = select! {
+                        action = rx.recv() => match action {
+                            Ok(action) if instance_role.is_primary() => apply_action(kube_client.clone().into(), &template, action).await,
+                            Ok(_) => debug!("Skipping action for {} objects, not primary instance", stringify!($object_type)),
+                            Err(RecvError::Lagged(_)) => {
+                                debug!("Queue lagged for {} objects", stringify!($object_type));
+                                continue;
+                            }
+                            Err(err) => {
+                                debug!("Queue closed, shutting down controller for {} objects: {}", stringify!($object_type), err);
+                                break;
                             }
                         },
-                        Err(RecvError::Lagged(_)) => {
-                            debug!("Queue lagged for {} objects", stringify!($object_type));
+                        _ = instance_role_rx.changed() => {
                             continue;
-                        }
-                        Err(err) => {
-                            debug!("Queue closed, shutting down controller for {} objects: {}", stringify!($object_type), err);
+                        },
+                        _ = ctrl_c() => {
+                            debug!("Received Ctrl+C, shutting down controller for {} objects", stringify!($object_type));
                             break;
                         }
-                    },
-                    _ = instance_role.changed() => {
-                        continue;
-                    },
-                    _ = ctrl_c() => {
-                        debug!("Received Ctrl+C, shutting down controller for {} objects", stringify!($object_type));
-                        break;
-                    }
-                };
+                    };
+                }
 
-                let object_ref = action.object_ref();
-
-                let api = Api::<$object_type>::namespaced(
-                    kube_client.into(),
-                    object_ref.namespace().as_ref().expect("Missing namespace"),
-                );
-
-                let exists = api.get_metadata(object_ref.name()).await.is_ok();
-
-                trace!(
-                    "Processing action: {:?} for object: {} {}",
-                    action,
-                    object_ref,
-                    exists
-                );
-
-                match (action.clone(), exists) {
-                    (Upsert(_, parent_ref, value, object_overrides), false) => {
-                        let object = render_object(&template, &object_ref, parent_ref, value, object_overrides);
-                        info!("Creating object: {}", object_ref);
-                        api.create(&Default::default(), &object)
-                            .await
-                            .map_err(|e| warn!("Failed to create object: {}: {}", object_ref, e))
-                            .ok();
-                    }
-                    (Upsert(_, parent_ref, value, object_overrides), true) => {
-                        let object = render_object(&template, &object_ref, parent_ref, value, object_overrides);
-                        info!("Patching object: {}", object_ref);
-                        api.patch(object_ref.name(), &Default::default(), &Patch::Strategic(object))
-                            .await
-                            .map_err(|e| warn!("Failed to patch object: {}: {}", object_ref, e))
-                            .ok();
-                    }
-                    (Delete(_), true) => {
-                        info!("Deleting object: {}", object_ref);
-                        api.delete(object_ref.name(), &Default::default())
-                            .await
-                            .map_err(|e| warn!("Failed to delete object: {}: {}", object_ref, e))
-                            .ok();
-                    }
-                    _ => info!("Skipping action for object: {}", &object_ref),
-                };
+                continue_on!(kube_client_rx.changed(), instance_role_rx.changed());
             }
         });
 
-        (tx, current_object_refs)
+        (tx, current_object_refs_rx)
     }}
 }

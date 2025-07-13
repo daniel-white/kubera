@@ -1,7 +1,7 @@
 mod constants;
 mod context;
-pub mod router;
 pub mod filters;
+pub mod router;
 
 use crate::proxy::context::MatchRouteResult;
 use crate::proxy::router::endpoints::EndpointsResolver;
@@ -9,6 +9,7 @@ use crate::proxy::router::topology::TopologyLocation;
 use async_trait::async_trait;
 use context::Context;
 use derive_builder::Builder;
+use filters::client_addrs::ClientAddrFilter;
 use http::HeaderValue;
 use kubera_core::sync::signal::Receiver;
 use pingora::http::ResponseHeader;
@@ -16,12 +17,11 @@ use pingora::prelude::*;
 use router::HttpRouter;
 use std::net::SocketAddr;
 use tracing::warn;
-use filters::client_addrs::ClientAddrFilter;
 
 #[derive(Debug, Builder)]
 pub struct Proxy {
-    router: Receiver<Option<HttpRouter>>,
-    client_addr_filter: Receiver<ClientAddrFilter>
+    router_rx: Receiver<HttpRouter>,
+    client_addr_filter_rx: Receiver<ClientAddrFilter>,
 }
 
 #[async_trait]
@@ -29,7 +29,7 @@ impl ProxyHttp for Proxy {
     type CTX = Context;
 
     fn new_ctx(&self) -> Self::CTX {
-        Context::new(self.router.clone())
+        Context::new(&self.router_rx)
     }
 
     async fn early_request_filter(
@@ -37,9 +37,13 @@ impl ProxyHttp for Proxy {
         session: &mut Session,
         _ctx: &mut Self::CTX,
     ) -> Result<()> {
-        let client_addr_filter = self.client_addr_filter.current();
-        
-        client_addr_filter.filter(session);
+        let client_addr_filter_rx = self.client_addr_filter_rx.get();
+
+        if let Some(client_addr_filter) = client_addr_filter_rx {
+            client_addr_filter.filter(session);
+        } else {
+            warn!("No client address filter configured");
+        }
         
         Ok(())
     }
@@ -47,9 +51,9 @@ impl ProxyHttp for Proxy {
     async fn upstream_peer(
         &self,
         session: &mut Session,
-        _ctx: &mut Self::CTX,
+        ctx: &mut Self::CTX,
     ) -> Result<Box<HttpPeer>> {
-        match _ctx.set_route(session.req_header()) {
+        match ctx.set_route(session.req_header()) {
             MatchRouteResult::Found(_, rule) => {
                 let mut location = TopologyLocation::new_builder();
                 location.on_node(Some("minikube".to_string()));

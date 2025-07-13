@@ -10,10 +10,10 @@ use crate::ipc::events::EventStreamFactory;
 use crate::ipc::gateways::GatewayConfigurationReader;
 use crate::kubernetes::KubeClientCell;
 use crate::options::Options;
+use axum::Router;
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::routing::get;
-use axum::Router;
 use axum_health::Health;
 use derive_builder::Builder;
 use getset::{CloneGetters, CopyGetters, Getters};
@@ -61,7 +61,8 @@ pub struct SpawnIpcEndpointParameters {
     #[getset(get_clone = "")]
     gateways: GatewayConfigurationReader,
 
-    kube_client: Receiver<Option<KubeClientCell>>,
+    #[getset(get_clone = "")]
+    kube_client_rx: Receiver<KubeClientCell>,
 }
 
 impl SpawnIpcEndpointParameters {
@@ -93,7 +94,7 @@ pub async fn spawn_ipc_endpoint(
         .events(params.events())
         .build()?;
 
-    let kube_health = KubernetesApiHealthIndicator::new(&params.kube_client);
+    let kube_health = KubernetesApiHealthIndicator::new(&params.kube_client_rx);
     let health = Health::builder().with_indicator(kube_health).build();
 
     let endpoint = params.endpoint();

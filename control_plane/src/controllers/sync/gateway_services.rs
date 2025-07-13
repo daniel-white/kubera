@@ -26,85 +26,88 @@ struct TemplateValues {
 pub fn sync_gateway_services(
     options: Arc<Options>,
     join_set: &mut JoinSet<()>,
-    kube_client: &Receiver<Option<KubeClientCell>>,
-    instance_role: &Receiver<InstanceRole>,
-    gateway_instances: &Receiver<HashMap<ObjectRef, GatewayInstanceConfiguration>>,
+    kube_client_rx: &Receiver<KubeClientCell>,
+    instance_role_rx: &Receiver<InstanceRole>,
+    gateway_instances_rx: &Receiver<HashMap<ObjectRef, GatewayInstanceConfiguration>>,
 ) {
-    let (tx, current_refs) = sync_objects!(
+    let (tx, current_refs_rx) = sync_objects!(
         options,
         join_set,
         Service,
-        kube_client,
-        instance_role,
+        kube_client_rx,
+        instance_role_rx,
         TemplateValues,
         TEMPLATE
     );
-    generate_gateway_services(options, join_set, tx, current_refs, gateway_instances);
+    generate_gateway_services(options, join_set, tx, current_refs_rx, gateway_instances_rx);
 }
 
 fn generate_gateway_services(
     options: Arc<Options>,
     join_set: &mut JoinSet<()>,
     tx: Sender<SyncObjectAction<TemplateValues, Service>>,
-    current_refs_rx: Receiver<Option<HashSet<ObjectRef>>>,
-    gateway_instances: &Receiver<HashMap<ObjectRef, GatewayInstanceConfiguration>>,
+    current_service_refs_rx: Receiver<HashSet<ObjectRef>>,
+    gateway_instances_rx: &Receiver<HashMap<ObjectRef, GatewayInstanceConfiguration>>,
 ) {
-    let gateway_instances = gateway_instances.clone();
+    let gateway_instances_rx = gateway_instances_rx.clone();
 
     join_set.spawn(async move {
         loop {
-            let intended = gateway_instances.current();
-            let intended: Vec<_> = intended
-                .iter()
-                .map(|(gateway_ref, instance)| {
-                    let service_ref = ObjectRef::new_builder()
-                        .of_kind::<Service>()
-                        .namespace(gateway_ref.namespace().clone())
-                        .name(gateway_ref.name())
-                        .build()
-                        .expect("Failed to build ObjectRef for Service");
+            if let Some(gateway_instances) = gateway_instances_rx.get()
+                && let Some(current_service_refs) = current_service_refs_rx.get()
+            {
+                let desired_services: Vec<_> = gateway_instances
+                    .iter()
+                    .map(|(gateway_ref, instance)| {
+                        let service_ref = ObjectRef::new_builder()
+                            .of_kind::<Service>()
+                            .namespace(gateway_ref.namespace().clone())
+                            .name(gateway_ref.name())
+                            .build()
+                            .expect("Failed to build ObjectRef for Service");
 
-                    let template_values = TemplateValuesBuilder::default()
-                        .gateway_name(gateway_ref.name())
-                        .build()
-                        .expect("Failed to build TemplateValues");
+                        let template_values = TemplateValuesBuilder::default()
+                            .gateway_name(gateway_ref.name())
+                            .build()
+                            .expect("Failed to build TemplateValues");
 
-                    (
-                        service_ref,
-                        gateway_ref,
-                        template_values,
-                        instance.service_overrides(),
-                    )
-                })
-                .collect();
+                        (
+                            service_ref,
+                            gateway_ref,
+                            template_values,
+                            instance.service_overrides(),
+                        )
+                    })
+                    .collect();
 
-            if let Some(current_refs) = current_refs_rx.current().as_ref() {
-                let intended_refs: HashSet<_> = intended
+                let desired_service_refs: HashSet<_> = desired_services
                     .iter()
                     .map(|(ref_, _, _, _)| ref_.clone())
                     .collect();
 
-                let deleted_refs = current_refs.difference(&intended_refs);
+                let deleted_refs = current_service_refs.difference(&desired_service_refs);
                 for deleted_ref in deleted_refs {
                     tx.send(SyncObjectAction::Delete(deleted_ref.clone()))
                         .expect("Failed to send delete action");
                 }
-            }
 
-            for (service_ref, gateway_ref, template_values, service_overrides) in intended {
-                tx.send(SyncObjectAction::Upsert(
-                    service_ref,
-                    gateway_ref.clone(),
-                    template_values,
-                    Some(service_overrides.clone()),
-                ))
-                .expect("Failed to send upsert action");
+                for (service_ref, gateway_ref, template_values, service_overrides) in
+                    desired_services
+                {
+                    tx.send(SyncObjectAction::Upsert(
+                        service_ref,
+                        gateway_ref.clone(),
+                        template_values,
+                        Some(service_overrides.clone()),
+                    ))
+                    .expect("Failed to send upsert action");
+                }
             }
 
             continue_after!(
                 options.auto_cycle_duration(),
-                gateway_instances.changed(),
-                current_refs_rx.changed()
+                gateway_instances_rx.changed(),
+                current_service_refs_rx.changed()
             );
         }
     });

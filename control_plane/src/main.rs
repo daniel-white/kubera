@@ -24,10 +24,10 @@ pub mod kubernetes;
 mod options;
 
 use crate::controllers::{
-    spawn_controllers, SpawnControllersError, SpawnControllersParams,
-    SpawnControllersParamsBuilderError,
+    SpawnControllersError, SpawnControllersParams, SpawnControllersParamsBuilderError,
+    spawn_controllers,
 };
-use crate::ipc::{spawn_ipc, SpawnIpcError, SpawnIpcParameters, SpawnIpcParametersBuilderError};
+use crate::ipc::{SpawnIpcError, SpawnIpcParameters, SpawnIpcParametersBuilderError, spawn_ipc};
 use crate::kubernetes::start_kubernetes_client;
 use crate::options::Options;
 use clap::Parser;
@@ -62,7 +62,7 @@ async fn main() -> Result<(), MainError> {
 
     let mut join_set = JoinSet::new();
 
-    let kube_client = start_kubernetes_client(&mut join_set);
+    let kube_client_rx = start_kubernetes_client(&mut join_set);
 
     // IPC is half 1 - it is what the gateway use to ensure that they have the latest configuration
 
@@ -70,7 +70,7 @@ async fn main() -> Result<(), MainError> {
         let params = SpawnIpcParameters::new_builder()
             .options(options.clone())
             .port(args.port())
-            .kube_client(kube_client.clone())
+            .kube_client_rx(kube_client_rx.clone())
             .build()
             .inspect_err(|err| {
                 error!("Failed to build IPC parameters: {}", err);
@@ -86,7 +86,7 @@ async fn main() -> Result<(), MainError> {
     {
         let params = SpawnControllersParams::new_builder()
             .options(options)
-            .kube_client(kube_client)
+            .kube_client_rx(kube_client_rx)
             .ipc_services(Arc::new(ipc_services))
             .pod_namespace(args.pod_namespace())
             .pod_name(args.pod_name())

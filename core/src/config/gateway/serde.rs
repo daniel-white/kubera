@@ -69,7 +69,7 @@ mod tests {
     #[test]
     fn round_trip_simple() {
         let yaml = include_str!("tests/simple.yaml").as_bytes();
-        let config = read_configuration(yaml).unwrap();;
+        let config = read_configuration(yaml).unwrap();
 
         let mut buffer = Vec::new();
         write_configuration(&config, &mut buffer).unwrap();

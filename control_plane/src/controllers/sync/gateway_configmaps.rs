@@ -23,8 +23,7 @@ use kubera_core::config::gateway::types::http::router::{
 use kubera_core::config::gateway::types::net::ProxyHeaders;
 use kubera_core::config::gateway::types::{GatewayConfiguration, GatewayConfigurationBuilder};
 use kubera_core::net::{Hostname, Port};
-use kubera_core::sync::signal;
-use kubera_core::sync::signal::Receiver;
+use kubera_core::sync::signal::{signal, Receiver};
 use kubera_core::{continue_after, continue_on};
 use std::collections::{HashMap, HashSet};
 use std::net::IpAddr;
@@ -32,7 +31,7 @@ use std::sync::Arc;
 use tokio::select;
 use tokio::sync::broadcast::Sender;
 use tokio::task::JoinSet;
-use tracing::{error, info, warn};
+use tracing::{debug, error, info, warn};
 
 const TEMPLATE: &str = include_str!("./templates/gateway_configmap.kubernetes-helm-yaml");
 
@@ -49,19 +48,19 @@ pub struct SyncGatewayConfigmapsParams {
     #[getset(get_clone = "pub")]
     options: Arc<Options>,
     #[getset(get_clone = "pub")]
-    kube_client: Receiver<Option<KubeClientCell>>,
+    kube_client_rx: Receiver<KubeClientCell>,
     #[getset(get_clone = "pub")]
     ipc_services: Arc<IpcServices>,
     #[getset(get_clone = "pub")]
-    instance_role: Receiver<InstanceRole>,
+    instance_role_rx: Receiver<InstanceRole>,
     #[getset(get_clone = "pub")]
-    primary_instance_ip_addr: Receiver<Option<IpAddr>>,
+    primary_instance_ip_addr_rx: Receiver<IpAddr>,
     #[getset(get_clone = "pub")]
-    gateway_instances: Receiver<HashMap<ObjectRef, GatewayInstanceConfiguration>>,
+    gateway_instances_rx: Receiver<HashMap<ObjectRef, GatewayInstanceConfiguration>>,
     #[getset(get_clone = "pub")]
-    http_routes: Receiver<HashMap<ObjectRef, Vec<Arc<HTTPRoute>>>>,
+    http_routes_rx: Receiver<HashMap<ObjectRef, Vec<Arc<HTTPRoute>>>>,
     #[getset(get_clone = "pub")]
-    backends: Receiver<Option<HashMap<ObjectRef, Backend>>>,
+    backends_rx: Receiver<HashMap<ObjectRef, Backend>>,
 }
 
 impl SyncGatewayConfigmapsParams {
@@ -72,15 +71,15 @@ impl SyncGatewayConfigmapsParams {
 
 pub fn sync_gateway_configmaps(join_set: &mut JoinSet<()>, params: SyncGatewayConfigmapsParams) {
     let options = params.options();
-    let kube_client = params.kube_client();
-    let instance_role = params.instance_role();
+    let kube_client_rx = params.kube_client_rx();
+    let instance_role_rx = params.instance_role_rx();
 
-    let (tx, current_refs) = sync_objects!(
+    let (tx, current_refs_rx) = sync_objects!(
         options,
         join_set,
         ConfigMap,
-        kube_client,
-        instance_role,
+        kube_client_rx,
+        instance_role_rx,
         TemplateValues,
         TEMPLATE
     );
@@ -89,11 +88,11 @@ pub fn sync_gateway_configmaps(join_set: &mut JoinSet<()>, params: SyncGatewayCo
         .options(params.options())
         .sync_tx(tx)
         .ipc_services(params.ipc_services())
-        .current_refs(current_refs)
-        .primary_instance_ip_addr(params.primary_instance_ip_addr())
-        .gateway_instances(params.gateway_instances())
-        .http_routes(params.http_routes())
-        .backends(params.backends())
+        .current_refs_rx(current_refs_rx)
+        .primary_instance_ip_addr_rx(params.primary_instance_ip_addr_rx())
+        .gateway_instances_rx(params.gateway_instances_rx())
+        .http_routes_rx(params.http_routes_rx())
+        .backends_rx(params.backends_rx())
         .build()
         .expect("Failed to build GenerateGatewayConfigmapsParams");
 
@@ -110,44 +109,44 @@ struct GenerateGatewayConfigmapsParams {
     #[getset(get_clone = "pub")]
     ipc_services: Arc<IpcServices>,
     #[getset(get_clone = "pub")]
-    current_refs: Receiver<Option<HashSet<ObjectRef>>>,
+    current_refs_rx: Receiver<HashSet<ObjectRef>>,
     #[getset(get_clone = "pub")]
-    primary_instance_ip_addr: Receiver<Option<IpAddr>>,
+    primary_instance_ip_addr_rx: Receiver<IpAddr>,
     #[getset(get_clone = "pub")]
-    gateway_instances: Receiver<HashMap<ObjectRef, GatewayInstanceConfiguration>>,
+    gateway_instances_rx: Receiver<HashMap<ObjectRef, GatewayInstanceConfiguration>>,
     #[getset(get_clone = "pub")]
-    http_routes: Receiver<HashMap<ObjectRef, Vec<Arc<HTTPRoute>>>>,
+    http_routes_rx: Receiver<HashMap<ObjectRef, Vec<Arc<HTTPRoute>>>>,
     #[getset(get_clone = "pub")]
-    backends: Receiver<Option<HashMap<ObjectRef, Backend>>>,
+    backends_rx: Receiver<HashMap<ObjectRef, Backend>>,
 }
 
 fn generate_gateway_configmaps(
     join_set: &mut JoinSet<()>,
     params: GenerateGatewayConfigmapsParams,
 ) {
-    let intended_rx = generate_gateway_configurations(
+    let gateway_configurations_tx = generate_gateway_configurations(
         join_set,
         params.ipc_services(),
-        params.primary_instance_ip_addr(),
-        params.gateway_instances(),
-        params.http_routes(),
-        params.backends(),
+        params.primary_instance_ip_addr_rx(),
+        params.gateway_instances_rx(),
+        params.http_routes_rx(),
+        params.backends_rx(),
     );
 
     join_set.spawn(async move {
-        let intended = intended_rx.current().clone();
         loop {
-            info!("Reconciling Gateway ConfigMaps");
-            let intended = expand_intended(&intended);
+            if let Some(gateway_configurations) = gateway_configurations_tx.get()
+                && let Some(current_configmap_refs) = params.current_refs_rx().get()
+            {
+                info!("Reconciling Gateway ConfigMaps");
+                let desired_gateway_configurations = expand(&gateway_configurations);
 
-            if let Some(current_refs) = params.current_refs.current().as_ref() {
-                let intended_refs: HashSet<_> = intended
+                let desire_configmap_refs: HashSet<_> = desired_gateway_configurations
                     .iter()
                     .map(|state| state.configmap_ref.clone())
                     .collect();
 
-                let deleted_refs = current_refs.difference(&intended_refs);
-
+                let deleted_refs = current_configmap_refs.difference(&desire_configmap_refs);
                 for deleted_ref in deleted_refs {
                     let _ = params
                         .sync_tx
@@ -161,36 +160,36 @@ fn generate_gateway_configmaps(
                             error!("Failed to send delete action: {}", err);
                         });
                 }
-            }
 
-            'send_and_insert: for gateway_state in intended {
-                let Some((template_values, config)) = gateway_state.values else {
-                    continue 'send_and_insert;
-                };
+                'send_and_insert: for gateway_state in desired_gateway_configurations {
+                    let Some((template_values, config)) = gateway_state.values else {
+                        continue 'send_and_insert;
+                    };
 
-                if let Err(err) = params.sync_tx.send(SyncObjectAction::Upsert(
-                    gateway_state.configmap_ref,
-                    gateway_state.gateway_ref.clone(),
-                    template_values,
-                    None,
-                )) {
-                    warn!("Failed to send upsert action: {}", err);
-                    continue 'send_and_insert;
-                }
+                    if let Err(err) = params.sync_tx.send(SyncObjectAction::Upsert(
+                        gateway_state.configmap_ref,
+                        gateway_state.gateway_ref.clone(),
+                        template_values,
+                        None,
+                    )) {
+                        warn!("Failed to send upsert action: {}", err);
+                        continue 'send_and_insert;
+                    }
 
-                if let Err(err) = params
-                    .ipc_services()
-                    .try_insert_gateway_configuration(gateway_state.gateway_ref, config)
-                {
-                    warn!("Failed to insert gateway configuration: {}", err);
-                    continue 'send_and_insert;
+                    if let Err(err) = params
+                        .ipc_services()
+                        .try_insert_gateway_configuration(gateway_state.gateway_ref, config)
+                    {
+                        warn!("Failed to insert gateway configuration: {}", err);
+                        continue 'send_and_insert;
+                    }
                 }
             }
 
             continue_after!(
                 params.options.auto_cycle_duration(),
-                intended_rx.changed(),
-                params.current_refs.changed()
+                gateway_configurations_tx.changed(),
+                params.current_refs_rx.changed()
             );
         }
     });
@@ -204,10 +203,8 @@ struct GatewayState {
     values: Option<(TemplateValues, GatewayConfiguration)>,
 }
 
-fn expand_intended(
-    intended: &HashMap<ObjectRef, Option<GatewayConfiguration>>,
-) -> Vec<GatewayState> {
-    intended
+fn expand(configurations: &HashMap<ObjectRef, Option<GatewayConfiguration>>) -> Vec<GatewayState> {
+    configurations
         .iter()
         .map(|(gateway_ref, config)| {
             let configmap_ref = ObjectRef::new_builder()
@@ -245,106 +242,121 @@ fn expand_intended(
 fn generate_gateway_configurations(
     join_set: &mut JoinSet<()>,
     ipc_services: Arc<IpcServices>,
-    primary_instance_ip_addr: Receiver<Option<IpAddr>>,
-    gateway_instances: Receiver<HashMap<ObjectRef, GatewayInstanceConfiguration>>,
-    http_routes: Receiver<HashMap<ObjectRef, Vec<Arc<HTTPRoute>>>>,
-    backends: Receiver<Option<HashMap<ObjectRef, Backend>>>,
+    primary_instance_ip_addr_rx: Receiver<IpAddr>,
+    gateway_instances_rx: Receiver<HashMap<ObjectRef, GatewayInstanceConfiguration>>,
+    http_routes_rx: Receiver<HashMap<ObjectRef, Vec<Arc<HTTPRoute>>>>,
+    backends_rx: Receiver<HashMap<ObjectRef, Backend>>,
 ) -> Receiver<HashMap<ObjectRef, Option<GatewayConfiguration>>> {
-    let (tx, rx) = signal::channel(HashMap::default());
+    let (tx, rx) = signal();
 
     join_set.spawn(async move {
         loop {
-            let current_instances = gateway_instances.current();
-            let current_backends = backends.current();
-            let configs: HashMap<_, _> = current_instances
-                .iter()
-                .map(|(gateway_ref, instance)| {
-                    info!("Generating configuration for gateway: {}", gateway_ref);
-                    let mut gateway_configuration = GatewayConfigurationBuilder::default();
+            match (
+                primary_instance_ip_addr_rx.get(),
+                gateway_instances_rx.get(),
+                backends_rx.get(),
+                http_routes_rx.get(),
+            ) {
+                (Some(primary_instance_ip_addr), Some(gateway_instances), Some(backends), Some(http_routes)) => {
+                    let configs: HashMap<_, _> = gateway_instances
+                        .iter()
+                        .map(|(gateway_ref, instance)| {
+                            info!("Generating configuration for gateway: {}", gateway_ref);
+                            let mut gateway_configuration = GatewayConfigurationBuilder::default();
 
-                    set_ipc(
-                        &mut gateway_configuration,
-                        &ipc_services,
-                        *primary_instance_ip_addr.current().clone(),
-                    );
-                    set_client_addrs_strategy(&mut gateway_configuration, instance);
-                    add_listeners(&mut gateway_configuration, instance);
+                            set_ipc(
+                                &mut gateway_configuration,
+                                &ipc_services,
+                                *primary_instance_ip_addr,
+                            );
+                            set_client_addrs_strategy(&mut gateway_configuration, instance);
+                            add_listeners(&mut gateway_configuration, instance);
 
-                    let http_routes = http_routes
-                        .current()
-                        .get(gateway_ref)
-                        .cloned()
-                        .unwrap_or_default();
-                    for http_route in http_routes {
-                        gateway_configuration.add_http_route(|r| {
-                            add_host_header_matches_for_route(&http_route, r);
+                            let http_routes = http_routes
+                                .get(gateway_ref)
+                                .cloned()
+                                .unwrap_or_default();
+                            for http_route in http_routes {
+                                gateway_configuration.add_http_route(|r| {
+                                    add_host_header_matches_for_route(&http_route, r);
 
-                            if let Some(rules) = &http_route.spec.rules {
-                                for (index, rule) in rules.iter().enumerate() {
-                                    let Some(rule_id) = format_rule_id(instance.gateway().as_ref(), &http_route, index) else {
-                                        warn!("Failed to format rule ID for HTTPRoute {:?} at index {index} in gateway {gateway_ref}", http_route.metadata.name);
-                                        continue;
-                                    };
-                                    r.add_rule(&rule_id,
-                                               |target| {
-                                                   for source in rule.matches.iter().flatten() {
-                                                       target.add_match(|target| {
-                                                           add_method_matches(source, target);
-                                                           add_path_matches(source, target);
-                                                           add_header_matches(source, target);
-                                                           add_query_params_matches(source, target);
-                                                       });
-                                                   }
+                                    if let Some(rules) = &http_route.spec.rules {
+                                        for (index, rule) in rules.iter().enumerate() {
+                                            let Some(rule_id) = format_rule_id(instance.gateway().as_ref(), &http_route, index) else {
+                                                warn!("Failed to format rule ID for HTTPRoute {:?} at index {index} in gateway {gateway_ref}", http_route.metadata.name);
+                                                continue;
+                                            };
+                                            r.add_rule(&rule_id,
+                                                       |target| {
+                                                           for source in rule.matches.iter().flatten() {
+                                                               target.add_match(|target| {
+                                                                   add_method_matches(source, target);
+                                                                   add_path_matches(source, target);
+                                                                   add_header_matches(source, target);
+                                                                   add_query_params_matches(source, target);
+                                                               });
+                                                           }
 
-                                                   if let Some(backends) = current_backends.as_ref() {
-                                                       for backend_ref in rule.backend_refs.iter().flatten() {
-                                                           let source = ObjectRef::new_builder()
-                                                               .of_kind::<Service>()
-                                                               .namespace(
-                                                                   backend_ref.namespace.clone().or_else(
-                                                                       || {
-                                                                           http_route
-                                                                               .metadata
-                                                                               .namespace
-                                                                               .clone()
-                                                                       },
-                                                                   ),
-                                                               )
-                                                               .name(&backend_ref.name)
-                                                               .build()
-                                                               .ok()
-                                                               .and_then(|r| backends.get(&r))
-                                                               .expect("Failed to build Backend reference");
 
-                                                           add_backend(source, target);
-                                                       }
-                                                   }
-                                               },
-                                    );
+                                                           for backend_ref in rule.backend_refs.iter().flatten() {
+                                                               let source = ObjectRef::new_builder()
+                                                                   .of_kind::<Service>()
+                                                                   .namespace(
+                                                                       backend_ref.namespace.clone().or_else(
+                                                                           || {
+                                                                               http_route
+                                                                                   .metadata
+                                                                                   .namespace
+                                                                                   .clone()
+                                                                           },
+                                                                       ),
+                                                                   )
+                                                                   .name(&backend_ref.name)
+                                                                   .build()
+                                                                   .ok()
+                                                                   .and_then(|r| backends.get(&r))
+                                                                   .expect("Failed to build Backend reference");
+
+                                                               add_backend(source, target);
+                                                           }
+                                                       },
+                                            );
+                                        }
+                                    }
+                                });
+                            }
+
+                            match gateway_configuration.build() {
+                                Ok(gateway_configuration) => (gateway_ref.clone(), Some(gateway_configuration)),
+                                Err(err) => {
+                                    error!("Failed to build GatewayConfiguration for {}: {}", gateway_ref, err);
+                                    (gateway_ref.clone(), None)
                                 }
                             }
-                        });
-                    }
+                        })
+                        .collect();
 
-                    match gateway_configuration.build() {
-                        Ok(gateway_configuration) => {
-                            (gateway_ref.clone(), Some(gateway_configuration))
-                        }
-                        Err(err) => {
-                            error!("Failed to build GatewayConfiguration for {}: {}", gateway_ref, err);
-                            (gateway_ref.clone(), None)
-                        }
-                    }
-                })
-                .collect();
-
-            tx.replace(configs);
+                    tx.set(configs);
+                }
+                (None, _, _, _)=> {
+                    debug!("Primary instance IP address not yet available, skipping configuration generation");
+                }
+                (_, None, _, _) => {
+                    debug!("Gateway instances not yet available, skipping configuration generation");
+                }
+                (_, _, None, _) => {
+                    debug!("Backends not yet available, skipping configuration generation");
+                }
+                (_, _, _, None) => {
+                    debug!("HTTPRoutes not yet available, skipping configuration generation");
+                }
+            }
 
             continue_on!(
-                primary_instance_ip_addr.changed(),
-                gateway_instances.changed(),
-                http_routes.changed(),
-                backends.changed()
+                primary_instance_ip_addr_rx.changed(),
+                gateway_instances_rx.changed(),
+                http_routes_rx.changed(),
+                backends_rx.changed()
             );
         }
     });
@@ -480,13 +492,11 @@ fn add_host_header_matches_for_route(source: &Arc<HTTPRoute>, target: &mut HttpR
 fn set_ipc(
     gateway_configuration: &mut GatewayConfigurationBuilder,
     ipc_services: &IpcServices,
-    primary_instance_ip_addr: Option<IpAddr>,
+    primary_instance_ip_addr: IpAddr,
 ) {
-    if let Some(ip_addr) = primary_instance_ip_addr {
-        gateway_configuration.with_ipc(|cp| {
-            cp.with_endpoint(ip_addr, ipc_services.port());
-        });
-    }
+    gateway_configuration.with_ipc(|cp| {
+        cp.with_endpoint(primary_instance_ip_addr, ipc_services.port());
+    });
 }
 
 fn add_listeners(

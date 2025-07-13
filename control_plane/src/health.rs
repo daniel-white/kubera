@@ -5,11 +5,12 @@ use kube::Api;
 use kube::api::ListParams;
 use kubera_api::v1alpha1::GatewayClassParameters;
 use kubera_core::sync::signal::Receiver;
+use std::ops::Deref;
 
-pub struct KubernetesApiHealthIndicator(Receiver<Option<KubeClientCell>>);
+pub struct KubernetesApiHealthIndicator(Receiver<KubeClientCell>);
 
 impl KubernetesApiHealthIndicator {
-    pub fn new(kube_client: &Receiver<Option<KubeClientCell>>) -> Self {
+    pub fn new(kube_client: &Receiver<KubeClientCell>) -> Self {
         Self(kube_client.clone())
     }
 }
@@ -21,23 +22,22 @@ impl HealthIndicator for KubernetesApiHealthIndicator {
     }
 
     async fn details(&self) -> HealthDetail {
-        let kube_client = self.0.current();
-        let kube_client = if let Some(kube_client) = kube_client.as_ref() {
-            kube_client.clone()
-        } else {
-            let mut heath = HealthDetail::down();
-            heath.with_detail("error".to_string(), "Kube client not available".to_string());
-            return heath;
-        };
-
-        let api = Api::<GatewayClassParameters>::all(kube_client.into());
-
-        match api.list(&ListParams::default()).await {
-            Ok(_) => HealthDetail::up(),
-            Err(e) => {
-                let mut health = HealthDetail::down();
-                health.with_detail("error".to_string(), e.to_string());
-                health
+        match self.0.get() {
+            Some(kube_client) => {
+                let api = Api::<GatewayClassParameters>::all(kube_client.deref().clone().into());
+                match api.list(&ListParams::default()).await {
+                    Ok(_) => HealthDetail::up(),
+                    Err(e) => {
+                        let mut health = HealthDetail::down();
+                        health.with_detail("error".to_string(), e.to_string());
+                        health
+                    }
+                }
+            }
+            None => {
+                let mut heath = HealthDetail::down();
+                heath.with_detail("error".to_string(), "Kube client not available".to_string());
+                heath
             }
         }
     }

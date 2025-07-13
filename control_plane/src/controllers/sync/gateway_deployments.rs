@@ -28,89 +28,98 @@ struct TemplateValues {
 pub fn sync_gateway_deployments(
     options: Arc<Options>,
     join_set: &mut JoinSet<()>,
-    kube_client: &Receiver<Option<KubeClientCell>>,
-    instance_role: &Receiver<InstanceRole>,
-    gateway_instances: &Receiver<HashMap<ObjectRef, GatewayInstanceConfiguration>>,
+    kube_client_rx: &Receiver<KubeClientCell>,
+    instance_role_rx: &Receiver<InstanceRole>,
+    gateway_instances_rx: &Receiver<HashMap<ObjectRef, GatewayInstanceConfiguration>>,
 ) {
-    let (tx, current_refs) = sync_objects!(
+    let (tx, current_service_refs_rx) = sync_objects!(
         options,
         join_set,
         Deployment,
-        kube_client,
-        instance_role,
+        kube_client_rx,
+        instance_role_rx,
         TemplateValues,
         TEMPLATE
     );
-    generate_gateway_deployments(options, join_set, tx, current_refs, gateway_instances);
+    generate_gateway_deployments(
+        options,
+        join_set,
+        tx,
+        current_service_refs_rx,
+        gateway_instances_rx,
+    );
 }
 
 fn generate_gateway_deployments(
     options: Arc<Options>,
     join_set: &mut JoinSet<()>,
     tx: Sender<SyncObjectAction<TemplateValues, Deployment>>,
-    current_refs_rx: Receiver<Option<HashSet<ObjectRef>>>,
-    gateway_instances: &Receiver<HashMap<ObjectRef, GatewayInstanceConfiguration>>,
+    current_service_refs_rx: Receiver<HashSet<ObjectRef>>,
+    gateway_instances_rx: &Receiver<HashMap<ObjectRef, GatewayInstanceConfiguration>>,
 ) {
-    let gateway_instances = gateway_instances.clone();
+    let gateway_instances_rx = gateway_instances_rx.clone();
 
     join_set.spawn(async move {
         loop {
-            let intended = gateway_instances.current();
-            let intended: Vec<_> = intended
-                .iter()
-                .map(|(gateway_ref, instance)| {
-                    let deployment_ref = ObjectRef::new_builder()
-                        .of_kind::<Deployment>()
-                        .namespace(gateway_ref.namespace().clone())
-                        .name(gateway_ref.name())
-                        .build()
-                        .expect("Failed to build ObjectRef for Deployment");
+            if let Some(gateway_instances) = gateway_instances_rx.get()
+                && let Some(current_service_refs) = current_service_refs_rx.get()
+            {
+                let desired_deployments: Vec<_> = gateway_instances
+                    .iter()
+                    .map(|(gateway_ref, instance)| {
+                        let deployment_ref = ObjectRef::new_builder()
+                            .of_kind::<Deployment>()
+                            .namespace(gateway_ref.namespace().clone())
+                            .name(gateway_ref.name())
+                            .build()
+                            .expect("Failed to build ObjectRef for Deployment");
 
-                    let image_pull_policy: &'static str = instance.image_pull_policy().into();
+                        let image_pull_policy: &'static str = instance.image_pull_policy().into();
 
-                    let template_values = TemplateValuesBuilder::default()
-                        .gateway_name(gateway_ref.name())
-                        .configmap_name(format!("{}-config", gateway_ref.name()))
-                        .image_pull_policy(image_pull_policy)
-                        .build()
-                        .expect("Failed to build TemplateValues");
+                        let template_values = TemplateValuesBuilder::default()
+                            .gateway_name(gateway_ref.name())
+                            .configmap_name(format!("{}-config", gateway_ref.name()))
+                            .image_pull_policy(image_pull_policy)
+                            .build()
+                            .expect("Failed to build TemplateValues");
 
-                    (
-                        deployment_ref,
-                        gateway_ref,
-                        template_values,
-                        instance.deployment_overrides(),
-                    )
-                })
-                .collect();
+                        (
+                            deployment_ref,
+                            gateway_ref,
+                            template_values,
+                            instance.deployment_overrides(),
+                        )
+                    })
+                    .collect();
 
-            if let Some(current_refs) = current_refs_rx.current().as_ref() {
-                let intended_refs: HashSet<_> = intended
+                let desired_deployments_ref: HashSet<_> = desired_deployments
                     .iter()
                     .map(|(ref_, _, _, _)| ref_.clone())
                     .collect();
 
-                let deleted_refs = current_refs.difference(&intended_refs);
+                let deleted_refs = current_service_refs.difference(&desired_deployments_ref);
                 for deleted_ref in deleted_refs {
                     tx.send(SyncObjectAction::Delete(deleted_ref.clone()))
                         .expect("Failed to send delete action");
                 }
-            }
 
-            for (deployment_ref, gateway_ref, template_values, deployment_overrides) in intended {
-                tx.send(SyncObjectAction::Upsert(
-                    deployment_ref,
-                    gateway_ref.clone(),
-                    template_values,
-                    Some(deployment_overrides.clone()),
-                ))
-                .expect("Failed to send upsert action");
+                for (deployment_ref, gateway_ref, template_values, deployment_overrides) in
+                    desired_deployments
+                {
+                    tx.send(SyncObjectAction::Upsert(
+                        deployment_ref,
+                        gateway_ref.clone(),
+                        template_values,
+                        Some(deployment_overrides.clone()),
+                    ))
+                    .expect("Failed to send upsert action");
+                }
             }
 
             continue_after!(
                 options.auto_cycle_duration(),
-                gateway_instances.changed(),
-                current_refs_rx.changed()
+                gateway_instances_rx.changed(),
+                current_service_refs_rx.changed()
             );
         }
     });

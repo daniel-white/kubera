@@ -3,10 +3,11 @@ use kubera_core::config::gateway::serde::read_configuration;
 use kubera_core::config::gateway::types::GatewayConfiguration;
 use kubera_core::continue_on;
 use kubera_core::ipc::GatewayEvent;
-use kubera_core::sync::signal::{Receiver, Sender, channel};
+use kubera_core::sync::signal::{signal, Receiver, Sender};
 use reqwest::Client;
 use std::io::BufReader;
 use std::net::SocketAddr;
+use std::ops::Deref;
 use std::time::Instant;
 use tokio::sync::broadcast::Receiver as BroadcastReceiver;
 use tokio::task::JoinSet;
@@ -15,8 +16,8 @@ use url::Url;
 
 #[derive(Debug)]
 pub struct FetchConfigurationParams {
-    ipc_endpoint: Receiver<Option<SocketAddr>>,
-    gateway_events: BroadcastReceiver<GatewayEvent>,
+    ipc_endpoint_rx: Receiver<SocketAddr>,
+    gateway_events_rx: BroadcastReceiver<GatewayEvent>,
     pod_name: String,
     gateway_namespace: String,
     gateway_name: String,
@@ -30,21 +31,21 @@ impl FetchConfigurationParams {
 
 #[derive(Default)]
 pub struct FetchConfigurationParamsBuilder {
-    ipc_endpoint: Option<Receiver<Option<SocketAddr>>>,
-    gateway_events: Option<BroadcastReceiver<GatewayEvent>>,
+    ipc_endpoint_rx: Option<Receiver<SocketAddr>>,
+    gateway_events_rx: Option<BroadcastReceiver<GatewayEvent>>,
     pod_name: Option<String>,
     gateway_namespace: Option<String>,
     gateway_name: Option<String>,
 }
 
 impl FetchConfigurationParamsBuilder {
-    pub fn ipc_endpoint(&mut self, addr: &Receiver<Option<SocketAddr>>) -> &mut Self {
-        self.ipc_endpoint = Some(addr.clone());
+    pub fn ipc_endpoint_rx(&mut self, addr: &Receiver<SocketAddr>) -> &mut Self {
+        self.ipc_endpoint_rx = Some(addr.clone());
         self
     }
 
-    pub fn gateway_events(&mut self, events: BroadcastReceiver<GatewayEvent>) -> &mut Self {
-        self.gateway_events = Some(events);
+    pub fn gateway_events_rx(&mut self, events: BroadcastReceiver<GatewayEvent>) -> &mut Self {
+        self.gateway_events_rx = Some(events);
         self
     }
 
@@ -65,11 +66,11 @@ impl FetchConfigurationParamsBuilder {
 
     pub fn build(self) -> FetchConfigurationParams {
         FetchConfigurationParams {
-            ipc_endpoint: self
-                .ipc_endpoint
+            ipc_endpoint_rx: self
+                .ipc_endpoint_rx
                 .expect("Primary socket address is required"),
-            gateway_events: self
-                .gateway_events
+            gateway_events_rx: self
+                .gateway_events_rx
                 .expect("Gateway events receiver is required"),
             pod_name: self.pod_name.expect("Pod name is required"),
             gateway_namespace: self
@@ -83,19 +84,19 @@ impl FetchConfigurationParamsBuilder {
 pub fn fetch_configuration(
     join_set: &mut JoinSet<()>,
     params: FetchConfigurationParams,
-) -> Receiver<Option<(Instant, GatewayConfiguration)>> {
-    let (tx, rx) = channel(None);
+) -> Receiver<(Instant, GatewayConfiguration)> {
+    let (tx, rx) = signal();
 
     join_set.spawn(async move {
-        let mut gateway_events = params.gateway_events;
+        let mut gateway_events = params.gateway_events_rx;
         let client = Client::new();
         loop {
-            if let Some(ipc_endpoint_addr) = params.ipc_endpoint.current().as_ref()
+            if let Some(ipc_endpoint_addr) = params.ipc_endpoint_rx.get()
                 && let Ok(event) = gateway_events.recv().await
                 && let GatewayEvent::ConfigurationUpdate(_) = event
             {
                 let url = {
-                    let mut url = Url::parse(&format!("http://{ipc_endpoint_addr}"))
+                    let mut url = Url::parse(&format!("http://{}", ipc_endpoint_addr.deref()))
                         .expect("Failed to parse URL");
                     url.set_path(&format!(
                         "/ipc/namespaces/{}/gateways/{}/configuration",
@@ -117,32 +118,25 @@ pub fn fetch_configuration(
                                 match read_configuration(buf) {
                                     Ok(configuration) => {
                                         debug!("Configuration fetched successfully");
-                                        tx.replace(Some((serial, configuration)));
+                                        tx.set((serial, configuration));
                                     }
                                     Err(err) => {
                                         warn!("Error reading configuration: {}", err);
-                                        tx.replace(None);
                                     }
                                 }
                             }
                             Err(err) => {
                                 warn!("Error reading response body: {}", err);
-                                tx.replace(None);
                             }
                         }
                     }
                     Ok(response) => {
                         info!("Unexpected response fetching configuration: {:?}", response);
-                        tx.replace(None);
                     }
                     Err(err) => {
                         warn!("Error fetching configuration: {}", err);
-                        tx.replace(None);
                     }
                 }
-            } else {
-                tx.replace(None);
-                let _ = params.ipc_endpoint.changed().await;
             }
         }
     });
@@ -152,23 +146,22 @@ pub fn fetch_configuration(
 
 pub fn watch_ipc_endpoint(
     join_set: &mut JoinSet<()>,
-    gateway_configuration: &Receiver<Option<GatewayConfiguration>>,
-    tx: Sender<Option<SocketAddr>>,
+    gateway_configuration_rx: &Receiver<GatewayConfiguration>,
+    tx: Sender<SocketAddr>,
 ) {
-    let gateway_configuration = gateway_configuration.clone();
+    let gateway_configuration_rx = gateway_configuration_rx.clone();
 
     join_set.spawn(async move {
         loop {
-            let current_configuration = gateway_configuration.current();
-            let primary_endpoint = current_configuration
-                .as_ref()
-                .as_ref()
-                .and_then(|c| c.ipc().clone())
-                .and_then(|c| *c.endpoint());
+            if let Some(gateway_configuration) = gateway_configuration_rx.get() {
+                let primary_endpoint = gateway_configuration
+                    .ipc().as_ref()
+                    .and_then(|c| c.endpoint().clone());
 
-            tx.replace(primary_endpoint);
+                tx.replace(primary_endpoint);
+            }
 
-            continue_on!(gateway_configuration.changed());
+            continue_on!(gateway_configuration_rx.changed());
         }
     });
 }

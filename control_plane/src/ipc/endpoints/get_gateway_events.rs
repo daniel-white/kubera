@@ -7,7 +7,7 @@ use axum::{
     extract::State,
     response::{IntoResponse, sse::Sse},
 };
-use futures::{TryStreamExt};
+use futures::TryStreamExt;
 use gateway_api::apis::standard::gateways::Gateway;
 use problemdetails::Problem;
 use serde::Deserialize;

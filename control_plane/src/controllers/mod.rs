@@ -9,8 +9,8 @@ use self::filters::{
     filter_gateways, filter_http_routes,
 };
 use self::sync::{
-    sync_gateway_configmaps, sync_gateway_deployments, sync_gateway_services,
-    SyncGatewayConfigmapsParams, SyncGatewayConfigmapsParamsBuilderError,
+    SyncGatewayConfigmapsParams, SyncGatewayConfigmapsParamsBuilderError, sync_gateway_configmaps,
+    sync_gateway_deployments, sync_gateway_services,
 };
 use self::transformers::{
     collect_gateway_instances, collect_http_route_backends, collect_http_routes_by_gateway,
@@ -38,7 +38,7 @@ use tokio::task::JoinSet;
 #[builder(setter(into))]
 pub struct SpawnControllersParams {
     options: Arc<Options>,
-    kube_client: Receiver<Option<KubeClientCell>>,
+    kube_client_rx: Receiver<KubeClientCell>,
     ipc_services: Arc<IpcServices>,
     pod_namespace: String,
     pod_name: String,
@@ -62,52 +62,58 @@ pub fn spawn_controllers(
     params: SpawnControllersParams,
 ) -> Result<(), SpawnControllersError> {
     let options = params.options.clone();
-    let kube_client = params.kube_client;
+    let kube_client_rx = params.kube_client_rx;
 
-    let instance_role = determine_instance_role(
+    let instance_role_rx = determine_instance_role(
         options.clone(),
         join_set,
         &params.pod_namespace,
         &params.instance_name,
         &params.pod_name,
     );
-    let leader_instance_ip_addr =
-        watch_leader_instance_ip_addr(options.clone(), join_set, &kube_client, &instance_role);
-
-    let gateway_classes = watch_objects!(options, join_set, GatewayClass, kube_client);
-    let gateways = watch_objects!(options, join_set, Gateway, kube_client);
-    let http_routes = watch_objects!(options, join_set, HTTPRoute, kube_client);
-    let endpoint_slices = watch_objects!(options, join_set, EndpointSlice, kube_client);
-    let gateway_class_parameters =
-        watch_objects!(options, join_set, GatewayClassParameters, kube_client);
-    let gateway_parameters = watch_objects!(options, join_set, GatewayParameters, kube_client);
-
-    let gateway_class = filter_gateway_classes(join_set, &gateway_classes);
-    let gateway_class_parameters =
-        filter_gateway_class_parameters(join_set, &gateway_class, &gateway_class_parameters);
-    let gateways = filter_gateways(join_set, &gateway_class, &gateways);
-    let gateway_parameters = filter_gateway_parameters(join_set, &gateways, &gateway_parameters);
-    let gateway_instances = collect_gateway_instances(
+    let leader_instance_ip_addr_rx = watch_leader_instance_ip_addr(
+        options.clone(),
         join_set,
-        &gateways,
-        &gateway_class_parameters,
-        &gateway_parameters,
+        &kube_client_rx,
+        &instance_role_rx,
     );
-    let http_routes = filter_http_routes(join_set, &gateways, &http_routes);
-    let http_routes_by_gateway = collect_http_routes_by_gateway(join_set, &gateways, &http_routes);
-    let service_backends = collect_http_route_backends(join_set, &http_routes);
-    let backends = collect_service_backends(join_set, &service_backends, &endpoint_slices);
+
+    let gateway_classes_rx = watch_objects!(options, join_set, GatewayClass, kube_client_rx);
+    let gateways_rx = watch_objects!(options, join_set, Gateway, kube_client_rx);
+    let http_routes_rx = watch_objects!(options, join_set, HTTPRoute, kube_client_rx);
+    let endpoint_slices_rx = watch_objects!(options, join_set, EndpointSlice, kube_client_rx);
+    let gateway_class_parameters_rx =
+        watch_objects!(options, join_set, GatewayClassParameters, kube_client_rx);
+    let gateway_parameters_rx =
+        watch_objects!(options, join_set, GatewayParameters, kube_client_rx);
+
+    let gateway_class_rx = filter_gateway_classes(join_set, &gateway_classes_rx);
+    let gateway_class_parameters_rx =
+        filter_gateway_class_parameters(join_set, &gateway_class_rx, &gateway_class_parameters_rx);
+    let gateways_rx = filter_gateways(join_set, &gateway_class_rx, &gateways_rx);
+    let gateway_parameters_rx =
+        filter_gateway_parameters(join_set, &gateways_rx, &gateway_parameters_rx);
+    let gateway_instances_rx = collect_gateway_instances(
+        join_set,
+        &gateways_rx,
+        &gateway_class_parameters_rx,
+        &gateway_parameters_rx,
+    );
+    let http_routes_rx = filter_http_routes(join_set, &gateways_rx, &http_routes_rx);
+    let http_routes_by_gateway_rx = collect_http_routes_by_gateway(join_set, &http_routes_rx);
+    let service_backends_rx = collect_http_route_backends(join_set, &http_routes_rx);
+    let backends_rx = collect_service_backends(join_set, &service_backends_rx, &endpoint_slices_rx);
 
     {
         let params = SyncGatewayConfigmapsParams::new_builder()
             .options(options.clone())
-            .kube_client(kube_client.clone())
+            .kube_client_rx(kube_client_rx.clone())
             .ipc_services(params.ipc_services.clone())
-            .instance_role(instance_role.clone())
-            .primary_instance_ip_addr(leader_instance_ip_addr.clone())
-            .gateway_instances(gateway_instances.clone())
-            .http_routes(http_routes_by_gateway.clone())
-            .backends(backends.clone())
+            .instance_role_rx(instance_role_rx.clone())
+            .primary_instance_ip_addr_rx(leader_instance_ip_addr_rx.clone())
+            .gateway_instances_rx(gateway_instances_rx.clone())
+            .http_routes_rx(http_routes_by_gateway_rx.clone())
+            .backends_rx(backends_rx)
             .build()?;
 
         sync_gateway_configmaps(join_set, params);
@@ -116,16 +122,16 @@ pub fn spawn_controllers(
     sync_gateway_services(
         params.options.clone(),
         join_set,
-        &kube_client,
-        &instance_role,
-        &gateway_instances,
+        &kube_client_rx,
+        &instance_role_rx,
+        &gateway_instances_rx,
     );
     sync_gateway_deployments(
         params.options.clone(),
         join_set,
-        &kube_client,
-        &instance_role,
-        &gateway_instances,
+        &kube_client_rx,
+        &instance_role_rx,
+        &gateway_instances_rx,
     );
 
     Ok(())

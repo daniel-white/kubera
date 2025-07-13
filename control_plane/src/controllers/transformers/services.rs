@@ -6,7 +6,7 @@ use k8s_openapi::api::core::v1::Service;
 use k8s_openapi::api::discovery::v1::EndpointSlice;
 use kubera_core::continue_on;
 use kubera_core::net::Port;
-use kubera_core::sync::signal::{channel, Receiver};
+use kubera_core::sync::signal::{signal, Receiver};
 use std::collections::HashMap;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use tokio::task::JoinSet;
@@ -50,49 +50,52 @@ impl Backend {
 
 pub fn collect_service_backends(
     join_set: &mut JoinSet<()>,
-    http_route_backends: &Receiver<HashMap<ObjectRef, HttpRouteBackend>>,
-    endpoint_slices: &Receiver<Objects<EndpointSlice>>,
-) -> Receiver<Option<HashMap<ObjectRef, Backend>>> {
-    let (tx, rx) = channel(None);
-
-    let http_route_backends = http_route_backends.clone();
-    let endpoint_slices = endpoint_slices.clone();
+    http_route_backends_rx: &Receiver<HashMap<ObjectRef, HttpRouteBackend>>,
+    endpoint_slices_rx: &Receiver<Objects<EndpointSlice>>,
+) -> Receiver<HashMap<ObjectRef, Backend>> {
+    let (tx, rx) = signal();
+    let http_route_backends_rx = http_route_backends_rx.clone();
+    let endpoint_slices_rx = endpoint_slices_rx.clone();
 
     join_set.spawn(async move {
         loop {
-            let current_endpoint_slices = endpoint_slices.current();
-            let current_http_route_backends = http_route_backends.current();
-
-            let endpoint_slices_by_service: HashMap<_, _> = current_endpoint_slices
-                .iter()
-                .filter_map(|(_, _, endpoint_slice)| {
-                    let metadata = &endpoint_slice.metadata;
-                    let labels = metadata.labels.as_ref()?;
-                    labels
-                        .get("kubernetes.io/service-name")
-                        .map(|service_name| {
-                            ObjectRef::new_builder()
-                                .of_kind::<Service>()
-                                .namespace(endpoint_slice.metadata.namespace.clone())
-                                .name(service_name)
-                                .build()
-                                .expect("Failed to build ObjectRef for Service")
-                        })
-                        .map(|service_ref| (service_ref, endpoint_slice))
-                })
-                .filter_map(|(service_ref, endpoint_slice)| {
-                    current_http_route_backends.get(&service_ref).map(|h| {
-                        (
-                            service_ref.clone(),
-                            extract_backend(&service_ref, h, endpoint_slice.as_ref()),
-                        )
+            if let Some(current_endpoint_slices) = endpoint_slices_rx.get()
+                && let Some(current_http_route_backends) = http_route_backends_rx.get()
+            {
+                let endpoint_slices_by_service: HashMap<_, _> = current_endpoint_slices
+                    .iter()
+                    .filter_map(|(_, _, endpoint_slice)| {
+                        let metadata = &endpoint_slice.metadata;
+                        let labels = metadata.labels.as_ref()?;
+                        labels
+                            .get("kubernetes.io/service-name")
+                            .map(|service_name| {
+                                ObjectRef::new_builder()
+                                    .of_kind::<Service>()
+                                    .namespace(endpoint_slice.metadata.namespace.clone())
+                                    .name(service_name)
+                                    .build()
+                                    .expect("Failed to build ObjectRef for Service")
+                            })
+                            .map(|service_ref| (service_ref, endpoint_slice))
                     })
-                })
-                .collect();
+                    .filter_map(|(service_ref, endpoint_slice)| {
+                        current_http_route_backends.get(&service_ref).map(|h| {
+                            (
+                                service_ref.clone(),
+                                extract_backend(&service_ref, h, endpoint_slice.as_ref()),
+                            )
+                        })
+                    })
+                    .collect();
 
-            tx.replace(Some(endpoint_slices_by_service));
+                tx.set(endpoint_slices_by_service);
+            }
 
-            continue_on!(http_route_backends.changed(), endpoint_slices.changed());
+            continue_on!(
+                http_route_backends_rx.changed(),
+                endpoint_slices_rx.changed()
+            );
         }
     });
 

@@ -1,5 +1,5 @@
 use kube::Client;
-use kubera_core::sync::signal::{Receiver, channel};
+use kubera_core::sync::signal::{signal, Receiver};
 use std::ops::Deref;
 use tokio::task::JoinSet;
 use tracing::error;
@@ -29,14 +29,14 @@ impl From<KubeClientCell> for Client {
     }
 }
 
-pub fn start_kubernetes_client(join_set: &mut JoinSet<()>) -> Receiver<Option<KubeClientCell>> {
-    let (tx, rx) = channel(None);
+pub fn start_kubernetes_client(join_set: &mut JoinSet<()>) -> Receiver<KubeClientCell> {
+    let (tx, rx) = signal();
 
     join_set.spawn(async move {
         match Client::try_default().await {
             Ok(client) => {
                 let client_cell = KubeClientCell(client);
-                tx.replace(Some(client_cell));
+                tx.set(client_cell);
                 let tx = Box::new(tx);
                 Box::leak(tx); // Leak the sender to keep it alive
             }
