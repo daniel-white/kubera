@@ -1,4 +1,4 @@
-use crate::sync::signal::{signal, Receiver, Sender};
+use crate::sync::signal::{Receiver, Sender, signal};
 use anyhow::Result;
 use notify::{Event, EventHandler, RecursiveMode, Watcher};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -27,8 +27,11 @@ impl EventHandler for SignalEventHandler {
         if let Ok(event) = event {
             debug!("File watcher event: {:?}", event);
             if event.kind.is_modify() || event.kind.is_create() {
+                let tx = self.tx.clone();
                 let generation = self.increment_generation();
-                self.tx.set(generation);
+                tokio::spawn(async move {
+                    tx.set(generation).await;
+                });
             }
         }
     }

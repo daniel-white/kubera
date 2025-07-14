@@ -61,8 +61,8 @@ pub fn collect_service_backends(
         .new_task(stringify!(collect_service_backends))
         .spawn(async move {
             loop {
-                if let Some(current_endpoint_slices) = endpoint_slices_rx.get()
-                    && let Some(current_http_route_backends) = http_route_backends_rx.get()
+                if let Some(current_endpoint_slices) = endpoint_slices_rx.get().await
+                    && let Some(current_http_route_backends) = http_route_backends_rx.get().await
                 {
                     let endpoint_slices_by_service: HashMap<_, _> = current_endpoint_slices
                         .iter()
@@ -91,7 +91,7 @@ pub fn collect_service_backends(
                         })
                         .collect();
 
-                    tx.set(endpoint_slices_by_service);
+                    tx.set(endpoint_slices_by_service).await;
                 }
 
                 continue_on!(

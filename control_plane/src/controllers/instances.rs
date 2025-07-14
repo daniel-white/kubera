@@ -46,7 +46,7 @@ pub fn watch_leader_instance_ip_addr(
             .and_then(|s| s.pod_ip.as_ref())
             .and_then(|ip| IpAddr::from_str(ip.as_str()).ok());
 
-        ctx.tx.replace(ip_addr);
+        ctx.tx.replace(ip_addr).await;
         Ok(Action::requeue(ctx.options.controller_requeue_duration()))
     }
 
@@ -63,7 +63,7 @@ pub fn watch_leader_instance_ip_addr(
         .spawn(async move {
         let controller_context = Arc::new(ControllerContext { options, tx });
         loop {
-            match (kube_client_rx.get().as_deref(), instance_role_rx.get().as_ref()) {
+            match (kube_client_rx.get().await.as_deref(), instance_role_rx.get().await.as_ref()) {
                 (Some(kube_client), Some(instance_role)) => {
                     let primary_pod_ref = instance_role.primary_pod_ref();
                     info!("Determining instance IP address for pod as it is the primary: {}", primary_pod_ref);
@@ -159,12 +159,12 @@ pub fn determine_instance_role(
                     Ok(LeaseLockResult::Acquired(lease)) => {
                         debug!("Acquired lease, assuming primary role");
                         let pod_ref = get_pod_ref(&namespace, &lease);
-                        tx.set(InstanceRole::Primary(pod_ref));
+                        tx.set(InstanceRole::Primary(pod_ref)).await;
                     }
                     Ok(LeaseLockResult::NotAcquired(lease)) => {
                         debug!("Lease renewed, assuming redundant role");
                         let pod_ref = get_pod_ref(&namespace, &lease);
-                        tx.set(InstanceRole::Redundant(pod_ref));
+                        tx.set(InstanceRole::Redundant(pod_ref)).await;
                     }
                     Err(err) => warn!("Failed to acquire or renew lease: {err}"),
                 };

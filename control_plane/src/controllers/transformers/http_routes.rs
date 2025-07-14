@@ -40,7 +40,7 @@ pub fn collect_http_route_backends(
 
     task_builder.new_task(stringify!(collect_http_route_backends)).spawn(async move {
         loop {
-            if let Some(http_routes) = http_routes_rx.get() {
+            if let Some(http_routes) = http_routes_rx.get().await {
                 let mut http_route_backends = HashMap::new();
 
                 for (http_route_ref, _, http_route) in http_routes.iter() {
@@ -107,7 +107,7 @@ pub fn collect_http_route_backends(
                     }
                 }
 
-                tx.set(http_route_backends);
+                tx.set(http_route_backends).await;
             }
 
             continue_on!(http_routes_rx.changed());
@@ -128,7 +128,7 @@ pub fn collect_http_routes_by_gateway(
         .new_task("collect_http_routes_by_gateway")
         .spawn(async move {
         loop {
-            if let Some(http_routes) = http_routes_rx.get() {
+            if let Some(http_routes) = http_routes_rx.get().await {
                 info!("Collecting HTTPRoutes by Gateway");
                 let mut new_routes: HashMap<ObjectRef, Vec<Arc<HTTPRoute>>> = HashMap::new();
 
@@ -165,7 +165,7 @@ pub fn collect_http_routes_by_gateway(
                     }
                 }
 
-                tx.set(new_routes);
+                tx.set(new_routes).await;
             }
 
             continue_on!(http_routes_rx.changed());

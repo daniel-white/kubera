@@ -3,7 +3,7 @@ use kubera_core::config::gateway::serde::read_configuration;
 use kubera_core::config::gateway::types::GatewayConfiguration;
 use kubera_core::continue_on;
 use kubera_core::ipc::GatewayEvent;
-use kubera_core::sync::signal::{signal, Receiver, Sender};
+use kubera_core::sync::signal::{Receiver, Sender, signal};
 use reqwest::Client;
 use std::io::BufReader;
 use std::net::SocketAddr;
@@ -91,12 +91,12 @@ pub fn fetch_configuration(
         let mut gateway_events = params.gateway_events_rx;
         let client = Client::new();
         loop {
-            if let Some(ipc_endpoint_addr) = params.ipc_endpoint_rx.get()
+            if let Some(ipc_endpoint_addr) = params.ipc_endpoint_rx.get().await
                 && let Ok(event) = gateway_events.recv().await
                 && let GatewayEvent::ConfigurationUpdate(_) = event
             {
                 let url = {
-                    let mut url = Url::parse(&format!("http://{}", ipc_endpoint_addr.deref()))
+                    let mut url = Url::parse(&format!("http://{}", ipc_endpoint_addr))
                         .expect("Failed to parse URL");
                     url.set_path(&format!(
                         "/ipc/namespaces/{}/gateways/{}/configuration",
@@ -118,7 +118,7 @@ pub fn fetch_configuration(
                                 match read_configuration(buf) {
                                     Ok(configuration) => {
                                         debug!("Configuration fetched successfully");
-                                        tx.set((serial, configuration));
+                                        tx.set((serial, configuration)).await;
                                     }
                                     Err(err) => {
                                         warn!("Error reading configuration: {}", err);
@@ -153,12 +153,13 @@ pub fn watch_ipc_endpoint(
 
     join_set.spawn(async move {
         loop {
-            if let Some(gateway_configuration) = gateway_configuration_rx.get() {
+            if let Some(gateway_configuration) = gateway_configuration_rx.get().await {
                 let primary_endpoint = gateway_configuration
-                    .ipc().as_ref()
+                    .ipc()
+                    .as_ref()
                     .and_then(|c| c.endpoint().clone());
 
-                tx.replace(primary_endpoint);
+                tx.replace(primary_endpoint).await;
             }
 
             continue_on!(gateway_configuration_rx.changed());

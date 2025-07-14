@@ -9,8 +9,8 @@ use self::filters::{
     filter_gateways, filter_http_routes,
 };
 use self::sync::{
-    sync_gateway_configmaps, sync_gateway_deployments, sync_gateway_services,
-    SyncGatewayConfigmapsParams, SyncGatewayConfigmapsParamsBuilderError,
+    SyncGatewayConfigmapsParams, SyncGatewayConfigmapsParamsBuilderError, sync_gateway_configmaps,
+    sync_gateway_deployments, sync_gateway_services,
 };
 use self::transformers::{
     collect_gateway_instances, collect_http_route_backends, collect_http_routes_by_gateway,

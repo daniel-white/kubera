@@ -37,14 +37,12 @@ impl ProxyHttp for Proxy {
         session: &mut Session,
         _ctx: &mut Self::CTX,
     ) -> Result<()> {
-        let client_addr_filter_rx = self.client_addr_filter_rx.get();
-
-        if let Some(client_addr_filter) = client_addr_filter_rx {
+        if let Some(client_addr_filter) = self.client_addr_filter_rx.get().await {
             client_addr_filter.filter(session);
         } else {
             warn!("No client address filter configured");
         }
-        
+
         Ok(())
     }
 
@@ -53,37 +51,38 @@ impl ProxyHttp for Proxy {
         session: &mut Session,
         ctx: &mut Self::CTX,
     ) -> Result<Box<HttpPeer>> {
-        match ctx.set_route(session.req_header()) {
-            MatchRouteResult::Found(_, rule) => {
-                let mut location = TopologyLocation::new_builder();
-                location.on_node(Some("minikube".to_string()));
-                let location = location.build();
-
-                let mut endpoints = EndpointsResolver::new_builder(location.clone());
-                for be in rule.backends() {
-                    for addrs in be.endpoints().values() {
-                        for addr in addrs {
-                            endpoints
-                                .insert(SocketAddr::new(*addr.address(), 80), location.clone());
-                        }
-                    }
-                }
-
-                let endpoints = endpoints.build();
-
-                let ep: Vec<_> = endpoints.resolve(None).collect();
-
-                Ok(Box::new(HttpPeer::new(ep[0], false, "".to_string())))
-
-                //Err(Error::explain(HTTPStatus(400), "Not implemented")) // TODO implement route to upstream
-            }
-            MatchRouteResult::NotFound => {
-                Err(Error::explain(HTTPStatus(404), "No matching route found"))
-            }
-            MatchRouteResult::MissingConfiguration => {
-                Err(Error::explain(HTTPStatus(503), "Missing configuration"))
-            }
-        }
+        Err(Error::explain(HTTPStatus(400), "Not implemented"))
+        // match ctx.set_route(session.req_header()) {
+        //     MatchRouteResult::Found(_, rule) => {
+        //         let mut location = TopologyLocation::new_builder();
+        //         location.on_node(Some("minikube".to_string()));
+        //         let location = location.build();
+        //
+        //         let mut endpoints = EndpointsResolver::new_builder(location.clone());
+        //         for be in rule.backends() {
+        //             for addrs in be.endpoints().values() {
+        //                 for addr in addrs {
+        //                     endpoints
+        //                         .insert(SocketAddr::new(*addr.address(), 80), location.clone());
+        //                 }
+        //             }
+        //         }
+        //
+        //         let endpoints = endpoints.build();
+        //
+        //         let ep: Vec<_> = endpoints.resolve(None).collect();
+        //
+        //         Ok(Box::new(HttpPeer::new(ep[0], false, "".to_string())))
+        //
+        //         //Err(Error::explain(HTTPStatus(400), "Not implemented")) // TODO implement route to upstream
+        //     }
+        //     MatchRouteResult::NotFound => {
+        //         Err(Error::explain(HTTPStatus(404), "No matching route found"))
+        //     }
+        //     MatchRouteResult::MissingConfiguration => {
+        //         Err(Error::explain(HTTPStatus(503), "Missing configuration"))
+        //     }
+        // }
     }
 
     async fn response_filter(

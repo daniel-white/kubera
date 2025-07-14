@@ -2,7 +2,7 @@ use derive_builder::Builder;
 use getset::Getters;
 use kubera_core::config::gateway::types::GatewayConfiguration;
 use kubera_core::continue_on;
-use kubera_core::sync::signal::{signal, Receiver};
+use kubera_core::sync::signal::{Receiver, signal};
 use std::time::Instant;
 use tokio::task::JoinSet;
 use tracing::debug;
@@ -25,15 +25,15 @@ pub fn select_configuration(
 ) -> Receiver<GatewayConfiguration> {
     let (tx, rx) = signal();
 
-    let ipc_config_source = params.ipc_configuration_source_rx.clone();
-    let fs_config_source = params.fs_configuration_source_rx.clone();
+    let ipc_config_source_rx = params.ipc_configuration_source_rx.clone();
+    let fs_config_source_rx = params.fs_configuration_source_rx.clone();
 
     join_set.spawn(async move {
         loop {
-            let ipc_config = ipc_config_source.get();
-            let fs_config = fs_config_source.get();
-
-            let config = match (ipc_config.as_deref(), fs_config.as_deref()) {
+            let config = match (
+                ipc_config_source_rx.get().await,
+                fs_config_source_rx.get().await,
+            ) {
                 (None, None) => {
                     debug!("No configuration available from either source");
                     None
@@ -58,7 +58,7 @@ pub fn select_configuration(
                 }
             };
 
-            tx.replace(config.cloned());
+            tx.replace(config).await;
 
             continue_on!(
                 params.ipc_configuration_source_rx.changed(),

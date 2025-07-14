@@ -1,8 +1,8 @@
 use crate::controllers::instances::InstanceRole;
 use crate::controllers::transformers::{Backend, GatewayInstanceConfiguration};
 use crate::ipc::IpcServices;
-use crate::kubernetes::objects::{ObjectRef, SyncObjectAction};
 use crate::kubernetes::KubeClientCell;
+use crate::kubernetes::objects::{ObjectRef, SyncObjectAction};
 use crate::options::Options;
 use crate::{sync_objects, watch_objects};
 use derive_builder::Builder;
@@ -23,7 +23,7 @@ use kubera_core::config::gateway::types::http::router::{
 use kubera_core::config::gateway::types::net::ProxyHeaders;
 use kubera_core::config::gateway::types::{GatewayConfiguration, GatewayConfigurationBuilder};
 use kubera_core::net::{Hostname, Port};
-use kubera_core::sync::signal::{signal, Receiver};
+use kubera_core::sync::signal::{Receiver, signal};
 use kubera_core::task::Builder as TaskBuilder;
 use kubera_core::{continue_after, continue_on};
 use std::collections::{HashMap, HashSet};
@@ -137,8 +137,8 @@ fn generate_gateway_configmaps(
         .new_task(stringify!(sync_gateway_configmaps))
         .spawn(async move {
             loop {
-                if let Some(gateway_configurations) = gateway_configurations_tx.get()
-                    && let Some(current_configmap_refs) = params.current_refs_rx().get()
+                if let Some(gateway_configurations) = gateway_configurations_tx.get().await
+                    && let Some(current_configmap_refs) = params.current_refs_rx().get().await
                 {
                     info!("Reconciling Gateway ConfigMaps");
                     let desired_gateway_configurations = expand(&gateway_configurations);
@@ -256,10 +256,10 @@ fn generate_gateway_configurations(
         .spawn(async move {
         loop {
             match (
-                primary_instance_ip_addr_rx.get(),
-                gateway_instances_rx.get(),
-                backends_rx.get(),
-                http_routes_rx.get(),
+                primary_instance_ip_addr_rx.get().await,
+                gateway_instances_rx.get().await,
+                backends_rx.get().await,
+                http_routes_rx.get().await,
             ) {
                 (Some(primary_instance_ip_addr), Some(gateway_instances), Some(backends), Some(http_routes)) => {
                     let configs: HashMap<_, _> = gateway_instances
@@ -271,7 +271,7 @@ fn generate_gateway_configurations(
                             set_ipc(
                                 &mut gateway_configuration,
                                 &ipc_services,
-                                *primary_instance_ip_addr,
+                                primary_instance_ip_addr,
                             );
                             set_client_addrs_strategy(&mut gateway_configuration, instance);
                             add_listeners(&mut gateway_configuration, instance);
@@ -318,10 +318,19 @@ fn generate_gateway_configurations(
                                                                    .name(&backend_ref.name)
                                                                    .build()
                                                                    .ok()
-                                                                   .and_then(|r| backends.get(&r))
-                                                                   .expect("Failed to build Backend reference");
+                                                                   .and_then(|r| backends.get(&r));
 
-                                                               add_backend(source, target);
+                                                               match source {
+                                                                   Some(source) => {
+                                                                       add_backend(source, target);
+                                                                   }
+                                                                   None => {
+                                                                       warn!(
+                                                                           "Backend reference {} not found for HTTPRoute {:?} at rule index {}",
+                                                                           backend_ref.name, http_route.metadata.name, index
+                                                                       );
+                                                                   }
+                                                               }
                                                            }
                                                        },
                                             );
@@ -340,7 +349,7 @@ fn generate_gateway_configurations(
                         })
                         .collect();
 
-                    tx.set(configs);
+                    tx.set(configs).await;
                 }
                 (None, _, _, _)=> {
                     debug!("Primary instance IP address not yet available, skipping configuration generation");

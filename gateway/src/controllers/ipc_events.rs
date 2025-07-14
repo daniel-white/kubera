@@ -7,7 +7,7 @@ use kubera_core::sync::signal::Receiver;
 use std::net::SocketAddr;
 use tokio::select;
 use tokio::signal::ctrl_c;
-use tokio::sync::broadcast::{channel, Sender};
+use tokio::sync::broadcast::{Sender, channel};
 use tokio::task::JoinSet;
 use tracing::info;
 use url::Url;
@@ -74,15 +74,14 @@ pub fn poll_gateway_events(
     params: PollGatewayEventsParams,
 ) -> Sender<GatewayEvent> {
     let (tx, _) = channel(20);
-
-    let ipc_endpoint = params.ipc_endpoint_rx.clone();
-
+    let ipc_endpoint_rx = params.ipc_endpoint_rx.clone();
     let events_tx = tx.clone();
+
     join_set.spawn(async move {
         'primary: loop {
-            if let Some(ipc_endpoint_addr) = ipc_endpoint.get() {
+            if let Some(ipc_endpoint_addr) = ipc_endpoint_rx.get().await {
                 let url = {
-                    let mut url = Url::parse(&format!("http://{}", *ipc_endpoint_addr))
+                    let mut url = Url::parse(&format!("http://{}", ipc_endpoint_addr))
                         .expect("Failed to parse URL");
                     url.set_path(&format!(
                         "/ipc/namespaces/{}/gateways/{}/events",
@@ -105,7 +104,7 @@ pub fn poll_gateway_events(
                         _ = ctrl_c() => {
                             break 'primary; // Exit the loop, shutting down the watcher
                         },
-                        _ = ipc_endpoint.changed() => {
+                        _ = ipc_endpoint_rx.changed() => {
                             break 'events; // Restart the watcher if the socket address changes
                         },
                         event = event_stream.try_next() => {
@@ -136,7 +135,7 @@ pub fn poll_gateway_events(
                     }
                 }
             } else {
-                continue_on!(ipc_endpoint.changed());
+                continue_on!(ipc_endpoint_rx.changed());
             }
         }
     });

@@ -1,9 +1,9 @@
 use http::{HeaderName, HeaderValue};
 use ipnet::IpNet;
-use kubera_core::config::gateway::types::net::{ClientAddrsSource, ProxyHeaders};
 use kubera_core::config::gateway::types::GatewayConfiguration;
+use kubera_core::config::gateway::types::net::{ClientAddrsSource, ProxyHeaders};
 use kubera_core::continue_on;
-use kubera_core::sync::signal::{signal, Receiver};
+use kubera_core::sync::signal::{Receiver, signal};
 use pingora::proxy::Session;
 use std::net::IpAddr;
 use std::str::FromStr;
@@ -23,7 +23,7 @@ pub fn client_addr_filter(
 
     join_set.spawn(async move {
         loop {
-            if let Some(gateway_configuration) = gateway_configuration_rx.get()
+            if let Some(gateway_configuration) = gateway_configuration_rx.get().await
                 && let Some(client_addrs) = gateway_configuration.client_addrs()
             {
                 let filter = match client_addrs.source() {
@@ -87,7 +87,7 @@ pub fn client_addr_filter(
                     }
                 };
 
-                tx.replace(filter);
+                tx.replace(filter).await;
             }
 
             continue_on!(gateway_configuration_rx.changed());

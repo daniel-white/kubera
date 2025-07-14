@@ -38,7 +38,7 @@ pub fn start_kubernetes_client(task_builder: &TaskBuilder) -> Receiver<KubeClien
             match Client::try_default().await {
                 Ok(client) => {
                     let client_cell = KubeClientCell(client);
-                    tx.set(client_cell);
+                    tx.set(client_cell).await;
                     let tx = Box::new(tx);
                     Box::leak(tx); // Leak the sender to keep it alive
                 }

@@ -3,7 +3,7 @@ use kubera_core::config::gateway::serde::read_configuration;
 use kubera_core::config::gateway::types::GatewayConfiguration;
 use kubera_core::continue_after;
 use kubera_core::io::file_watcher::spawn_file_watcher;
-use kubera_core::sync::signal::{signal, Receiver};
+use kubera_core::sync::signal::{Receiver, signal};
 use std::io::Cursor;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
@@ -61,7 +61,7 @@ pub fn watch_configuration_file(
             if let Ok(config_reader) = read(&params.file_path).await.map(Cursor::new) {
                 if let Ok(config) = read_configuration(config_reader) {
                     debug!("Configuration file read");
-                    tx.set((serial, config));
+                    tx.set((serial, config)).await;
                 }
             }
 

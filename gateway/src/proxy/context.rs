@@ -28,16 +28,16 @@ impl Context {
         }
     }
 
-    pub fn set_route(&self, parts: &Parts) -> &MatchRouteResult {
-        self.route
-            .get_or_init(|| match self.router_rx.get() {
-                None => MatchRouteResult::MissingConfiguration,
-                Some(router) => match router.match_route(parts) {
-                    Some((route, rule)) => MatchRouteResult::Found(route, rule),
-                    _ => MatchRouteResult::NotFound,
-                },
-            })
-    }
+    // pub async fn set_route(&self, parts: &Parts) -> &MatchRouteResult {
+    //     self.route
+    //         .get_or_init(|| match self.router_rx.get() {
+    //             None => MatchRouteResult::MissingConfiguration,
+    //             Some(router) => match router.match_route(parts) {
+    //                 Some((route, rule)) => MatchRouteResult::Found(route, rule),
+    //                 _ => MatchRouteResult::NotFound,
+    //             },
+    //         })
+    // }
 
     pub fn route(&self) -> Option<&MatchRouteResult> {
         self.route.get()

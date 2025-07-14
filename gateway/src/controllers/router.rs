@@ -21,9 +21,9 @@ pub fn synthesize_http_router(
     join_set.spawn(async move {
         let current_location = Arc::new(current_location);
         loop {
-            if let Some(gateway_configuration) = gateway_configuration_rx.get() {
+            if let Some(gateway_configuration) = gateway_configuration_rx.get().await {
                 let router = build_router(&gateway_configuration, current_location.clone());
-                tx.set(router);
+                tx.set(router).await;
             }
 
             continue_on!(gateway_configuration_rx.changed())

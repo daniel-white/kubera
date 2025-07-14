@@ -22,7 +22,7 @@ impl HealthIndicator for KubernetesApiHealthIndicator {
     }
 
     async fn details(&self) -> HealthDetail {
-        match self.0.get() {
+        match self.0.get().await {
             Some(kube_client) => {
                 let api = Api::<GatewayClassParameters>::all(kube_client.deref().clone().into());
                 match api.list(&ListParams::default()).await {

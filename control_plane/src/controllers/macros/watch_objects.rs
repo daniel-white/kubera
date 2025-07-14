@@ -4,11 +4,12 @@ macro_rules! watch_objects {
         #[allow(unused_imports)]
         use kube::runtime::watcher::Config;
 
-        watch_objects!($options, $task_builder, $object_type, $kube_client_rx, Config::default())
+        watch_objects!($options, $task_builder, $object_type, $kube_client_rx, None)
     }};
-    ($options:ident, $task_builder:ident, $object_type:ty, $kube_client_rx:ident, $config:expr) => {{
+    ($options:ident, $task_builder:ident, $object_type:ty, $kube_client_rx:ident, $labels:expr) => {{
         use futures::StreamExt;
         use kube::Api;
+        use kube::api::ListParams;
         use kube::runtime::Controller;
         use kube::runtime::controller::Action;
         use kubera_core::sync::signal::{Sender, signal};
@@ -17,7 +18,7 @@ macro_rules! watch_objects {
         use std::sync::Arc;
         use thiserror::Error;
         use tracing::instrument;
-        use tracing::{debug, warn};
+        use tracing::{debug, info, warn};
         use kubera_core::continue_on;
         use tokio::select;
         use tokio::signal::ctrl_c;
@@ -38,8 +39,8 @@ macro_rules! watch_objects {
             object: Arc<$object_type>,
             ctx: Arc<ControllerContext>,
         ) -> Result<Action, ControllerError> {
-            let mut objects = match ctx.tx.get() {
-                Some(objects) => (*objects).clone(),
+            let mut objects = match ctx.tx.get().await {
+                Some(objects) => objects,
                 None => Objects::default()
             };
 
@@ -69,7 +70,7 @@ macro_rules! watch_objects {
                 }
             }
 
-            ctx.tx.set(objects);
+            ctx.tx.set(objects).await;
 
             Ok(Action::requeue(ctx.options.controller_requeue_duration()))
         }
@@ -84,7 +85,7 @@ macro_rules! watch_objects {
 
         let options: Arc<Options> = $options.clone();
         let kube_client_rx: Receiver<KubeClientCell> = $kube_client_rx.clone();
-        let config: Config = $config.clone();
+        let labels: Option<&'static str> = $labels;
         let task_builder: &TaskBuilder = $task_builder;
         let (tx, rx) = signal();
 
@@ -99,15 +100,30 @@ macro_rules! watch_objects {
             {
                 let controller_context = Arc::new(ControllerContext{
                     options,
-                    tx,
+                    tx: tx.clone(),
                 });
+                let mut config = Config::default();
+                let mut list_params = ListParams::default();
+                if let Some(labels) = labels {
+                    config = config.labels(labels);
+                    list_params = list_params.labels(labels);
+                }
                 loop {
-                    if let Some(kube_client) = kube_client_rx.get() {
+                    if let Some(kube_client) = kube_client_rx.get().await {
                         debug!(
                             "Starting controller for watching {} objects",
                             stringify!($object_type)
                         );
                         let object_api = Api::<$object_type>::all(kube_client.clone().into());
+
+                        // Our reconcile wont get called if there are not objects and the signal won't get set.
+                        // So if we have 0 items, from querying the API, we set the signal to an empty collection.
+                        // PREVENT DELETING OF UNTRACKED OBJECTS!
+                        let current_objects = object_api.list_metadata(&list_params.clone()).await;
+                        if let Ok(current_objects) = current_objects && current_objects.items.is_empty() {
+                            info!("No {} objects found, setting empty collection", stringify!($object_type));
+                            tx.set(Objects::default()).await;
+                        }
 
                         let controller = Controller::new(object_api, config.clone())
                             .shutdown_on_signal()

@@ -63,8 +63,8 @@ fn generate_gateway_deployments(
         .new_task(stringify!(generate_gateway_deployments))
         .spawn(async move {
             loop {
-                if let Some(gateway_instances) = gateway_instances_rx.get()
-                    && let Some(current_service_refs) = current_service_refs_rx.get()
+                if let Some(gateway_instances) = gateway_instances_rx.get().await
+                    && let Some(current_service_refs) = current_service_refs_rx.get().await
                 {
                     let desired_deployments: Vec<_> = gateway_instances
                         .iter()

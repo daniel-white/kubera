@@ -14,6 +14,7 @@ use kubera_core::task::Builder as TaskBuilder;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use tokio::sync::broadcast::Sender;
+use tracing::debug;
 
 const TEMPLATE: &str = include_str!("./templates/gateway_service.kubernetes-helm-yaml");
 
@@ -52,7 +53,7 @@ fn generate_gateway_services(
     options: Arc<Options>,
     task_builder: &TaskBuilder,
     tx: Sender<SyncObjectAction<TemplateValues, Service>>,
-    current_service_refs_rx: Receiver<HashSet<ObjectRef>>,
+    service_refs_rx: Receiver<HashSet<ObjectRef>>,
     gateway_instances_rx: &Receiver<HashMap<ObjectRef, GatewayInstanceConfiguration>>,
 ) {
     let gateway_instances_rx = gateway_instances_rx.clone();
@@ -61,61 +62,68 @@ fn generate_gateway_services(
         .new_task(stringify!(generate_gateway_services))
         .spawn(async move {
             loop {
-                if let Some(gateway_instances) = gateway_instances_rx.get()
-                    && let Some(current_service_refs) = current_service_refs_rx.get()
-                {
-                    let desired_services: Vec<_> = gateway_instances
-                        .iter()
-                        .map(|(gateway_ref, instance)| {
-                            let service_ref = ObjectRef::new_builder()
-                                .of_kind::<Service>()
-                                .namespace(gateway_ref.namespace().clone())
-                                .name(gateway_ref.name())
-                                .build()
-                                .expect("Failed to build ObjectRef for Service");
+                match (
+                    gateway_instances_rx.get().await,
+                    service_refs_rx.get().await,
+                ) {
+                    (Some(gateway_instances), Some(service_refs)) => {
+                        let desired_services: Vec<_> = gateway_instances
+                            .iter()
+                            .map(|(gateway_ref, instance)| {
+                                let service_ref = ObjectRef::new_builder()
+                                    .of_kind::<Service>()
+                                    .namespace(gateway_ref.namespace().clone())
+                                    .name(gateway_ref.name())
+                                    .build()
+                                    .expect("Failed to build ObjectRef for Service");
 
-                            let template_values = TemplateValuesBuilder::default()
-                                .gateway_name(gateway_ref.name())
-                                .build()
-                                .expect("Failed to build TemplateValues");
+                                let template_values = TemplateValuesBuilder::default()
+                                    .gateway_name(gateway_ref.name())
+                                    .build()
+                                    .expect("Failed to build TemplateValues");
 
-                            (
+                                (
+                                    service_ref,
+                                    gateway_ref,
+                                    template_values,
+                                    instance.service_overrides(),
+                                )
+                            })
+                            .collect();
+
+                        let desired_service_refs: HashSet<_> = desired_services
+                            .iter()
+                            .map(|(ref_, _, _, _)| ref_.clone())
+                            .collect();
+
+                        let deleted_refs = service_refs.difference(&desired_service_refs);
+                        for deleted_ref in deleted_refs {
+                            tx.send(SyncObjectAction::Delete(deleted_ref.clone()))
+                                .expect("Failed to send delete action");
+                        }
+
+                        for (service_ref, gateway_ref, template_values, service_overrides) in
+                            desired_services
+                        {
+                            tx.send(SyncObjectAction::Upsert(
                                 service_ref,
-                                gateway_ref,
+                                gateway_ref.clone(),
                                 template_values,
-                                instance.service_overrides(),
-                            )
-                        })
-                        .collect();
-
-                    let desired_service_refs: HashSet<_> = desired_services
-                        .iter()
-                        .map(|(ref_, _, _, _)| ref_.clone())
-                        .collect();
-
-                    let deleted_refs = current_service_refs.difference(&desired_service_refs);
-                    for deleted_ref in deleted_refs {
-                        tx.send(SyncObjectAction::Delete(deleted_ref.clone()))
-                            .expect("Failed to send delete action");
+                                Some(service_overrides.clone()),
+                            ))
+                            .expect("Failed to send upsert action");
+                        }
                     }
-
-                    for (service_ref, gateway_ref, template_values, service_overrides) in
-                        desired_services
-                    {
-                        tx.send(SyncObjectAction::Upsert(
-                            service_ref,
-                            gateway_ref.clone(),
-                            template_values,
-                            Some(service_overrides.clone()),
-                        ))
-                        .expect("Failed to send upsert action");
+                    (None, _) => debug!("No gateway instances found, skipping generating services"),
+                    (_, None) => {
+                        debug!("No service references found, skipping generating services")
                     }
                 }
 
                 continue_after!(
                     options.auto_cycle_duration(),
                     gateway_instances_rx.changed(),
-                    current_service_refs_rx.changed()
+                    service_refs_rx.changed()
                 );
             }
         });

@@ -4,7 +4,7 @@ use itertools::Itertools;
 use kubera_api::constants::GATEWAY_CLASS_CONTROLLER_NAME;
 use kubera_api::v1alpha1::GatewayClassParameters;
 use kubera_core::continue_on;
-use kubera_core::sync::signal::{signal, Receiver};
+use kubera_core::sync::signal::{Receiver, signal};
 use kubera_core::task::Builder as TaskBuilder;
 use std::sync::Arc;
 use tracing::{debug, info, warn};
@@ -20,7 +20,7 @@ pub fn filter_gateway_classes(
         .new_task(stringify!(filter_gateway_classes))
         .spawn(async move {
             loop {
-                if let Some(gateway_classes) = gateway_classes_rx.get() {
+                if let Some(gateway_classes) = gateway_classes_rx.get().await {
                     debug!("Filtering GatewayClasses");
 
                     let gateway_class = gateway_classes
@@ -45,7 +45,7 @@ pub fn filter_gateway_classes(
                     match ObjectRef::new_builder().for_object(&gateway_class).build() {
                         Ok(gateway_class_ref) => {
                             info!("Found GatewayClass: object.ref={}", gateway_class_ref);
-                            tx.set((gateway_class_ref, gateway_class));
+                            tx.set((gateway_class_ref, gateway_class)).await;
                         }
                         Err(e) => {
                             warn!("Error filtering GatewayClass creating ref: {}", e);
@@ -65,7 +65,7 @@ pub fn filter_gateway_class_parameters(
     task_builder: &TaskBuilder,
     gateway_class_rx: &Receiver<(ObjectRef, GatewayClass)>,
     gateway_class_parameters_rx: &Receiver<Objects<GatewayClassParameters>>,
-) -> Receiver<Arc<GatewayClassParameters>> {
+) -> Receiver<Option<Arc<GatewayClassParameters>>> {
     let (tx, rx) = signal();
     let gateway_class_rx = gateway_class_rx.clone();
     let gateway_class_parameters_rx = gateway_class_parameters_rx.clone();
@@ -74,31 +74,43 @@ pub fn filter_gateway_class_parameters(
         .new_task(stringify!(filter_gateway_class_parameters))
         .spawn(async move {
             loop {
-                if let Some((_, gateway_class)) = &gateway_class_rx.get().as_deref()
-                    && let Some(parameters_ref) = &gateway_class.spec.parameters_ref
-                    && let Some(gateway_class_parameters) = gateway_class_parameters_rx.get()
-                {
-                    let parameters_ref = match ObjectRef::new_builder()
-                        .group(Some(parameters_ref.group.clone()))
-                        .kind(&parameters_ref.kind)
-                        .namespace(parameters_ref.namespace.clone())
-                        .name(&parameters_ref.name)
-                        .version("v1alpha1")
-                        .build()
-                    {
-                        Ok(parameters_ref) => parameters_ref,
-                        Err(e) => {
-                            warn!("Error creating GatewayClassParameters reference: {}", e);
-                            tx.replace(None);
-                            continue_on!(
-                                gateway_class_rx.changed(),
-                                gateway_class_parameters_rx.changed()
-                            );
-                        }
-                    };
-                    let parameters = gateway_class_parameters.get_by_ref(&parameters_ref);
+                match  ( gateway_class_rx.get().await, gateway_class_parameters_rx.get().await) {
+                    (Some((gateway_class_ref, gateway_class)), Some(gateway_class_parameters)) => {
+                        info!("Filtering GatewayClassParameters for GatewayClass: {}", gateway_class_ref);
 
-                    tx.replace(parameters);
+                        if  let Some(parameters_ref) = &gateway_class.spec.parameters_ref {
+                            let parameters_ref = match ObjectRef::new_builder()
+                                .group(Some(parameters_ref.group.clone()))
+                                .kind(&parameters_ref.kind)
+                                .namespace(parameters_ref.namespace.clone())
+                                .name(&parameters_ref.name)
+                                .version("v1alpha1")
+                                .build()
+                            {
+                                Ok(parameters_ref) => parameters_ref,
+                                Err(e) => {
+                                    warn!("Error creating GatewayClassParameters reference: {}", e);
+                                    tx.clear().await;
+                                    continue_on!(
+                                    gateway_class_rx.changed(),
+                                    gateway_class_parameters_rx.changed()
+                                );
+                                }
+                            };
+                            let parameters = gateway_class_parameters.get_by_ref(&parameters_ref);
+
+                            tx.set(parameters).await;
+                        } else {
+                            info!("GatewayClass {} does not have parameters_ref set", gateway_class_ref);
+                            tx.set(None).await;
+                        }
+                    }
+                    (None, _) => {
+                        info!("No GatewayClass found, skipping GatewayClassParameters filtering");
+                    }
+                    (_, None) => {
+                        info!("No GatewayClassParameters found, skipping GatewayClassParameters filtering");
+                    }
                 }
 
                 continue_on!(

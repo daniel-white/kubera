@@ -33,14 +33,14 @@ macro_rules! sync_objects {
                 task_builder,
                 $object_type,
                 kube_client_rx,
-                Config::default().labels(MANAGED_BY_LABEL_QUERY)
+                Some(MANAGED_BY_LABEL_QUERY)
             );
 
             task_builder
                 .new_task(concat!("current_object_refs_", stringify!($object_type)))
                 .spawn(async move {
                     loop {
-                        if let Some(current_objects) = current_objects_rx.get() {
+                        if let Some(current_objects) = current_objects_rx.get().await {
                             debug!("Reconciling {} object refs", stringify!($object_type));
 
                             let object_refs: HashSet<_> = current_objects
@@ -53,7 +53,7 @@ macro_rules! sync_objects {
                                 })
                                 .collect();
 
-                            tx.set(object_refs);
+                            tx.set(object_refs).await;
                         } else {
                             debug!("Signal for {} hasn't signaled yet for reconciling object refs", stringify!($object_type));
                         }
@@ -170,30 +170,36 @@ macro_rules! sync_objects {
             .new_task(concat!("current_objects_", stringify!($object_type)))
             .spawn(async move {
                 loop {
-                    if let Some(kube_client) = kube_client_rx.get()
-                        && let Some(instance_role) = instance_role_rx.get()
-                    {
-                        let _ = select! {
-                            action = rx.recv() => match action {
-                                Ok(action) if instance_role.is_primary() => apply_action(kube_client.clone().into(), &template, action).await,
-                                Ok(_) => debug!("Skipping action for {} objects, not primary instance", stringify!($object_type)),
-                                Err(RecvError::Lagged(_)) => {
-                                    debug!("Queue lagged for {} objects", stringify!($object_type));
+                    match (kube_client_rx.get().await, instance_role_rx.get().await) {
+                        (Some(kube_client), Some(instance_role)) => {
+                            let _ = select! {
+                                action = rx.recv() => match action {
+                                    Ok(action) if instance_role.is_primary() => apply_action(kube_client.clone().into(), &template, action).await,
+                                    Ok(_) => debug!("Skipping action for {} objects, not primary instance", stringify!($object_type)),
+                                    Err(RecvError::Lagged(_)) => {
+                                        debug!("Queue lagged for {} objects", stringify!($object_type));
+                                        continue;
+                                    }
+                                    Err(err) => {
+                                        debug!("Queue closed, shutting down controller for {} objects: {}", stringify!($object_type), err);
+                                        break;
+                                    }
+                                },
+                                _ = instance_role_rx.changed() => {
                                     continue;
-                                }
-                                Err(err) => {
-                                    debug!("Queue closed, shutting down controller for {} objects: {}", stringify!($object_type), err);
+                                },
+                                _ = ctrl_c() => {
+                                    debug!("Received Ctrl+C, shutting down controller for {} objects", stringify!($object_type));
                                     break;
                                 }
-                            },
-                            _ = instance_role_rx.changed() => {
-                                continue;
-                            },
-                            _ = ctrl_c() => {
-                                debug!("Received Ctrl+C, shutting down controller for {} objects", stringify!($object_type));
-                                break;
-                            }
-                        };
+                            };
+                        }
+                        (None, _) => {
+                            debug!("Kube client is not available, unable to apply changes to {} objects", stringify!($object_type));
+                        }
+                        (_, None) => {
+                            debug!("Instance role is not available, unable to apply changes to {} objects", stringify!($object_type));
+                        }
                     }
 
                     continue_on!(kube_client_rx.changed(), instance_role_rx.changed());

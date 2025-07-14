@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 use tokio::task::JoinSet;
-use tracing::{debug_span, error, Instrument};
+use tracing::{Instrument, debug_span, error};
 
 type MutableJoinSet = Rc<RefCell<JoinSet<()>>>;
 

@@ -21,8 +21,8 @@ pub fn filter_http_routes(
         .spawn(async move {
             loop {
                 warn!("Waiting for HTTPRoute updates - continue please");
-                if let Some(gateways) = gateways_rx.get()
-                    && let Some(http_routes) = http_routes_rx.get()
+                if let Some(gateways) = gateways_rx.get().await
+                    && let Some(http_routes) = http_routes_rx.get().await
                 {
                     let http_routes = http_routes
                     .iter()
@@ -70,7 +70,7 @@ pub fn filter_http_routes(
                     })
                     .collect();
 
-                    tx.set(http_routes);
+                    tx.set(http_routes).await;
                 }
                 warn!("Waiting for HTTPRoute updates");
                 continue_on!(gateways_rx.changed(), http_routes_rx.changed());

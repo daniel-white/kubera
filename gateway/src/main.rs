@@ -4,12 +4,12 @@ mod proxy;
 mod util;
 
 use crate::cli::Cli;
-use crate::controllers::config::fs::{watch_configuration_file, WatchConfigurationFileParams};
+use crate::controllers::config::fs::{WatchConfigurationFileParams, watch_configuration_file};
 use crate::controllers::config::ipc::{
-    fetch_configuration, watch_ipc_endpoint, FetchConfigurationParams,
+    FetchConfigurationParams, fetch_configuration, watch_ipc_endpoint,
 };
-use crate::controllers::config::selector::{select_configuration, SelectorParams};
-use crate::controllers::ipc_events::{poll_gateway_events, PollGatewayEventsParams};
+use crate::controllers::config::selector::{SelectorParams, select_configuration};
+use crate::controllers::ipc_events::{PollGatewayEventsParams, poll_gateway_events};
 use crate::controllers::router::synthesize_http_router;
 use clap::Parser;
 use kubera_core::crypto::init_crypto;
@@ -18,9 +18,9 @@ use kubera_core::sync::signal::signal;
 use pingora::prelude::*;
 use pingora::server::Server;
 use pingora::services::listening::Service;
+use proxy::ProxyBuilder;
 use proxy::filters::client_addrs::client_addr_filter;
 use proxy::router::topology::TopologyLocation;
-use proxy::ProxyBuilder;
 use tokio::task::JoinSet;
 
 #[tokio::main]
@@ -86,7 +86,8 @@ async fn main() {
 
     watch_ipc_endpoint(&mut join_set, &gateway_configuration_rx, ipc_endpoint_tx);
 
-    let router_rx = synthesize_http_router(&mut join_set, &gateway_configuration_rx, current_location);
+    let router_rx =
+        synthesize_http_router(&mut join_set, &gateway_configuration_rx, current_location);
     let client_addr_filter_rx = client_addr_filter(&mut join_set, &gateway_configuration_rx);
 
     join_set.spawn_blocking(move || {
