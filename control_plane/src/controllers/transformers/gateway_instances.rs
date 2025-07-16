@@ -1,3 +1,4 @@
+use crate::controllers::filters::GatewayClassParametersReferenceState;
 use crate::kubernetes::objects::{ObjectRef, Objects};
 use gateway_api::apis::standard::gateways::Gateway;
 use getset::Getters;
@@ -58,7 +59,7 @@ pub struct GatewayInstanceConfiguration {
 pub fn collect_gateway_instances(
     task_builder: &TaskBuilder,
     gateways_rx: &Receiver<Objects<Gateway>>,
-    gateway_class_parameters_rx: &Receiver<Option<Arc<GatewayClassParameters>>>,
+    gateway_class_parameters_rx: &Receiver<GatewayClassParametersReferenceState>,
     gateway_parameters_rx: &Receiver<HashMap<ObjectRef, Arc<GatewayParameters>>>,
 ) -> Receiver<HashMap<ObjectRef, GatewayInstanceConfiguration>> {
     let (tx, rx) = signal();
@@ -78,26 +79,30 @@ pub fn collect_gateway_instances(
                 ) {
                     (Some(gateways), Some(gateway_class_parameters), Some(gateway_parameters)) => {
                         info!("Collecting gateway instances");
+                        let gateway_class_parameters: Option<Arc<GatewayClassParameters>> = gateway_class_parameters.into();
+                        let gateway_class_parameters = gateway_class_parameters.as_deref();
+
                         let instances = gateways
                             .iter()
                             .map(|(gateway_ref, _, gateway)| {
                                 info!("Processing gateway instance: {}", gateway_ref);
                                 let gateway_parameters = gateway_parameters.get(&gateway_ref).cloned();
+                                let gateway_parameters = gateway_parameters.as_deref();
                                 let (deployment_overrides, image_pull_policy) =
                                     merge_deployment_overrides(
                                         &gateway,
-                                        gateway_class_parameters.as_deref(),
-                                        gateway_parameters.as_deref(),
+                                        gateway_class_parameters,
+                                        gateway_parameters,
                                     );
                                 let service_overrides = merge_service_overrides(
                                     &gateway,
-                                    gateway_class_parameters.as_deref(),
-                                    gateway_parameters.as_deref(),
+                                    gateway_class_parameters,
+                                    gateway_parameters,
                                 );
                                 let configuration = merge_gateway_configuration(
                                     &gateway,
-                                    gateway_class_parameters.as_deref(),
-                                    gateway_parameters.as_deref(),
+                                    gateway_class_parameters,
+                                    gateway_parameters,
                                 );
                                 (
                                     gateway_ref,
@@ -115,13 +120,13 @@ pub fn collect_gateway_instances(
                         tx.set(instances).await;
                     }
                     (None, _, _) => {
-                        info!("No Gateways found, skipping collecting gateway instances, waiting for updates");
+                        info!("Gateways not ready, skipping collecting gateway instances, waiting for updates");
                     }
                     (_, None, _) => {
-                        info!("No GatewayClassParameters found, skipping collecting gateway instances, waiting for updates");
+                        info!("GatewayClassParameters not ready, skipping collecting gateway instances, waiting for updates");
                     }
                     (_, _, None) => {
-                        info!("No GatewayParameters found, skipping collecting gateway instances, waiting for updates");
+                        info!("GatewayClassParameters not ready, skipping collecting gateway instances, waiting for updates");
                     }
                 }
 

@@ -15,3 +15,6 @@ rules:
   - apiGroups: [ "", "gateway.networking.k8s.io", "discovery.k8s.io", "kubera.whitefamily.in" ]
     resources: [ "*" ]
     verbs: [ "get", "watch", "list" ]
+  - apiGroups: [ "gateway.networking.k8s.io" ]
+    resources: [ "gatewayclasses/status", "gateways/status", "httproutes/status", "tcproutes/status", "udproutes/status" ]
+    verbs: [ "get", "update", "patch" ]
