@@ -1,7 +1,7 @@
 use crate::controllers::instances::InstanceRole;
 use crate::controllers::transformers::GatewayInstanceConfiguration;
-use crate::kubernetes::KubeClientCell;
 use crate::kubernetes::objects::{ObjectRef, SyncObjectAction};
+use crate::kubernetes::KubeClientCell;
 use crate::options::Options;
 use crate::{sync_objects, watch_objects};
 use derive_builder::Builder;
@@ -11,6 +11,7 @@ use kube::runtime::watcher::Config;
 use kubera_core::continue_after;
 use kubera_core::sync::signal::Receiver;
 use kubera_core::task::Builder as TaskBuilder;
+use kubera_macros::await_ready;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use tokio::sync::broadcast::Sender;
@@ -63,61 +64,63 @@ fn generate_gateway_deployments(
         .new_task(stringify!(generate_gateway_deployments))
         .spawn(async move {
             loop {
-                if let Some(gateway_instances) = gateway_instances_rx.get().await
-                    && let Some(current_service_refs) = current_service_refs_rx.get().await
-                {
-                    let desired_deployments: Vec<_> = gateway_instances
-                        .iter()
-                        .map(|(gateway_ref, instance)| {
-                            let deployment_ref = ObjectRef::new_builder()
-                                .of_kind::<Deployment>()
-                                .namespace(gateway_ref.namespace().clone())
-                                .name(gateway_ref.name())
-                                .build()
-                                .expect("Failed to build ObjectRef for Deployment");
+                await_ready!(gateway_instances_rx, current_service_refs_rx)
+                    .and_then(async |gateway_instances, current_service_refs| {
+                        let desired_deployments: Vec<_> = gateway_instances
+                            .iter()
+                            .map(|(gateway_ref, instance)| {
+                                let deployment_ref = ObjectRef::new_builder()
+                                    .of_kind::<Deployment>()
+                                    .namespace(gateway_ref.namespace().clone())
+                                    .name(gateway_ref.name())
+                                    .build()
+                                    .expect("Failed to build ObjectRef for Deployment");
 
-                            let image_pull_policy: &'static str =
-                                instance.image_pull_policy().into();
+                                let image_pull_policy: &'static str =
+                                    instance.image_pull_policy().into();
 
-                            let template_values = TemplateValuesBuilder::default()
-                                .gateway_name(gateway_ref.name())
-                                .configmap_name(format!("{}-config", gateway_ref.name()))
-                                .image_pull_policy(image_pull_policy)
-                                .build()
-                                .expect("Failed to build TemplateValues");
+                                let template_values = TemplateValuesBuilder::default()
+                                    .gateway_name(gateway_ref.name())
+                                    .configmap_name(format!("{}-config", gateway_ref.name()))
+                                    .image_pull_policy(image_pull_policy)
+                                    .build()
+                                    .expect("Failed to build TemplateValues");
 
-                            (
+                                (
+                                    deployment_ref,
+                                    gateway_ref,
+                                    template_values,
+                                    instance.deployment_overrides(),
+                                )
+                            })
+                            .collect();
+
+                        let desired_deployments_ref: HashSet<_> = desired_deployments
+                            .iter()
+                            .map(|(ref_, _, _, _)| ref_.clone())
+                            .collect();
+
+                        let deleted_refs =
+                            current_service_refs.difference(&desired_deployments_ref);
+                        for deleted_ref in deleted_refs {
+                            tx.send(SyncObjectAction::Delete(deleted_ref.clone()))
+                                .expect("Failed to send delete action");
+                        }
+
+                        for (deployment_ref, gateway_ref, template_values, deployment_overrides) in
+                            desired_deployments
+                        {
+                            tx.send(SyncObjectAction::Upsert(
                                 deployment_ref,
-                                gateway_ref,
+                                gateway_ref.clone(),
                                 template_values,
-                                instance.deployment_overrides(),
-                            )
-                        })
-                        .collect();
-
-                    let desired_deployments_ref: HashSet<_> = desired_deployments
-                        .iter()
-                        .map(|(ref_, _, _, _)| ref_.clone())
-                        .collect();
-
-                    let deleted_refs = current_service_refs.difference(&desired_deployments_ref);
-                    for deleted_ref in deleted_refs {
-                        tx.send(SyncObjectAction::Delete(deleted_ref.clone()))
-                            .expect("Failed to send delete action");
-                    }
-
-                    for (deployment_ref, gateway_ref, template_values, deployment_overrides) in
-                        desired_deployments
-                    {
-                        tx.send(SyncObjectAction::Upsert(
-                            deployment_ref,
-                            gateway_ref.clone(),
-                            template_values,
-                            Some(deployment_overrides.clone()),
-                        ))
-                        .expect("Failed to send upsert action");
-                    }
-                }
+                                Some(deployment_overrides.clone()),
+                            ))
+                            .expect("Failed to send upsert action");
+                        }
+                    })
+                    .run()
+                    .await;
 
                 continue_after!(
                     options.auto_cycle_duration(),

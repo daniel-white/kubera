@@ -3,8 +3,9 @@ use gateway_api::apis::standard::gateways::Gateway;
 use gateway_api::apis::standard::httproutes::HTTPRoute;
 use itertools::Itertools;
 use kubera_core::continue_on;
-use kubera_core::sync::signal::{Receiver, signal};
+use kubera_core::sync::signal::{signal, Receiver};
 use kubera_core::task::Builder as TaskBuilder;
+use kubera_macros::await_ready;
 use tracing::{debug, debug_span, info, warn};
 
 pub fn filter_http_routes(
@@ -20,59 +21,59 @@ pub fn filter_http_routes(
         .new_task(stringify!(filter_http_routes))
         .spawn(async move {
             loop {
-                warn!("Waiting for HTTPRoute updates - continue please");
-                if let Some(gateways) = gateways_rx.get().await
-                    && let Some(http_routes) = http_routes_rx.get().await
-                {
-                    let http_routes = http_routes
-                    .iter()
-                    .filter(|(http_route_ref, _, http_route)| {
-                        let result = debug_span!("inner").in_scope(|| { http_route
-                            .spec
-                            .parent_refs
+                await_ready!(gateways_rx, http_routes_rx)
+                    .and_then(async |gateways, http_routes| {
+                        let http_routes = http_routes
                             .iter()
-                            .flat_map(|parent_ref| parent_ref.iter())
-                            .filter_map(|parent_ref| {
-                                ObjectRef::new_builder()
-                                    .of_kind::<Gateway>() // Assuming v1 for simplicity, adjust as needed
-                                    .namespace(
-                                        parent_ref
-                                            .namespace
-                                            .clone()
-                                            .or_else(|| http_route_ref.namespace().clone()),
-                                    )
-                                    .name(parent_ref.name.clone())
-                                    .build()
-                                    .inspect_err(|err| {
-                                        warn!(
-                                            "Error creating Gateway reference for HTTPRoute {}: {}",
-                                            http_route_ref, err
-                                        );
+                            .filter(|(http_route_ref, _, http_route)| {
+                                let result = debug_span!("inner").in_scope(|| { http_route
+                                    .spec
+                                    .parent_refs
+                                    .iter()
+                                    .flat_map(|parent_ref| parent_ref.iter())
+                                    .filter_map(|parent_ref| {
+                                        ObjectRef::new_builder()
+                                            .of_kind::<Gateway>() // Assuming v1 for simplicity, adjust as needed
+                                            .namespace(
+                                                parent_ref
+                                                    .namespace
+                                                    .clone()
+                                                    .or_else(|| http_route_ref.namespace().clone()),
+                                            )
+                                            .name(parent_ref.name.clone())
+                                            .build()
+                                            .inspect_err(|err| {
+                                                warn!(
+                                                    "Error creating Gateway reference for HTTPRoute {}: {}",
+                                                    http_route_ref, err
+                                                );
+                                            })
+                                            .ok()
                                     })
-                                    .ok()
+                                    .unique()
+                                    .any(|r| gateways.contains_by_ref(&r)) });
+
+                                if result {
+                                    info!(
+                                        "HTTPRoute object.ref={} matches an active Kubera Gateway",
+                                        http_route_ref
+                                    );
+                                } else {
+                                    debug!(
+                                        "HTTPRoute object.ref={} does not match any active Kubera Gateway",
+                                        http_route_ref
+                                    );
+                                }
+
+                                result
                             })
-                            .unique()
-                            .any(|r| gateways.contains_by_ref(&r)) });
+                            .collect();
 
-                        if result {
-                            info!(
-                                "HTTPRoute object.ref={} matches an active Kubera Gateway",
-                                http_route_ref
-                            );
-                        } else {
-                            debug!(
-                                "HTTPRoute object.ref={} does not match any active Kubera Gateway",
-                                http_route_ref
-                            );
-                        }
-
-                        result
+                        tx.set(http_routes).await;
                     })
-                    .collect();
+                    .run()
+                    .await;
 
-                    tx.set(http_routes).await;
-                }
-                warn!("Waiting for HTTPRoute updates");
                 continue_on!(gateways_rx.changed(), http_routes_rx.changed());
             }
         });

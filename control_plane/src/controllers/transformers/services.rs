@@ -6,8 +6,9 @@ use k8s_openapi::api::core::v1::Service;
 use k8s_openapi::api::discovery::v1::EndpointSlice;
 use kubera_core::continue_on;
 use kubera_core::net::Port;
-use kubera_core::sync::signal::{Receiver, signal};
+use kubera_core::sync::signal::{signal, Receiver};
 use kubera_core::task::Builder as TaskBuilder;
+use kubera_macros::await_ready;
 use std::collections::HashMap;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use tracing::debug;
@@ -61,38 +62,39 @@ pub fn collect_service_backends(
         .new_task(stringify!(collect_service_backends))
         .spawn(async move {
             loop {
-                if let Some(current_endpoint_slices) = endpoint_slices_rx.get().await
-                    && let Some(current_http_route_backends) = http_route_backends_rx.get().await
-                {
-                    let endpoint_slices_by_service: HashMap<_, _> = current_endpoint_slices
-                        .iter()
-                        .filter_map(|(_, _, endpoint_slice)| {
-                            let metadata = &endpoint_slice.metadata;
-                            let labels = metadata.labels.as_ref()?;
-                            labels
-                                .get("kubernetes.io/service-name")
-                                .map(|service_name| {
-                                    ObjectRef::new_builder()
-                                        .of_kind::<Service>()
-                                        .namespace(endpoint_slice.metadata.namespace.clone())
-                                        .name(service_name)
-                                        .build()
-                                        .expect("Failed to build ObjectRef for Service")
-                                })
-                                .map(|service_ref| (service_ref, endpoint_slice))
-                        })
-                        .filter_map(|(service_ref, endpoint_slice)| {
-                            current_http_route_backends.get(&service_ref).map(|h| {
-                                (
-                                    service_ref.clone(),
-                                    extract_backend(&service_ref, h, endpoint_slice.as_ref()),
-                                )
+                await_ready!(http_route_backends_rx, endpoint_slices_rx)
+                    .and_then(async |http_route_backends, endpoint_slices| {
+                        let endpoint_slices_by_service: HashMap<_, _> = endpoint_slices
+                            .iter()
+                            .filter_map(|(_, _, endpoint_slice)| {
+                                let metadata = &endpoint_slice.metadata;
+                                let labels = metadata.labels.as_ref()?;
+                                labels
+                                    .get("kubernetes.io/service-name")
+                                    .map(|service_name| {
+                                        ObjectRef::new_builder()
+                                            .of_kind::<Service>()
+                                            .namespace(endpoint_slice.metadata.namespace.clone())
+                                            .name(service_name)
+                                            .build()
+                                            .expect("Failed to build ObjectRef for Service")
+                                    })
+                                    .map(|service_ref| (service_ref, endpoint_slice))
                             })
-                        })
-                        .collect();
+                            .filter_map(|(service_ref, endpoint_slice)| {
+                                http_route_backends.get(&service_ref).map(|h| {
+                                    (
+                                        service_ref.clone(),
+                                        extract_backend(&service_ref, h, endpoint_slice.as_ref()),
+                                    )
+                                })
+                            })
+                            .collect();
 
-                    tx.set(endpoint_slices_by_service).await;
-                }
+                        tx.set(endpoint_slices_by_service).await;
+                    })
+                    .run()
+                    .await;
 
                 continue_on!(
                     http_route_backends_rx.changed(),

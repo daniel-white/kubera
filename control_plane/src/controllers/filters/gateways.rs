@@ -3,15 +3,16 @@ use gateway_api::apis::standard::gatewayclasses::GatewayClass;
 use gateway_api::apis::standard::gateways::Gateway;
 use kubera_api::v1alpha1::GatewayParameters;
 use kubera_core::continue_on;
-use kubera_core::sync::signal::{Receiver, signal};
+use kubera_core::sync::signal::{signal, Receiver};
 use kubera_core::task::Builder as TaskBuilder;
+use kubera_macros::await_ready;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tracing::{debug, info, warn};
 
 pub fn filter_gateways(
     task_builder: &TaskBuilder,
-    gateway_class_tx: &Receiver<(ObjectRef, GatewayClass)>,
+    gateway_class_tx: &Receiver<(ObjectRef, Arc<GatewayClass>)>,
     gateways_rx: &Receiver<Objects<Gateway>>,
 ) -> Receiver<Objects<Gateway>> {
     let (tx, rx) = signal();
@@ -22,9 +23,8 @@ pub fn filter_gateways(
         .new_task(stringify!(filter_gateways))
         .spawn(async move {
             loop {
-                match  (gateway_class_rx.get().await, gateways_rx.get().await)
-                {
-                    (Some((gateway_class_ref, _)), Some(gateways)) => {
+                await_ready!(gateway_class_rx, gateways_rx)
+                    .and_then(async |(gateway_class_ref, _), gateways| {
                         debug!("Filtering Gateways for GatewayClass: {}", gateway_class_ref);
                         let gateways = gateways
                             .iter()
@@ -46,14 +46,7 @@ pub fn filter_gateways(
                             .collect();
 
                         tx.set(gateways).await;
-                    }
-                    (None, _) => {
-                        debug!("No GatewayClass found, skipping Gateway filtering");
-                    }
-                    (_, None) => {
-                        debug!("No Gateways found, skipping Gateway filtering");
-                    }
-                }
+                    }).run().await;
 
                 continue_on!(gateway_class_rx.changed(), gateways_rx.changed());
             }

@@ -119,20 +119,21 @@ impl<T: PartialEq + Clone> Receiver<T> {
 mod tests {
     use super::*;
 
-    fn test_signal_channel() {
+    #[tokio::test]
+    async fn test_signal_channel() {
         let (tx, rx) = signal();
-        assert_eq!(rx.get(), None);
+        assert_eq!(rx.get().await, None);
 
-        tx.set(43);
-        assert_eq!(rx.get(), Some(43));
+        tx.set(43).await;
+        assert_eq!(rx.get().await, Some(43));
 
-        tx.clear();
-        assert_eq!(rx.get(), None);
+        tx.clear().await;
+        assert_eq!(rx.get().await, None);
 
-        tx.set(44);
-        assert_eq!(rx.get(), Some(44));
+        tx.set(44).await;
+        assert_eq!(rx.get().await, Some(44));
 
-        tx.set(44); // No change, should not update
-        assert_eq!(rx.get(), Some(44));
+        tx.set(44).await; // No change, should not update
+        assert_eq!(rx.get().await, Some(44));
     }
 }

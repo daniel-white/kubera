@@ -18,6 +18,8 @@ COPY control_plane/Cargo.toml ./control_plane/
 COPY build/src/lib.rs ./control_plane/src/main.rs
 COPY core/Cargo.toml ./core/
 COPY build/src/lib.rs ./core/src/lib.rs
+COPY macros/Cargo.toml ./macros/
+COPY build/src/lib.rs ./macros/src/lib.rs
 COPY gateway/Cargo.toml ./gateway/
 COPY build/src/lib.rs ./gateway/src/main.rs
 RUN cargo fetch
@@ -28,6 +30,7 @@ RUN rm -rf \
     ./control_plane/src/main.rs \
     ./core/src/lib.rs \
     ./gateway/src/main.rs \
+    ./macros/src/lib.rs \
     .target/release/kubera_control_plane \
     .target/release/kubera_gateway
 
@@ -37,7 +40,8 @@ RUN touch api/src/lib.rs && \
     touch build/src/lib.rs && \
     touch control_plane/src/lib.rs && \
     touch core/src/lib.rs && \
-    touch gateway/src/lib.rs
+    touch gateway/src/lib.rs && \
+    touch macros/src/lib.rs
 RUN cargo build --${RUST_CONFIGURATION}
 
 FROM debian:${DEBIAN_RELEASE}-slim

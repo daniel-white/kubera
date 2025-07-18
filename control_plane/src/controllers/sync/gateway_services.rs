@@ -1,7 +1,7 @@
 use crate::controllers::instances::InstanceRole;
 use crate::controllers::transformers::GatewayInstanceConfiguration;
-use crate::kubernetes::KubeClientCell;
 use crate::kubernetes::objects::{ObjectRef, SyncObjectAction};
+use crate::kubernetes::KubeClientCell;
 use crate::options::Options;
 use crate::{sync_objects, watch_objects};
 use derive_builder::Builder;
@@ -11,6 +11,7 @@ use kube::runtime::watcher::Config;
 use kubera_core::continue_after;
 use kubera_core::sync::signal::Receiver;
 use kubera_core::task::Builder as TaskBuilder;
+use kubera_macros::await_ready;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use tokio::sync::broadcast::Sender;
@@ -62,11 +63,8 @@ fn generate_gateway_services(
         .new_task(stringify!(generate_gateway_services))
         .spawn(async move {
             loop {
-                match (
-                    gateway_instances_rx.get().await,
-                    service_refs_rx.get().await,
-                ) {
-                    (Some(gateway_instances), Some(service_refs)) => {
+                await_ready!(gateway_instances_rx, service_refs_rx)
+                    .and_then(async |gateway_instances, service_refs| {
                         let desired_services: Vec<_> = gateway_instances
                             .iter()
                             .map(|(gateway_ref, instance)| {
@@ -113,12 +111,9 @@ fn generate_gateway_services(
                             ))
                             .expect("Failed to send upsert action");
                         }
-                    }
-                    (None, _) => debug!("No gateway instances found, skipping generating services"),
-                    (_, None) => {
-                        debug!("No service references found, skipping generating services")
-                    }
-                }
+                    })
+                    .run()
+                    .await;
 
                 continue_after!(
                     options.auto_cycle_duration(),

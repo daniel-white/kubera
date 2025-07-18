@@ -1,0 +1,13 @@
+[package]
+name = "kubera_macros"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+quote = "1"
+stringcase = "0.4"
+syn = { version = "2", features = ["full"] }
+kubera_core = { path = "../core" }
+
+[lib]
+proc-macro = true

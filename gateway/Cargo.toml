@@ -17,6 +17,7 @@ http-constant = { workspace = true }
 ipnet = { workspace = true }
 itertools = { workspace = true }
 kubera_core = { path = "../core" }
+kubera_macros = { path = "../macros" }
 once_cell = "1"
 pingora = { version = "0.5", features = ["pingora-proxy", "pingora-load-balancing", "lb", "rustls"] }
 regex = { workspace = true }

@@ -2,17 +2,18 @@ use crate::controllers::filters::GatewayClassParametersReferenceState;
 use crate::kubernetes::objects::{ObjectRef, Objects};
 use gateway_api::apis::standard::gateways::Gateway;
 use getset::Getters;
-use k8s_openapi::DeepMerge;
 use k8s_openapi::api::apps::v1::{Deployment, DeploymentSpec, DeploymentStrategy};
 use k8s_openapi::api::core::v1::{Service, ServiceSpec};
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
+use k8s_openapi::DeepMerge;
 use kubera_api::v1alpha1::{
     GatewayClassParameters, GatewayConfiguration, GatewayParameters,
     ImagePullPolicy as ApiImagePullPolicy,
 };
 use kubera_core::continue_on;
-use kubera_core::sync::signal::{Receiver, signal};
+use kubera_core::sync::signal::{signal, Receiver};
 use kubera_core::task::Builder as TaskBuilder;
+use kubera_macros::await_ready;
 use serde_json::{from_value, json};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -72,21 +73,24 @@ pub fn collect_gateway_instances(
         .new_task(stringify!(collect_gateway_instances))
         .spawn(async move {
             loop {
-                match (
-                    gateways_rx.get().await,
-                    gateway_class_parameters_rx.get().await,
-                    gateway_parameters_rx.get().await,
-                ) {
-                    (Some(gateways), Some(gateway_class_parameters), Some(gateway_parameters)) => {
+                await_ready!(
+                    gateways_rx,
+                    gateway_class_parameters_rx,
+                    gateway_parameters_rx,
+                )
+                .and_then(
+                    async |gateways, gateway_class_parameters, gateway_parameters| {
                         info!("Collecting gateway instances");
-                        let gateway_class_parameters: Option<Arc<GatewayClassParameters>> = gateway_class_parameters.into();
+                        let gateway_class_parameters: Option<Arc<GatewayClassParameters>> =
+                            gateway_class_parameters.into();
                         let gateway_class_parameters = gateway_class_parameters.as_deref();
 
                         let instances = gateways
                             .iter()
                             .map(|(gateway_ref, _, gateway)| {
                                 info!("Processing gateway instance: {}", gateway_ref);
-                                let gateway_parameters = gateway_parameters.get(&gateway_ref).cloned();
+                                let gateway_parameters =
+                                    gateway_parameters.get(&gateway_ref).cloned();
                                 let gateway_parameters = gateway_parameters.as_deref();
                                 let (deployment_overrides, image_pull_policy) =
                                     merge_deployment_overrides(
@@ -118,17 +122,10 @@ pub fn collect_gateway_instances(
                             .collect();
 
                         tx.set(instances).await;
-                    }
-                    (None, _, _) => {
-                        info!("Gateways not ready, skipping collecting gateway instances, waiting for updates");
-                    }
-                    (_, None, _) => {
-                        info!("GatewayClassParameters not ready, skipping collecting gateway instances, waiting for updates");
-                    }
-                    (_, _, None) => {
-                        info!("GatewayClassParameters not ready, skipping collecting gateway instances, waiting for updates");
-                    }
-                }
+                    },
+                )
+                .run()
+                .await;
 
                 continue_on!(
                     gateways_rx.changed(),

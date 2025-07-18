@@ -7,12 +7,12 @@ use kubera_core::sync::signal::{Receiver, Sender, signal};
 use reqwest::Client;
 use std::io::BufReader;
 use std::net::SocketAddr;
-use std::ops::Deref;
 use std::time::Instant;
 use tokio::sync::broadcast::Receiver as BroadcastReceiver;
 use tokio::task::JoinSet;
 use tracing::{debug, info, warn};
 use url::Url;
+use kubera_macros::await_ready;
 
 #[derive(Debug)]
 pub struct FetchConfigurationParams {

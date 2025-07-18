@@ -4,7 +4,8 @@ members = ["api",
     "build",
     "control_plane",
     "core",
-    "gateway"
+    "gateway",
+    "macros"
 ]
 
 [workspace.dependencies]

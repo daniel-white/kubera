@@ -7,11 +7,12 @@ use gateway_api::gatewayclasses::{GatewayClass, GatewayClassStatus};
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::{Condition, Time};
 use k8s_openapi::chrono;
 use kube::api::PostParams;
-use kube::{Api, Client as KubeClient};
+use kube::Api;
+use kubera_core::continue_after;
 use kubera_core::sync::signal::Receiver;
 use kubera_core::task::Builder as TaskBuilder;
-use kubera_core::{continue_after, continue_on};
-use std::ops::Deref;
+use kubera_macros::await_ready;
+use std::sync::Arc;
 use std::time::Duration;
 use tracing::{debug, info, warn};
 
@@ -19,7 +20,7 @@ pub fn sync_gateway_class_status(
     task_builder: &TaskBuilder,
     kube_client_rx: &Receiver<KubeClientCell>,
     instance_role_rx: &Receiver<InstanceRole>,
-    gateway_class_rx: &Receiver<(ObjectRef, GatewayClass)>,
+    gateway_class_rx: &Receiver<(ObjectRef, Arc<GatewayClass>)>,
     gateway_class_parameters_rx: &Receiver<GatewayClassParametersReferenceState>,
 ) {
     let kube_client_rx = kube_client_rx.clone();
@@ -30,15 +31,15 @@ pub fn sync_gateway_class_status(
     task_builder
         .new_task(stringify!(sync_gateway_class_status))
         .spawn(async move {
-
             loop {
-                match (
-                    kube_client_rx.get().await,
-                    instance_role_rx.get().await,
-                    gateway_class_rx.get().await,
-                    gateway_class_parameters_rx.get().await,
-                ) {
-                    (Some(kube_client), Some(instance_role), Some((gateway_class_ref, _)), Some(parameters_state)) => {
+                await_ready!(
+                    kube_client_rx,
+                    instance_role_rx,
+                    gateway_class_rx,
+                    gateway_class_parameters_rx,
+                )
+                .and_then(
+                    async |kube_client, instance_role, (gateway_class_ref, _), parameters_state| {
                         info!("Syncing status for GatewayClass: {:?}", gateway_class_ref);
 
                         let status = map_to_status(parameters_state);
@@ -56,9 +57,15 @@ pub fn sync_gateway_class_status(
                         match current_gateway_class {
                             Some(mut current_gateway_class) if instance_role.is_primary() => {
                                 current_gateway_class.status = Some(status);
-                                let patch = serde_json::to_vec(&current_gateway_class).expect("Failed to serialize GatewayClassStatus");
+                                let patch = serde_json::to_vec(&current_gateway_class)
+                                    .expect("Failed to serialize GatewayClassStatus");
 
-                                gateway_class_api.replace_status(gateway_class_ref.name().as_str(), &PostParams::default(), patch)
+                                gateway_class_api
+                                    .replace_status(
+                                        gateway_class_ref.name().as_str(),
+                                        &PostParams::default(),
+                                        patch,
+                                    )
                                     .await
                                     .map_err(|err| {
                                         warn!("Failed to update GatewayClass status: {}", err);
@@ -66,26 +73,18 @@ pub fn sync_gateway_class_status(
                                     .ok();
                             }
                             Some(_) => {
-                                debug!("Instance is not primary, skipping GatewayClass status update");
+                                debug!(
+                                    "Instance is not primary, skipping GatewayClass status update"
+                                );
                             }
                             None => {
                                 warn!("Failed to retrieve current GatewayClass status");
                             }
                         }
-                    }
-                    (None, _, _, _) => {
-                        info!("KubeClient not ready, cannot sync GatewayClass status");
-                    }
-                    (_, None, _, _) => {
-                        info!("InstanceRole not ready, cannot sync GatewayClass status");
-                    }
-                    (_, _, None, _) => {
-                        info!("GatewayClass not ready, cannot sync GatewayClass status");
-                    }
-                    (_, _, _, None) => {
-                        info!("GatewayClassParametersReferenceState not ready, cannot sync GatewayClass status");
-                    }
-                }
+                    },
+                )
+                .run()
+                .await;
 
                 continue_after!(
                     Duration::from_secs(60),

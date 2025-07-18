@@ -22,6 +22,7 @@ k8s-openapi = { workspace = true, features = ["v1_32"] }
 kube = { workspace = true }
 kubera_api = { path = "../api" }
 kubera_core = { path = "../core" }
+kubera_macros = { path = "../macros" }
 problemdetails = { version = "0.6", features = ["axum"] }
 serde = { workspace = true }
 serde_json = { workspace = true }

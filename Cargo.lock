@@ -2371,6 +2371,7 @@ dependencies = [
  "kube-leader-election",
  "kubera_api",
  "kubera_core",
+ "kubera_macros",
  "problemdetails",
  "serde",
  "serde_json",
@@ -2427,6 +2428,7 @@ dependencies = [
  "ipnet",
  "itertools 0.14.0",
  "kubera_core",
+ "kubera_macros",
  "once_cell",
  "pingora",
  "prometheus 0.14.0",
@@ -2440,6 +2442,16 @@ dependencies = [
  "tracing",
  "trusted-proxies",
  "url",
+]
+
+[[package]]
+name = "kubera_macros"
+version = "0.1.0"
+dependencies = [
+ "kubera_core",
+ "quote",
+ "stringcase",
+ "syn 2.0.104",
 ]
 
 [[package]]
@@ -4331,6 +4343,12 @@ name = "static_assertions"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
+
+[[package]]
+name = "stringcase"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "72abeda133c49d7bddece6c154728f83eec8172380c80ab7096da9487e20d27c"
 
 [[package]]
 name = "strsim"
