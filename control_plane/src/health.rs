@@ -22,23 +22,20 @@ impl HealthIndicator for KubernetesApiHealthIndicator {
     }
 
     async fn details(&self) -> HealthDetail {
-        match self.0.get().await {
-            Some(kube_client) => {
-                let api = Api::<GatewayClassParameters>::all(kube_client.deref().clone().into());
-                match api.list(&ListParams::default()).await {
-                    Ok(_) => HealthDetail::up(),
-                    Err(e) => {
-                        let mut health = HealthDetail::down();
-                        health.with_detail("error".to_string(), e.to_string());
-                        health
-                    }
+        if let Some(kube_client) = self.0.get().await {
+            let api = Api::<GatewayClassParameters>::all(kube_client.deref().clone());
+            match api.list(&ListParams::default()).await {
+                Ok(_) => HealthDetail::up(),
+                Err(e) => {
+                    let mut health = HealthDetail::down();
+                    health.with_detail("error".to_string(), e.to_string());
+                    health
                 }
             }
-            None => {
-                let mut heath = HealthDetail::down();
-                heath.with_detail("error".to_string(), "Kube client not available".to_string());
-                heath
-            }
+        } else {
+            let mut heath = HealthDetail::down();
+            heath.with_detail("error".to_string(), "Kube client not available".to_string());
+            heath
         }
     }
 }

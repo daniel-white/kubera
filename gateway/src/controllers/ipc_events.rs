@@ -81,7 +81,7 @@ pub fn poll_gateway_events(
         'primary: loop {
             if let Some(ipc_endpoint_addr) = ipc_endpoint_rx.get().await {
                 let url = {
-                    let mut url = Url::parse(&format!("http://{}", ipc_endpoint_addr))
+                    let mut url = Url::parse(&format!("http://{ipc_endpoint_addr}"))
                         .expect("Failed to parse URL");
                     url.set_path(&format!(
                         "/ipc/namespaces/{}/gateways/{}/events",

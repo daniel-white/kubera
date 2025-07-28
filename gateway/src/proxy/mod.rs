@@ -3,9 +3,6 @@ mod context;
 pub mod filters;
 pub mod router;
 
-use crate::proxy::context::MatchRouteResult;
-use crate::proxy::router::endpoints::EndpointsResolver;
-use crate::proxy::router::topology::TopologyLocation;
 use async_trait::async_trait;
 use context::Context;
 use derive_builder::Builder;
@@ -15,7 +12,6 @@ use kubera_core::sync::signal::Receiver;
 use pingora::http::ResponseHeader;
 use pingora::prelude::*;
 use router::HttpRouter;
-use std::net::SocketAddr;
 use tracing::warn;
 
 #[derive(Debug, Builder)]

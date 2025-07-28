@@ -98,10 +98,11 @@ pub fn sync_gateway_class_status(
 }
 
 fn map_to_status(parameters_state: GatewayClassParametersReferenceState) -> GatewayClassStatus {
-    use GatewayClassParametersReferenceState::*;
+    use GatewayClassParametersReferenceState::{Linked, NoRef, InvalidRef, NotFound};
     let now = chrono::Utc::now();
 
-    let status = match parameters_state {
+    
+    match parameters_state {
         Linked(_) | NoRef => GatewayClassStatus {
             conditions: Some(vec![Condition {
                 type_: GatewayClassConditionType::Accepted.to_string(),
@@ -132,6 +133,5 @@ fn map_to_status(parameters_state: GatewayClassParametersReferenceState) -> Gate
                 last_transition_time: Time(now),
             }]),
         },
-    };
-    status
+    }
 }

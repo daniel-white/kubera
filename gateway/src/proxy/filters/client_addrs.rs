@@ -29,19 +29,14 @@ pub fn client_addr_filter(
                 let filter = match client_addrs.source() {
                     ClientAddrsSource::None => None,
                     ClientAddrsSource::Header => {
-                        if let Some(header_name) = client_addrs
+                        client_addrs
                             .header()
                             .as_ref()
-                            .and_then(|h| HeaderName::from_str(h).ok())
-                        {
-                            Some(ClientAddrFilter::new(
+                            .and_then(|h| HeaderName::from_str(h).ok()).map(|header_name| ClientAddrFilter::new(
                                 ClientAddrExtractorType::TrustedHeader(Arc::new(
                                     TrustedHeaderClientAddrExtractor::new(header_name),
                                 )),
                             ))
-                        } else {
-                            None
-                        }
                     }
                     ClientAddrsSource::Proxies => {
                         if let Some(proxies) = client_addrs.proxies().as_ref() {

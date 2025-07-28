@@ -12,7 +12,6 @@ use tokio::sync::broadcast::Receiver as BroadcastReceiver;
 use tokio::task::JoinSet;
 use tracing::{debug, info, warn};
 use url::Url;
-use kubera_macros::await_ready;
 
 #[derive(Debug)]
 pub struct FetchConfigurationParams {
@@ -96,7 +95,7 @@ pub fn fetch_configuration(
                 && let GatewayEvent::ConfigurationUpdate(_) = event
             {
                 let url = {
-                    let mut url = Url::parse(&format!("http://{}", ipc_endpoint_addr))
+                    let mut url = Url::parse(&format!("http://{ipc_endpoint_addr}"))
                         .expect("Failed to parse URL");
                     url.set_path(&format!(
                         "/ipc/namespaces/{}/gateways/{}/configuration",
@@ -157,7 +156,7 @@ pub fn watch_ipc_endpoint(
                 let primary_endpoint = gateway_configuration
                     .ipc()
                     .as_ref()
-                    .and_then(|c| c.endpoint().clone());
+                    .and_then(|c| *c.endpoint());
 
                 tx.replace(primary_endpoint).await;
             }

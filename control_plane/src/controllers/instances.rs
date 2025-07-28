@@ -68,7 +68,7 @@ pub fn watch_leader_instance_ip_addr(
                     let primary_pod_ref = instance_role.primary_pod_ref();
                     info!("Determining instance IP address for pod as it is the primary: {}", primary_pod_ref);
                     let api = Api::<Pod>::namespaced(
-                        kube_client.clone().into(),
+                        kube_client.clone(),
                         primary_pod_ref
                             .namespace()
                             .as_deref()
@@ -167,7 +167,7 @@ pub fn determine_instance_role(
                         tx.set(InstanceRole::Redundant(pod_ref)).await;
                     }
                     Err(err) => warn!("Failed to acquire or renew lease: {err}"),
-                };
+                }
 
                 continue_after!(options.lease_check_interval());
             }
