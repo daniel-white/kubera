@@ -1,7 +1,7 @@
 use crate::proxy::router::topology::{TopologyLocation, TopologyLocationMatch};
 use getset::Getters;
-use rand::SeedableRng;
 use rand::seq::SliceRandom;
+use rand::SeedableRng;
 use rand_chacha::ChaCha8Rng;
 use std::hash::{DefaultHasher, Hasher};
 use std::net::{IpAddr, SocketAddr};
@@ -14,7 +14,7 @@ pub struct EndpointsResolver {
 }
 
 impl EndpointsResolver {
-    pub fn new_builder(location: TopologyLocation) -> EndpointsResolverBuilder {
+    pub fn builder(location: TopologyLocation) -> EndpointsResolverBuilder {
         EndpointsResolverBuilder::new(location)
     }
 
@@ -100,39 +100,41 @@ mod tests {
         let fallback_ip1: SocketAddr = "192.168.3.1:8080".parse().unwrap();
         let fallback_ip2: SocketAddr = "192.168.3.2:8080".parse().unwrap();
 
-        let mut location = TopologyLocation::new_builder();
-        location
-            .on_node(Some("node1".to_string()))
-            .in_zone(Some("zone1".to_string()));
-        let mut addr_builder = EndpointsResolverBuilder::new(location.build());
+        let location = TopologyLocation::builder()
+            .node(Some("node1".to_string()))
+            .zone(Some("zone1".to_string()))
+            .build();
+        let mut addr_builder = EndpointsResolver::builder(location);
 
-        let mut location = TopologyLocation::new_builder();
-        location
-            .on_node(Some("node1".to_string()))
-            .in_zone(Some("zone1".to_string()));
-        addr_builder.insert(node_ip1, location.build());
+        let location = TopologyLocation::builder()
+            .node(Some("node1".to_string()))
+            .zone(Some("zone1".to_string()))
+            .build();
+        addr_builder.insert(node_ip1, location);
 
-        let mut builder = TopologyLocation::new_builder();
-        builder
-            .on_node(Some("node1".to_string()))
-            .in_zone(Some("zone1".to_string()));
-        addr_builder.insert(node_ip2, builder.build());
+        let location = TopologyLocation::builder()
+            .node(Some("node1".to_string()))
+            .zone(Some("zone1".to_string()))
+            .build();
+        addr_builder.insert(node_ip2, location);
 
-        let mut builder = TopologyLocation::new_builder();
-        builder.on_node(None).in_zone(Some("zone1".to_string()));
-        addr_builder.insert(zone_ip1, builder.build());
+        let location = TopologyLocation::builder()
+            .node(None)
+            .zone(Some("zone1".to_string()))
+            .build();
+        addr_builder.insert(zone_ip1, location);
 
-        let mut builder = TopologyLocation::new_builder();
-        builder.on_node(None).in_zone(Some("zone1".to_string()));
-        addr_builder.insert(zone_ip2, builder.build());
+        let location = TopologyLocation::builder()
+            .node(None)
+            .zone(Some("zone1".to_string()))
+            .build();
+        addr_builder.insert(zone_ip2, location);
 
-        let mut builder = TopologyLocation::new_builder();
-        builder.on_node(None).in_zone(None);
-        addr_builder.insert(fallback_ip1, builder.build());
+        let location = TopologyLocation::builder().node(None).zone(None).build();
+        addr_builder.insert(fallback_ip1, location);
 
-        let mut builder = TopologyLocation::new_builder();
-        builder.on_node(None).in_zone(None);
-        addr_builder.insert(fallback_ip2, builder.build());
+        let location = TopologyLocation::builder().node(None).zone(None).build();
+        addr_builder.insert(fallback_ip2, location);
 
         let topology_addrs = addr_builder.build();
 

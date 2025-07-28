@@ -15,7 +15,6 @@ axum = "0.8"
 enumflags2 = "0.7"
 clap = { version = "4", features = ["derive", "env"] }
 dashmap = "6"
-derive_builder = "0.20"
 flexi_logger = "0.31"
 futures = "0.3"
 getset = "0.1"
@@ -28,7 +27,7 @@ k8s-openapi = { version = "0.25.0", features = ["v1_32"] }
 kube = { version = "1", features = ["runtime", "derive"] }
 lockable = "0.2"
 regex = { version = "1", features = ["perf", "unicode"] }
-rstest = "0.25"
+rstest = "0.26.1"
 rustls = { version = "0.23", features = ["ring"] }
 schemars = "0.9"
 serde = { version = "1", features = ["derive"] }
@@ -38,6 +37,7 @@ strum = { version = "0.27", features = ["derive"] }
 thiserror = "2"
 tokio = { version = "1", features = ["full", "tracing"] }
 tracing = { version = "0.1", features = ["log"] }
+typed-builder = "0.21"
 unicase = "2"
 url = "2"
 

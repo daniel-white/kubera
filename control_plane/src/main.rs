@@ -23,11 +23,8 @@ pub mod ipc;
 pub mod kubernetes;
 mod options;
 
-use crate::controllers::{
-    SpawnControllersError, SpawnControllersParams, SpawnControllersParamsBuilderError,
-    spawn_controllers,
-};
-use crate::ipc::{SpawnIpcError, SpawnIpcParameters, SpawnIpcParametersBuilderError, spawn_ipc};
+use crate::controllers::{spawn_controllers, SpawnControllersError, SpawnControllersParams};
+use crate::ipc::{spawn_ipc, SpawnIpcError, SpawnIpcParameters};
 use crate::kubernetes::start_kubernetes_client;
 use crate::options::Options;
 use clap::Parser;
@@ -41,12 +38,12 @@ use tracing::error;
 
 #[derive(Debug, Error)]
 pub enum MainError {
-    #[error("Failed to build IPC parameters: {0}")]
-    SpawnIpcParameters(#[from] SpawnIpcParametersBuilderError),
+    #[error("Failed to build IPC parameters")]
+    SpawnIpcParameters,
     #[error("Failed to spawn IPC services: {0}")]
     SpawnIpc(#[from] SpawnIpcError),
-    #[error("Failed to build controllers parameters: {0}")]
-    SpawnControllersParams(#[from] SpawnControllersParamsBuilderError),
+    #[error("Failed to build controllers parameters")]
+    SpawnControllersParams,
     #[error("Failed to spawn controllers: {0}")]
     SpawnControllers(#[from] SpawnControllersError),
 }
@@ -66,15 +63,12 @@ async fn main() -> Result<(), MainError> {
 
     // IPC is half 1 - it is what the gateway use to ensure that they have the latest configuration
     let ipc_services = {
-        let params = SpawnIpcParameters::new_builder()
+        let params = SpawnIpcParameters::builder()
             .options(options.clone())
             .port(args.port())
             .kube_client_rx(kube_client_rx.clone())
-            .build()
-            .inspect_err(|err| {
-                error!("Failed to build IPC parameters: {}", err);
-            })?;
-
+            .build();
+        
         spawn_ipc(&task_builder, params)
             .await
             .inspect_err(|err| error!("Failed to spawn IPC services: {}", err))?
@@ -83,15 +77,14 @@ async fn main() -> Result<(), MainError> {
     // Controllers are half 2 - they are responsible for ensuring that the configuration is up to date
     // through various controllers
     {
-        let params = SpawnControllersParams::new_builder()
+        let params = SpawnControllersParams::builder()
             .options(options)
             .kube_client_rx(kube_client_rx)
             .ipc_services(Arc::new(ipc_services))
             .pod_namespace(args.pod_namespace())
             .pod_name(args.pod_name())
             .instance_name(args.instance_name())
-            .build()
-            .inspect_err(|err| error!("Failed to build controllers parameters: {}", err))?;
+            .build();
 
         spawn_controllers(&task_builder, params)
             .inspect_err(|err| error!("Failed to spawn controllers: {}", err))?;

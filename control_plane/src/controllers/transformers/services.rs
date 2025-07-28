@@ -1,6 +1,5 @@
 use crate::controllers::transformers::http_routes::HttpRouteBackend;
 use crate::kubernetes::objects::{ObjectRef, Objects, TopologyLocation};
-use derive_builder::Builder;
 use getset::{CopyGetters, Getters};
 use k8s_openapi::api::core::v1::Service;
 use k8s_openapi::api::discovery::v1::EndpointSlice;
@@ -12,28 +11,26 @@ use kubera_macros::await_ready;
 use std::collections::HashMap;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use tracing::debug;
+use typed_builder::TypedBuilder;
 
-#[derive(Debug, Builder, Getters, Clone, Hash, PartialEq, Eq)]
+#[derive(Debug, TypedBuilder, Getters, Clone, Hash, PartialEq, Eq)]
 pub struct Endpoints {
     #[getset(get = "pub")]
     location: TopologyLocation,
 
     #[getset(get = "pub")]
+    #[builder(setter(into))]
     addresses: Vec<IpAddr>,
 }
 
-impl Endpoints {
-    pub fn new_builder() -> EndpointsBuilder {
-        EndpointsBuilder::default()
-    }
-}
-
-#[derive(Debug, Builder, Getters, CopyGetters, Clone, Hash, PartialEq, Eq)]
+#[derive(Debug, TypedBuilder, Getters, CopyGetters, Clone, Hash, PartialEq, Eq)]
 pub struct Backend {
     #[getset(get_copy = "pub")]
+    #[builder(default)]
     weight: Option<i32>,
 
     #[getset(get_copy = "pub")]
+    #[builder(setter(into))]
     port: Option<Port>,
 
     #[getset(get = "pub")]
@@ -41,12 +38,6 @@ pub struct Backend {
 
     #[getset(get = "pub")]
     endpoints: Vec<Endpoints>,
-}
-
-impl Backend {
-    pub fn new_builder() -> BackendBuilder {
-        BackendBuilder::default()
-    }
 }
 
 pub fn collect_service_backends(
@@ -72,12 +63,10 @@ pub fn collect_service_backends(
                                 labels
                                     .get("kubernetes.io/service-name")
                                     .map(|service_name| {
-                                        ObjectRef::new_builder()
-                                            .of_kind::<Service>()
+                                        ObjectRef::of_kind::<Service>()
                                             .namespace(endpoint_slice.metadata.namespace.clone())
                                             .name(service_name)
                                             .build()
-                                            .expect("Failed to build ObjectRef for Service")
                                     })
                                     .map(|service_ref| (service_ref, endpoint_slice))
                             })
@@ -126,11 +115,10 @@ fn extract_backend(
             }
         })
         .map(|endpoint| {
-            let location = TopologyLocation::new_builder()
-                .zone(endpoint.zone.clone())
-                .node(endpoint.node_name.clone())
-                .build()
-                .expect("Failed to build TopologyLocation");
+            let location = TopologyLocation::builder()
+                .zone(endpoint.zone.clone().unwrap_or_default())
+                .node(endpoint.node_name.clone().unwrap_or_default())
+                .build();
 
             let addresses: Vec<_> = endpoint
                 .addresses
@@ -142,19 +130,17 @@ fn extract_backend(
                 })
                 .collect();
 
-            Endpoints::new_builder()
+            Endpoints::builder()
                 .location(location)
                 .addresses(addresses)
                 .build()
-                .expect("Failed to build Endpoints")
         })
         .collect();
 
-    Backend::new_builder()
+    Backend::builder()
         .object_ref(object_ref.clone())
         .endpoints(endpoints)
         .port(http_route_backend.port())
         .weight(http_route_backend.weight())
         .build()
-        .expect("Failed to build Backend")
 }

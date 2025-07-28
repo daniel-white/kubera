@@ -10,64 +10,20 @@ use tokio::signal::ctrl_c;
 use tokio::sync::broadcast::{Sender, channel};
 use tokio::task::JoinSet;
 use tracing::info;
+use typed_builder::TypedBuilder;
 use url::Url;
 
-#[derive(Debug, Getters)]
+#[derive(Debug, Getters, TypedBuilder)]
 pub struct PollGatewayEventsParams {
     ipc_endpoint_rx: Receiver<SocketAddr>,
+    #[builder(setter(into))]
     pod_name: String,
+    #[builder(setter(into))]
     gateway_namespace: String,
+    #[builder(setter(into))]
     gateway_name: String,
 }
 
-impl PollGatewayEventsParams {
-    pub fn new_builder() -> PollGatewayEventsParamsBuilder {
-        PollGatewayEventsParamsBuilder::default()
-    }
-}
-
-#[derive(Default)]
-pub struct PollGatewayEventsParamsBuilder {
-    ipc_endpoint_rx: Option<Receiver<SocketAddr>>,
-    pod_name: Option<String>,
-    gateway_namespace: Option<String>,
-    gateway_name: Option<String>,
-}
-
-impl PollGatewayEventsParamsBuilder {
-    pub fn ipc_endpoint_rx(&mut self, addr: &Receiver<SocketAddr>) -> &mut Self {
-        self.ipc_endpoint_rx = Some(addr.clone());
-        self
-    }
-
-    pub fn pod_name<N: AsRef<str>>(&mut self, name: N) -> &mut Self {
-        self.pod_name = Some(name.as_ref().to_string());
-        self
-    }
-
-    pub fn gateway_namespace<N: AsRef<str>>(&mut self, namespace: N) -> &mut Self {
-        self.gateway_namespace = Some(namespace.as_ref().to_string());
-        self
-    }
-
-    pub fn gateway_name<N: AsRef<str>>(&mut self, name: N) -> &mut Self {
-        self.gateway_name = Some(name.as_ref().to_string());
-        self
-    }
-
-    pub fn build(self) -> PollGatewayEventsParams {
-        PollGatewayEventsParams {
-            ipc_endpoint_rx: self
-                .ipc_endpoint_rx
-                .expect("Primary socket address is required"),
-            pod_name: self.pod_name.expect("Pod name is required"),
-            gateway_namespace: self
-                .gateway_namespace
-                .expect("Gateway namespace is required"),
-            gateway_name: self.gateway_name.expect("Gateway name is required"),
-        }
-    }
-}
 
 pub fn poll_gateway_events(
     join_set: &mut JoinSet<()>,

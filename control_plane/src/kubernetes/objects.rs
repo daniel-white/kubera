@@ -1,4 +1,3 @@
-use derive_builder::Builder;
 use getset::Getters;
 use gtmpl_value::Value;
 use itertools::Itertools;
@@ -9,37 +8,44 @@ use std::fmt::{Display, Formatter, Write};
 use std::sync::Arc;
 use thiserror::Error;
 use tracing::warn;
+use typed_builder::TypedBuilder;
 
-#[derive(Builder, Getters, Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
-#[builder(setter(into))]
+#[derive(Error, Debug)]
+pub enum ObjectRefBuilderError {
+    #[error("Object is missing a name")]
+    MissingName,
+}
+
+#[derive(TypedBuilder, Getters, Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct ObjectRef {
     #[getset(get = "pub")]
+    #[builder(setter(into))]
     kind: String,
 
     #[getset(get = "pub")]
-    version: String,
+    #[builder(default, setter(into))]
+    version: Option<String>,
 
     #[getset(get = "pub")]
+    #[builder(default, setter(into))]
     group: Option<String>,
 
     #[getset(get = "pub")]
+    #[builder(default, setter(into))]
     namespace: Option<String>,
 
     #[getset(get = "pub")]
+    #[builder(setter(into))]
     name: String,
-}
-
-impl ObjectRef {
-    pub fn new_builder() -> ObjectRefBuilder {
-        ObjectRefBuilder::default()
-    }
 }
 
 impl Display for ObjectRef {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.write_str(self.kind())?;
         f.write_char('.')?;
-        f.write_str(self.version())?;
+        if let Some(version) = self.version() {
+            f.write_str(version)?;
+        }
         if let Some(group) = self.group() {
             f.write_str(group)?;
         }
@@ -54,8 +60,9 @@ impl Display for ObjectRef {
     }
 }
 
-impl ObjectRefBuilder {
-    pub fn of_kind<K: Resource>(&mut self) -> &mut Self
+impl ObjectRef {
+    pub fn of_kind<K: Resource>()
+    -> ObjectRefBuilder<((String,), (Option<String>,), (Option<String>,), (), ())>
     where
         K::DynamicType: 'static + Default,
     {
@@ -64,26 +71,32 @@ impl ObjectRefBuilder {
         let version = K::version(&dynamic_type);
         let group = K::group(&dynamic_type);
 
-        self.kind(kind).version(version);
+        let builder = ObjectRef::builder()
+            .kind(kind)
+            .version(Some(version.to_string()));
 
-        if group.is_empty() {
-            self.group(None);
+        let builder = if !group.is_empty() {
+            builder.group(Some(group.to_string()))
         } else {
-            self.group(group.into_owned());
-        }
+            builder.group(None)
+        };
 
-        self
+        builder
     }
 
-    pub fn for_object<K: Resource + ResourceExt>(&mut self, object: &K) -> &mut Self
+    pub fn for_object<K: Resource + ResourceExt>(object: &K) -> Result<Self, ObjectRefBuilderError>
     where
         K::DynamicType: 'static + Default,
     {
-        self.of_kind::<K>();
+        let name = object
+            .name()
+            .ok_or(ObjectRefBuilderError::MissingName)?
+            .to_string();
 
-        self.namespace = Some(object.namespace());
-        self.name = object.name().map(|s| s.to_string());
-        self
+        Ok(Self::of_kind::<K>()
+            .namespace(object.namespace())
+            .name(name)
+            .build())
     }
 }
 
@@ -136,10 +149,7 @@ where
     }
 
     fn keys(object: &K) -> Option<(ObjectRef, ObjectUniqueId)> {
-        let object_ref = ObjectRefBuilder::default()
-            .for_object(object)
-            .build()
-            .ok()?;
+        let object_ref = ObjectRef::for_object(object).ok()?;
         let uid = object.uid()?;
         let unique_id = ObjectUniqueId::new(uid);
         Some((object_ref, unique_id))
@@ -208,20 +218,15 @@ impl<K: Resource + ResourceExt> FromIterator<(ObjectRef, ObjectUniqueId, Arc<K>)
     }
 }
 
-#[derive(Builder, Getters, Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
-#[builder(setter(into))]
+#[derive(TypedBuilder, Getters, Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct TopologyLocation {
     #[getset(get = "pub")]
+    #[builder(default, setter(strip_option, into))]
     node: Option<String>,
 
     #[getset(get = "pub")]
+    #[builder(default, setter(strip_option, into))]
     zone: Option<String>,
-}
-
-impl TopologyLocation {
-    pub fn new_builder() -> TopologyLocationBuilder {
-        TopologyLocationBuilder::default()
-    }
 }
 
 #[derive(Clone, Debug)]

@@ -41,9 +41,7 @@ pub fn filter_gateway_classes(
 
                         match gateway_class {
                             Ok(gateway_class) => {
-                                match ObjectRef::new_builder()
-                                    .for_object(gateway_class.as_ref())
-                                    .build()
+                                match ObjectRef::for_object(gateway_class.as_ref())
                                 {
                                     Ok(gateway_class_ref) => {
                                         info!(
@@ -107,37 +105,49 @@ pub fn filter_gateway_class_parameters(
         .spawn(async move {
             loop {
                 await_ready!(gateway_class_rx, gateway_class_parameters_rx)
-                    .and_then(async |(gateway_class_ref, gateway_class), gateway_class_parameters| {
-                        debug!("Filtering GatewayClassParameters for GatewayClass: {}", gateway_class_ref);
+                    .and_then(
+                        async |(gateway_class_ref, gateway_class), gateway_class_parameters| {
+                            debug!(
+                                "Filtering GatewayClassParameters for GatewayClass: {}",
+                                gateway_class_ref
+                            );
 
-                        if let Some(parameters_ref) = &gateway_class.spec.parameters_ref {
-                            match ObjectRef::new_builder()
-                                .group(Some(parameters_ref.group.clone()))
-                                .kind(&parameters_ref.kind)
-                                .namespace(parameters_ref.namespace.clone())
-                                .name(&parameters_ref.name)
-                                .version("v1alpha1")
-                                .build()
-                            {
-                                Ok(parameters_ref) => {
-                                    if let Some(parameters) = gateway_class_parameters.get_by_ref(&parameters_ref) {
-                                        info!("Found GatewayClassParameters: object.ref={}", parameters_ref);
-                                        tx.set(GatewayClassParametersReferenceState::Linked(parameters)).await;
-                                    } else {
-                                        warn!("GatewayClassParameters not found for reference: {}", parameters_ref);
-                                        tx.set(GatewayClassParametersReferenceState::NotFound).await;
-                                    }
+                            if let Some(parameters_ref) = &gateway_class.spec.parameters_ref {
+                                let parameters_ref = ObjectRef::builder()
+                                    .group(Some(parameters_ref.group.clone()))
+                                    .kind(&parameters_ref.kind)
+                                    .namespace(parameters_ref.namespace.clone())
+                                    .name(&parameters_ref.name)
+                                    .version(Some("v1alpha1".to_string()))
+                                    .build();
+
+                                if let Some(parameters) =
+                                    gateway_class_parameters.get_by_ref(&parameters_ref)
+                                {
+                                    info!(
+                                        "Found GatewayClassParameters: object.ref={}",
+                                        parameters_ref
+                                    );
+                                    tx.set(GatewayClassParametersReferenceState::Linked(
+                                        parameters,
+                                    ))
+                                    .await;
+                                } else {
+                                    warn!(
+                                        "GatewayClassParameters not found for reference: {}",
+                                        parameters_ref
+                                    );
+                                    tx.set(GatewayClassParametersReferenceState::NotFound).await;
                                 }
-                                Err(err) => {
-                                    warn!("Error creating GatewayClassParameters reference: {}", err);
-                                    tx.set(GatewayClassParametersReferenceState::InvalidRef).await;
-                                }
+                            } else {
+                                info!(
+                                    "GatewayClass {} does not have parameters_ref set",
+                                    gateway_class_ref
+                                );
+                                tx.set(GatewayClassParametersReferenceState::NoRef).await;
                             }
-                        } else {
-                            info!("GatewayClass {} does not have parameters_ref set", gateway_class_ref);
-                            tx.set(GatewayClassParametersReferenceState::NoRef).await;
-                        }
-                    })
+                        },
+                    )
                     .run()
                     .await;
 

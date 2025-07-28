@@ -5,7 +5,6 @@ pub mod router;
 
 use async_trait::async_trait;
 use context::Context;
-use derive_builder::Builder;
 use filters::client_addrs::ClientAddrFilter;
 use http::HeaderValue;
 use kubera_core::sync::signal::Receiver;
@@ -13,8 +12,9 @@ use pingora::http::ResponseHeader;
 use pingora::prelude::*;
 use router::HttpRouter;
 use tracing::warn;
+use typed_builder::TypedBuilder;
 
-#[derive(Debug, Builder)]
+#[derive(Debug, TypedBuilder)]
 pub struct Proxy {
     router_rx: Receiver<HttpRouter>,
     client_addr_filter_rx: Receiver<ClientAddrFilter>,

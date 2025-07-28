@@ -10,34 +10,12 @@ use std::time::{Duration, Instant};
 use tokio::fs::read;
 use tokio::task::JoinSet;
 use tracing::{debug, info};
+use typed_builder::TypedBuilder;
 
-#[derive(Debug, Getters)]
+#[derive(Debug, Getters, TypedBuilder)]
 pub struct WatchConfigurationFileParams {
+    #[builder(setter(into))]
     file_path: PathBuf,
-}
-
-impl WatchConfigurationFileParams {
-    pub fn new_builder() -> WatchConfigurationFileParamsBuilder {
-        WatchConfigurationFileParamsBuilder::default()
-    }
-}
-
-#[derive(Default)]
-pub struct WatchConfigurationFileParamsBuilder {
-    file_path: Option<PathBuf>,
-}
-
-impl WatchConfigurationFileParamsBuilder {
-    pub fn file_path<P: AsRef<Path>>(&mut self, p: P) -> &mut Self {
-        self.file_path = Some(PathBuf::from(p.as_ref()));
-        self
-    }
-
-    pub fn build(self) -> WatchConfigurationFileParams {
-        WatchConfigurationFileParams {
-            file_path: self.file_path.expect("file_path must be set"),
-        }
-    }
 }
 
 pub fn watch_configuration_file(

@@ -32,8 +32,8 @@ pub struct HostHeaderMatch {
 }
 
 impl HostHeaderMatch {
-    pub fn new_builder() -> HostHeaderMatchBuilder {
-        HostHeaderMatchBuilder::default()
+    pub fn builder() -> HostHeaderMatchBuilder {
+        HostHeaderMatchBuilder::new()
     }
 
     #[instrument(
@@ -63,12 +63,17 @@ impl HostHeaderMatch {
     }
 }
 
-#[derive(Default)]
 pub struct HostHeaderMatchBuilder {
     host_header_value_matches: Vec<HostHeaderValueMatch>,
 }
 
 impl HostHeaderMatchBuilder {
+    fn new() -> Self {
+        Self {
+            host_header_value_matches: Vec::new(),
+        }
+    }
+    
     pub fn build(self) -> HostHeaderMatch {
         HostHeaderMatch {
             host_header_value_matches: self.host_header_value_matches,

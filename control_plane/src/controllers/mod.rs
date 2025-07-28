@@ -9,9 +9,8 @@ use self::filters::{
     filter_gateways, filter_http_routes,
 };
 use self::sync::{
-    sync_gateway_class_status, sync_gateway_configmaps,
-    sync_gateway_deployments, sync_gateway_services, SyncGatewayConfigmapsParams,
-    SyncGatewayConfigmapsParamsBuilderError,
+    sync_gateway_class_status, sync_gateway_configmaps, sync_gateway_deployments,
+    sync_gateway_services, SyncGatewayConfigmapsParams,
 };
 use self::transformers::{
     collect_gateway_instances, collect_http_route_backends, collect_http_routes_by_gateway,
@@ -23,7 +22,6 @@ use crate::kubernetes::KubeClientCell;
 use crate::options::Options;
 use crate::watch_objects;
 use anyhow::Result;
-use derive_builder::Builder;
 use gateway_api::apis::standard::gatewayclasses::GatewayClass;
 use gateway_api::apis::standard::gateways::Gateway;
 use gateway_api::apis::standard::httproutes::HTTPRoute;
@@ -34,28 +32,25 @@ use kubera_core::sync::signal::Receiver;
 use kubera_core::task::Builder as TaskBuilder;
 use std::sync::Arc;
 use thiserror::Error;
+use typed_builder::TypedBuilder;
 
-#[derive(Getters, Builder)]
-#[builder(setter(into))]
+#[derive(Getters, TypedBuilder)]
 pub struct SpawnControllersParams {
     options: Arc<Options>,
     kube_client_rx: Receiver<KubeClientCell>,
     ipc_services: Arc<IpcServices>,
+    #[builder(setter(into))]
     pod_namespace: String,
+    #[builder(setter(into))]
     pod_name: String,
+    #[builder(setter(into))]
     instance_name: String,
-}
-
-impl SpawnControllersParams {
-    pub fn new_builder() -> SpawnControllersParamsBuilder {
-        SpawnControllersParamsBuilder::default()
-    }
 }
 
 #[derive(Debug, Error)]
 pub enum SpawnControllersError {
-    #[error("Failed to build SyncGatewayConfigmapsParams: {0}")]
-    SyncGatewayConfigmapsParams(#[from] SyncGatewayConfigmapsParamsBuilderError),
+    #[error("Failed to build SyncGatewayConfigmapsParams")]
+    SyncGatewayConfigmapsParams,
 }
 
 pub fn spawn_controllers(
@@ -122,7 +117,7 @@ pub fn spawn_controllers(
         collect_service_backends(task_builder, &service_backends_rx, &endpoint_slices_rx);
 
     {
-        let params = SyncGatewayConfigmapsParams::new_builder()
+        let params = SyncGatewayConfigmapsParams::builder()
             .options(options.clone())
             .kube_client_rx(kube_client_rx.clone())
             .ipc_services(params.ipc_services.clone())
@@ -131,7 +126,7 @@ pub fn spawn_controllers(
             .gateway_instances_rx(gateway_instances_rx.clone())
             .http_routes_rx(http_routes_by_gateway_rx.clone())
             .backends_rx(backends_rx)
-            .build()?;
+            .build();
 
         sync_gateway_configmaps(task_builder, params);
     }

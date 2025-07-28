@@ -1,4 +1,3 @@
-use derive_builder::Builder;
 use getset::Getters;
 use kubera_core::config::gateway::types::GatewayConfiguration;
 use kubera_core::continue_on;
@@ -6,17 +5,12 @@ use kubera_core::sync::signal::{Receiver, signal};
 use std::time::Instant;
 use tokio::task::JoinSet;
 use tracing::debug;
+use typed_builder::TypedBuilder;
 
-#[derive(Getters, Debug, Clone, Builder)]
+#[derive(Getters, Debug, Clone, TypedBuilder)]
 pub struct SelectorParams {
     ipc_configuration_source_rx: Receiver<(Instant, GatewayConfiguration)>,
     fs_configuration_source_rx: Receiver<(Instant, GatewayConfiguration)>,
-}
-
-impl SelectorParams {
-    pub fn new_builder() -> SelectorParamsBuilder {
-        SelectorParamsBuilder::default()
-    }
 }
 
 pub fn select_configuration(

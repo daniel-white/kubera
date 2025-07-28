@@ -1,4 +1,3 @@
-use derive_builder::Builder;
 use ipnet::IpNet;
 use k8s_openapi::api::{apps::v1::DeploymentStrategy, core::v1::ServiceSpec};
 use kube::CustomResource;
@@ -9,13 +8,14 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::net::IpAddr;
 use strum::IntoStaticStr;
+use typed_builder::TypedBuilder;
 
-#[derive(Default, Builder, Deserialize, Serialize, Clone, Debug, JsonSchema, PartialEq)]
+#[derive(Default, TypedBuilder, Deserialize, Serialize, Clone, Debug, JsonSchema, PartialEq)]
 #[serde(rename_all = "camelCase")]
-#[builder(setter(into))]
 pub struct Ref {
     pub name: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[builder(default, setter(into, strip_option))]
     pub namespace: Option<String>,
 }
 

@@ -4,7 +4,6 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-derive_builder = { workspace = true }
 gateway-api = "0.16"
 ipnet = { workspace = true }
 k8s-openapi = { workspace = true, features = ["v1_32"] }
@@ -13,6 +12,7 @@ schemars = { version = "0.8" }
 serde = { workspace = true }
 serde_json = { workspace = true }
 strum = { workspace = true }
+typed-builder = { workspace = true }
 
 [lib]
 name = "kubera_api"

@@ -22,6 +22,7 @@ use proxy::ProxyBuilder;
 use proxy::filters::client_addrs::client_addr_filter;
 use proxy::router::topology::TopologyLocation;
 use tokio::task::JoinSet;
+use crate::proxy::Proxy;
 
 #[tokio::main]
 async fn main() {
@@ -31,12 +32,10 @@ async fn main() {
     let args = Cli::parse();
 
     let current_location = {
-        let zone_name = args.zone_name().filter(|z| !z.is_empty());
-        let node_name = args.node_name().filter(|n| !n.is_empty());
+        let zone = args.zone_name().filter(|z| !z.is_empty());
+        let node = args.node_name().filter(|n| !n.is_empty());
 
-        let mut current_location = TopologyLocation::new_builder();
-        current_location.in_zone(zone_name).on_node(node_name);
-        current_location.build()
+        TopologyLocation::builder().zone(zone).node(node).build()
     };
 
     let (ipc_endpoint_tx, ipc_endpoint_rx) = signal();
@@ -44,44 +43,43 @@ async fn main() {
     let mut join_set = JoinSet::new();
 
     let gateway_events_tx = {
-        let mut params = PollGatewayEventsParams::new_builder();
-        params
-            .ipc_endpoint_rx(&ipc_endpoint_rx)
+        let params = PollGatewayEventsParams::builder()
+            .ipc_endpoint_rx(ipc_endpoint_rx.clone())
             .pod_name(args.pod_name())
             .gateway_namespace(args.pod_namespace())
-            .gateway_name(args.gateway_name());
+            .gateway_name(args.gateway_name())
+            .build();
 
-        poll_gateway_events(&mut join_set, params.build())
+        poll_gateway_events(&mut join_set, params)
     };
 
     let ipc_configuration_source_rx = {
-        let mut params = FetchConfigurationParams::new_builder();
-        params
-            .ipc_endpoint_rx(&ipc_endpoint_rx)
+        let params = FetchConfigurationParams::builder()
+            .ipc_endpoint_rx(ipc_endpoint_rx)
             .gateway_events_rx(gateway_events_tx.subscribe())
             .pod_name(args.pod_name())
             .gateway_namespace(args.pod_namespace())
-            .gateway_name(args.gateway_name());
+            .gateway_name(args.gateway_name())
+            .build();
 
-        fetch_configuration(&mut join_set, params.build())
+        fetch_configuration(&mut join_set, params)
     };
 
     let fs_configuration_source_rx = {
-        let mut params = WatchConfigurationFileParams::new_builder();
-        params.file_path(args.config_file_path());
-        watch_configuration_file(&mut join_set, params.build())
+        let params = WatchConfigurationFileParams::builder()
+            .file_path(args.config_file_path())
+            .build();
+        
+        watch_configuration_file(&mut join_set, params)
     };
 
     let gateway_configuration_rx = {
-        let mut params = SelectorParams::new_builder();
-        params
+        let params = SelectorParams::builder()
             .ipc_configuration_source_rx(ipc_configuration_source_rx)
-            .fs_configuration_source_rx(fs_configuration_source_rx);
+            .fs_configuration_source_rx(fs_configuration_source_rx)
+            .build();
 
-        select_configuration(
-            &mut join_set,
-            params.build().expect("Failed to build SelectorParams"),
-        )
+        select_configuration(&mut join_set, params)
     };
 
     watch_ipc_endpoint(&mut join_set, &gateway_configuration_rx, ipc_endpoint_tx);
@@ -93,11 +91,10 @@ async fn main() {
     join_set.spawn_blocking(move || {
         let mut server = Server::new(None).unwrap();
         server.bootstrap();
-        let proxy = ProxyBuilder::default()
+        let proxy = Proxy::builder()
             .client_addr_filter_rx(client_addr_filter_rx)
             .router_rx(router_rx)
-            .build()
-            .expect("Failed to build proxy");
+            .build();
         let mut service = http_proxy_service(&server.configuration, proxy);
         service.add_tcp("0.0.0.0:8080");
 

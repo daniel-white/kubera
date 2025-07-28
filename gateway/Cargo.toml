@@ -8,7 +8,6 @@ anyhow = { workspace = true }
 async-trait = { workspace = true }
 enumflags2 = { workspace = true }
 clap = { workspace = true }
-derive_builder = { workspace = true }
 eventsource-client = { version = "0.15" }
 futures = { workspace = true }
 getset = { workspace = true }
@@ -30,6 +29,7 @@ rand = "0.9"
 rand_chacha = "0.9"
 reqwest = "0.12"
 trusted-proxies = "0.3"
+typed-builder = { workspace = true }
 
 [dev-dependencies]
 rstest = { workspace = true }

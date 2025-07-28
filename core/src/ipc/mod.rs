@@ -1,8 +1,8 @@
-use derive_builder::Builder;
 use getset::Getters;
 use schemars::_private::serde_json;
 use serde::{Deserialize, Serialize};
 use strum::{AsRefStr, IntoStaticStr};
+use typed_builder::TypedBuilder;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[non_exhaustive]
@@ -10,20 +10,15 @@ pub enum Event {
     Gateway(GatewayEvent),
 }
 
-#[derive(Debug, Clone, Builder, PartialEq, Serialize, Deserialize, Getters, Eq, Hash)]
-#[builder(setter(into))]
+#[derive(Debug, Clone, TypedBuilder, PartialEq, Serialize, Deserialize, Getters, Eq, Hash)]
 pub struct Ref {
     #[getset(get = "pub")]
+    #[builder(setter(into))]
     namespace: String,
 
     #[getset(get = "pub")]
+    #[builder(setter(into))]
     name: String,
-}
-
-impl Ref {
-    pub fn new_builder() -> RefBuilder {
-        RefBuilder::default()
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, IntoStaticStr, AsRefStr)]

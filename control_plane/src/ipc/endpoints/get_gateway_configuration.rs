@@ -24,24 +24,26 @@ pub async fn get_gateway_configuration(
     Path(path_params): Path<PathParams>,
     Query(query_params): Query<QueryParams>,
 ) -> impl IntoResponse {
-    let gateway_ref = match ObjectRef::new_builder()
-        .of_kind::<Gateway>()
+    if path_params.gateway_namespace.is_empty() {
+        return Problem::from(StatusCode::BAD_REQUEST)
+            .with_title("Invalid Namespace")
+            .with_detail("Gateway namespace cannot be empty")
+            .into_response();
+    }
+    if path_params.gateway_name.is_empty() {
+        return Problem::from(StatusCode::BAD_REQUEST)
+            .with_title("Invalid Name")
+            .with_detail("Gateway name cannot be empty")
+            .into_response();
+    }
+    
+    let gateway_ref = ObjectRef::of_kind::<Gateway>()
         .name(path_params.gateway_name)
         .namespace(Some(path_params.gateway_namespace))
-        .build()
-    {
-        Ok(gateway_ref) => gateway_ref,
-        Err(err) => {
-            info!("Failed to create gateway reference: {err}");
-            return Problem::from(StatusCode::BAD_REQUEST)
-                .with_title("Invalid Gateway Reference")
-                .with_detail(format!("Failed to create gateway reference: {err}"))
-                .into_response();
-        }
-    };
+        .build();
 
     debug!(
-        "Pod {} requesting gateway configuration for {}",
+        "Pod {} requesting gateway configuration for {:?}",
         query_params.pod_name, gateway_ref
     );
 

@@ -1,12 +1,12 @@
-use derive_builder::Builder;
 use getset::Getters;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_valid::Validate;
+use typed_builder::TypedBuilder;
 
 #[derive(
     Validate,
-    Builder,
+    TypedBuilder,
     Getters,
     Debug,
     Clone,
@@ -24,10 +24,12 @@ pub struct HttpPathMatch {
         rename = "type",
         skip_serializing_if = "HttpPathMatchType::is_default"
     )]
+    #[builder(setter(into))]
     match_type: HttpPathMatchType,
 
     #[getset(get = "pub")]
     #[validate(max_length = 1024)]
+    #[builder(setter(into))]
     value: String,
 }
 

@@ -140,12 +140,11 @@ fn build_router(
                             }
 
                             for config_endpoint in config_backend.endpoints() {
-                                backend.add_endpoint(*config_endpoint.address(), |endpoint| {
-                                    endpoint.located(|l| {
-                                        l.in_zone(config_endpoint.zone().clone())
-                                            .on_node(config_endpoint.node().clone());
-                                    });
-                                });
+                                let location = TopologyLocation::builder()
+                                    .zone(config_endpoint.zone().clone())
+                                    .node(config_endpoint.node().clone())
+                                    .build();
+                                backend.add_endpoint(*config_endpoint.address(), location);
                             }
                         });
                     }
@@ -171,10 +170,9 @@ mod tests {
         let config = include_str!("./testcases/simple.yaml").to_string();
         let config = read_configuration(Cursor::new(config)).expect("Failed to read configuration");
 
-        let mut current_location = TopologyLocation::new_builder();
-        current_location
-            .in_zone(Some("zone1".to_string()))
-            .on_node(Some("node1".to_string()));
+        let current_location = TopologyLocation::builder()
+            .zone(Some("zone1".to_string()))
+            .node(Some("node1".to_string()));
         let current_location = current_location.build();
         let current_location = Arc::new(current_location);
 

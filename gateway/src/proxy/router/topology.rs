@@ -1,5 +1,6 @@
-use enumflags2::{BitFlags, bitflags};
+use enumflags2::{bitflags, BitFlags};
 use getset::Getters;
+use typed_builder::TypedBuilder;
 
 #[bitflags]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -22,45 +23,11 @@ impl TopologyLocationMatch {
     }
 }
 
-#[derive(Default, Getters, Debug, Clone, PartialEq, Eq)]
+#[derive(Default, Getters, Debug, Clone, PartialEq, Eq, TypedBuilder)]
 pub struct TopologyLocation {
     #[getset(get = "pub")]
     node: Option<String>,
 
     #[getset(get = "pub")]
     zone: Option<String>,
-}
-
-impl TopologyLocation {
-    pub fn new_builder() -> TopologyLocationBuilder {
-        TopologyLocationBuilder {
-            node: None,
-            zone: None,
-        }
-    }
-}
-
-#[derive(Debug)]
-pub struct TopologyLocationBuilder {
-    node: Option<String>,
-    zone: Option<String>,
-}
-
-impl TopologyLocationBuilder {
-    pub fn build(self) -> TopologyLocation {
-        TopologyLocation {
-            node: self.node,
-            zone: self.zone,
-        }
-    }
-
-    pub fn on_node(&mut self, node: Option<String>) -> &mut Self {
-        self.node = node;
-        self
-    }
-
-    pub fn in_zone(&mut self, zone: Option<String>) -> &mut Self {
-        self.zone = zone;
-        self
-    }
 }

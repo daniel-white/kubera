@@ -82,7 +82,7 @@ impl HttpRouteBuilder {
     pub fn new(current_location: &Arc<TopologyLocation>) -> Self {
         HttpRouteBuilder {
             current_location: current_location.clone(),
-            host_header_match_builder: HostHeaderMatchBuilder::default(),
+            host_header_match_builder: HostHeaderMatch::builder(),
             rule_builders: Vec::new(),
         }
     }
@@ -160,7 +160,6 @@ pub struct HttpRouteRule {
     backends: Vec<HttpBackend>,
 }
 
-#[derive(Debug)]
 pub struct HttpRouteRuleBuilder {
     unique_id: HttpRouteRuleUniqueId,
     current_location: Arc<TopologyLocation>,

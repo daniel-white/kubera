@@ -1,12 +1,12 @@
-use derive_builder::Builder;
 use getset::Getters;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_valid::Validate;
+use typed_builder::TypedBuilder;
 
 #[derive(
     Validate,
-    Builder,
+    TypedBuilder,
     Getters,
     Debug,
     Clone,
@@ -24,14 +24,17 @@ pub struct HttpQueryParamMatch {
         rename = "type",
         skip_serializing_if = "HttpQueryParamMatchType::is_default"
     )]
+    #[builder(setter(into))]
     match_type: HttpQueryParamMatchType,
 
     #[getset(get = "pub")]
+    #[builder(setter(into))]
     name: HttpQueryParamName,
 
     #[getset(get = "pub")]
     #[validate(min_length = 1)]
     #[validate(max_length = 1024)]
+    #[builder(setter(into))]
     value: String,
 }
 

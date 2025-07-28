@@ -3,7 +3,7 @@ use kubera_core::config::gateway::serde::read_configuration;
 use kubera_core::config::gateway::types::GatewayConfiguration;
 use kubera_core::continue_on;
 use kubera_core::ipc::GatewayEvent;
-use kubera_core::sync::signal::{Receiver, Sender, signal};
+use kubera_core::sync::signal::{signal, Receiver, Sender};
 use reqwest::Client;
 use std::io::BufReader;
 use std::net::SocketAddr;
@@ -11,73 +11,19 @@ use std::time::Instant;
 use tokio::sync::broadcast::Receiver as BroadcastReceiver;
 use tokio::task::JoinSet;
 use tracing::{debug, info, warn};
+use typed_builder::TypedBuilder;
 use url::Url;
 
-#[derive(Debug)]
+#[derive(Debug, TypedBuilder)]
 pub struct FetchConfigurationParams {
     ipc_endpoint_rx: Receiver<SocketAddr>,
     gateway_events_rx: BroadcastReceiver<GatewayEvent>,
+    #[builder(setter(into))]
     pod_name: String,
+    #[builder(setter(into))]
     gateway_namespace: String,
+    #[builder(setter(into))]
     gateway_name: String,
-}
-
-impl FetchConfigurationParams {
-    pub fn new_builder() -> FetchConfigurationParamsBuilder {
-        FetchConfigurationParamsBuilder::default()
-    }
-}
-
-#[derive(Default)]
-pub struct FetchConfigurationParamsBuilder {
-    ipc_endpoint_rx: Option<Receiver<SocketAddr>>,
-    gateway_events_rx: Option<BroadcastReceiver<GatewayEvent>>,
-    pod_name: Option<String>,
-    gateway_namespace: Option<String>,
-    gateway_name: Option<String>,
-}
-
-impl FetchConfigurationParamsBuilder {
-    pub fn ipc_endpoint_rx(&mut self, addr: &Receiver<SocketAddr>) -> &mut Self {
-        self.ipc_endpoint_rx = Some(addr.clone());
-        self
-    }
-
-    pub fn gateway_events_rx(&mut self, events: BroadcastReceiver<GatewayEvent>) -> &mut Self {
-        self.gateway_events_rx = Some(events);
-        self
-    }
-
-    pub fn pod_name<N: AsRef<str>>(&mut self, name: N) -> &mut Self {
-        self.pod_name = Some(name.as_ref().to_string());
-        self
-    }
-
-    pub fn gateway_namespace<N: AsRef<str>>(&mut self, namespace: N) -> &mut Self {
-        self.gateway_namespace = Some(namespace.as_ref().to_string());
-        self
-    }
-
-    pub fn gateway_name<N: AsRef<str>>(&mut self, name: N) -> &mut Self {
-        self.gateway_name = Some(name.as_ref().to_string());
-        self
-    }
-
-    pub fn build(self) -> FetchConfigurationParams {
-        FetchConfigurationParams {
-            ipc_endpoint_rx: self
-                .ipc_endpoint_rx
-                .expect("Primary socket address is required"),
-            gateway_events_rx: self
-                .gateway_events_rx
-                .expect("Gateway events receiver is required"),
-            pod_name: self.pod_name.expect("Pod name is required"),
-            gateway_namespace: self
-                .gateway_namespace
-                .expect("Gateway namespace is required"),
-            gateway_name: self.gateway_name.expect("Gateway name is required"),
-        }
-    }
 }
 
 pub fn fetch_configuration(

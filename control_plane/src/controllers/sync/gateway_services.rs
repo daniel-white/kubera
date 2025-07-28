@@ -4,7 +4,6 @@ use crate::kubernetes::objects::{ObjectRef, SyncObjectAction};
 use crate::kubernetes::KubeClientCell;
 use crate::options::Options;
 use crate::{sync_objects, watch_objects};
-use derive_builder::Builder;
 use gtmpl_derive::Gtmpl;
 use k8s_openapi::api::core::v1::Service;
 use kube::runtime::watcher::Config;
@@ -16,12 +15,13 @@ use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use tokio::sync::broadcast::Sender;
 use tracing::debug;
+use typed_builder::TypedBuilder;
 
 const TEMPLATE: &str = include_str!("./templates/gateway_service.kubernetes-helm-yaml");
 
-#[derive(Clone, Builder, Debug, Gtmpl)]
-#[builder(setter(into))]
+#[derive(Clone, TypedBuilder, Debug, Gtmpl)]
 struct TemplateValues {
+    #[builder(setter(into))]
     gateway_name: String,
 }
 
@@ -68,17 +68,14 @@ fn generate_gateway_services(
                         let desired_services: Vec<_> = gateway_instances
                             .iter()
                             .map(|(gateway_ref, instance)| {
-                                let service_ref = ObjectRef::new_builder()
-                                    .of_kind::<Service>()
+                                let service_ref = ObjectRef::of_kind::<Service>()
                                     .namespace(gateway_ref.namespace().clone())
                                     .name(gateway_ref.name())
-                                    .build()
-                                    .expect("Failed to build ObjectRef for Service");
+                                    .build();
 
-                                let template_values = TemplateValuesBuilder::default()
+                                let template_values = TemplateValues::builder()
                                     .gateway_name(gateway_ref.name())
-                                    .build()
-                                    .expect("Failed to build TemplateValues");
+                                    .build();
 
                                 (
                                     service_ref,

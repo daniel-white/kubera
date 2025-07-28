@@ -1,15 +1,15 @@
-use crate::kubernetes::KubeClientCell;
 use crate::kubernetes::objects::ObjectRef;
+use crate::kubernetes::KubeClientCell;
 use crate::options::Options;
 use futures::StreamExt;
 use k8s_openapi::api::coordination::v1::Lease;
 use k8s_openapi::api::core::v1::Pod;
-use kube::runtime::Controller;
 use kube::runtime::controller::Action;
 use kube::runtime::watcher::Config;
+use kube::runtime::Controller;
 use kube::{Api, Client};
 use kube_leader_election::{LeaseLock, LeaseLockParams, LeaseLockResult};
-use kubera_core::sync::signal::{Receiver, Sender, signal};
+use kubera_core::sync::signal::{signal, Receiver, Sender};
 use kubera_core::task::Builder as TaskBuilder;
 use kubera_core::{continue_after, continue_on};
 use std::future::ready;
@@ -186,10 +186,8 @@ fn get_pod_ref(namespace: &str, lease: &Lease) -> ObjectRef {
         .clone()
         .expect("Holder identity should be present in lease spec");
 
-    ObjectRef::new_builder()
-        .of_kind::<Pod>()
+    ObjectRef::of_kind::<Pod>()
         .namespace(Some(namespace.to_string()))
         .name(holder_id)
         .build()
-        .expect("Failed to build ObjectRef for Pod")
 }

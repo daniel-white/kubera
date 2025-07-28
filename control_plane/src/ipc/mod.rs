@@ -3,34 +3,30 @@ pub mod events;
 mod gateways;
 
 use crate::ipc::endpoints::{
-    SpawnIpcEndpointError, SpawnIpcEndpointParameters, SpawnIpcEndpointParametersBuilderError,
-    spawn_ipc_endpoint,
+    spawn_ipc_endpoint, SpawnIpcEndpointError, SpawnIpcEndpointParameters,
 };
 use crate::ipc::events::EventSender;
 use crate::ipc::gateways::{
-    GatewayConfigurationManager, GatewayConfigurationManagerInsertError,
-    create_gateway_configuration_services,
+    create_gateway_configuration_services, GatewayConfigurationManager,
+    GatewayConfigurationManagerInsertError,
 };
-use crate::kubernetes::KubeClientCell;
 use crate::kubernetes::objects::ObjectRef;
+use crate::kubernetes::KubeClientCell;
 use crate::options::Options;
-use derive_builder::Builder;
 use getset::{CopyGetters, Getters};
 use kubera_core::config::gateway::types::GatewayConfiguration;
-use kubera_core::ipc::{Event, GatewayEvent, Ref as IpcRef, RefBuilderError as IpcRefBuilderError};
+use kubera_core::ipc::{Event, GatewayEvent, Ref as IpcRef};
 use kubera_core::net::Port;
 use kubera_core::sync::signal::Receiver;
 use kubera_core::task::Builder as TaskBuilder;
 use std::sync::Arc;
 use thiserror::Error;
+use typed_builder::TypedBuilder;
 
-#[derive(Debug, Builder, Getters, CopyGetters)]
-#[builder(setter(into))]
+#[derive(Debug, TypedBuilder, Getters, CopyGetters)]
 pub struct IpcServices {
     events: EventSender,
-
     gateway_configuration_manager: GatewayConfigurationManager,
-
     #[getset(get_copy = "pub")]
     port: Port,
 }
@@ -39,8 +35,8 @@ pub struct IpcServices {
 pub enum TryFromObjectRefError {
     #[error("ObjectRef is missing a namespace")]
     MissingNamespace,
-    #[error("Failed to create IpcRef from ObjectRef: {0}")]
-    CreationError(#[from] IpcRefBuilderError),
+    #[error("Failed to create IpcRef from ObjectRef")]
+    CreationError,
 }
 
 impl TryFrom<ObjectRef> for IpcRef {
@@ -60,10 +56,10 @@ impl TryFrom<&ObjectRef> for IpcRef {
             .clone()
             .ok_or(TryFromObjectRefError::MissingNamespace)?;
 
-        let ipc_ref = IpcRef::new_builder()
+        let ipc_ref = IpcRef::builder()
             .namespace(namespace)
             .name(object_ref.name())
-            .build()?;
+            .build();
 
         Ok(ipc_ref)
     }
@@ -77,10 +73,6 @@ pub enum IpcInsertGatewayConfigurationError {
 }
 
 impl IpcServices {
-    fn new_builder() -> IpcServicesBuilder {
-        IpcServicesBuilder::default()
-    }
-
     pub fn try_insert_gateway_configuration(
         &self,
         gateway_ref: ObjectRef,
@@ -109,26 +101,20 @@ impl IpcServices {
     }
 }
 
-#[derive(Clone, Builder)]
-#[builder(setter(into))]
+#[derive(Clone, TypedBuilder)]
 pub struct SpawnIpcParameters {
+    #[builder(setter(into))]
     port: Port,
     kube_client_rx: Receiver<KubeClientCell>,
     options: Arc<Options>,
 }
 
-impl SpawnIpcParameters {
-    pub fn new_builder() -> SpawnIpcParametersBuilder {
-        SpawnIpcParametersBuilder::default()
-    }
-}
-
 #[derive(Debug, Error)]
 pub enum SpawnIpcError {
     #[error("Failed to build IPC endpoint parameters")]
-    EndpointParameters(#[from] SpawnIpcEndpointParametersBuilderError),
+    EndpointParameters,
     #[error("Failed to create IPC services")]
-    Services(#[from] IpcServicesBuilderError),
+    Services,
     #[error("Failed to spawn IPC endpoint")]
     SpawnEndpoint(#[from] SpawnIpcEndpointError),
 }
@@ -140,21 +126,21 @@ pub async fn spawn_ipc(
     let (event_sender, events_factory) = events::events_channel();
     let (reader, gateway_manager) = create_gateway_configuration_services();
 
-    let ipc_endpoint_params = SpawnIpcEndpointParameters::new_builder()
+    let ipc_endpoint_params = SpawnIpcEndpointParameters::builder()
         .options(params.options)
         .port(params.port)
         .events(events_factory)
         .gateways(reader)
         .kube_client_rx(params.kube_client_rx)
-        .build()?;
+        .build();
 
     spawn_ipc_endpoint(task_builder, ipc_endpoint_params).await?;
 
-    let ipc_services = IpcServices::new_builder()
+    let ipc_services = IpcServices::builder()
         .events(event_sender)
         .gateway_configuration_manager(gateway_manager)
         .port(params.port)
-        .build()?;
+        .build();
 
     Ok(ipc_services)
 }

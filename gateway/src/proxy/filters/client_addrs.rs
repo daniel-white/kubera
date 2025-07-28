@@ -1,9 +1,9 @@
 use http::{HeaderName, HeaderValue};
 use ipnet::IpNet;
-use kubera_core::config::gateway::types::GatewayConfiguration;
 use kubera_core::config::gateway::types::net::{ClientAddrsSource, ProxyHeaders};
+use kubera_core::config::gateway::types::GatewayConfiguration;
 use kubera_core::continue_on;
-use kubera_core::sync::signal::{Receiver, signal};
+use kubera_core::sync::signal::{signal, Receiver};
 use pingora::proxy::Session;
 use std::net::IpAddr;
 use std::str::FromStr;
@@ -28,20 +28,19 @@ pub fn client_addr_filter(
             {
                 let filter = match client_addrs.source() {
                     ClientAddrsSource::None => None,
-                    ClientAddrsSource::Header => {
-                        client_addrs
-                            .header()
-                            .as_ref()
-                            .and_then(|h| HeaderName::from_str(h).ok()).map(|header_name| ClientAddrFilter::new(
-                                ClientAddrExtractorType::TrustedHeader(Arc::new(
-                                    TrustedHeaderClientAddrExtractor::new(header_name),
-                                )),
-                            ))
-                    }
+                    ClientAddrsSource::Header => client_addrs
+                        .header()
+                        .as_ref()
+                        .and_then(|h| HeaderName::from_str(h).ok())
+                        .map(|header_name| {
+                            ClientAddrFilter::new(ClientAddrExtractorType::TrustedHeader(Arc::new(
+                                TrustedHeaderClientAddrExtractor::new(header_name),
+                            )))
+                        }),
                     ClientAddrsSource::Proxies => {
                         if let Some(proxies) = client_addrs.proxies().as_ref() {
                             let mut extractor_builder =
-                                TrustedProxiesClientAddrExtractor::new_builder();
+                                TrustedProxiesClientAddrExtractor::builder();
 
                             for ip in proxies.trusted_ips().iter().cloned() {
                                 extractor_builder.add_trusted_ip(ip);
@@ -169,7 +168,7 @@ struct TrustedProxiesClientAddrExtractor {
 }
 
 impl TrustedProxiesClientAddrExtractor {
-    fn new_builder() -> TrustedProxiesClientAddrExtractorBuilder {
+    fn builder() -> TrustedProxiesClientAddrExtractorBuilder {
         TrustedProxiesClientAddrExtractorBuilder::new()
     }
 }

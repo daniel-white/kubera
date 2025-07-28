@@ -5,7 +5,6 @@ use crate::kubernetes::objects::{ObjectRef, SyncObjectAction};
 use crate::kubernetes::KubeClientCell;
 use crate::options::Options;
 use crate::{sync_objects, watch_objects};
-use derive_builder::Builder;
 use gateway_api::apis::standard::httproutes::{
     HTTPRoute, HTTPRouteRulesMatchesHeadersType, HTTPRouteRulesMatchesMethod,
     HTTPRouteRulesMatchesPathType, HTTPRouteRulesMatchesQueryParamsType,
@@ -33,18 +32,19 @@ use std::sync::Arc;
 use tokio::select;
 use tokio::sync::broadcast::Sender;
 use tracing::{debug, error, info, warn};
+use typed_builder::TypedBuilder;
 
 const TEMPLATE: &str = include_str!("./templates/gateway_configmap.kubernetes-helm-yaml");
 
-#[derive(Clone, Builder, Debug, Gtmpl)]
-#[builder(setter(into))]
+#[derive(Clone, TypedBuilder, Debug, Gtmpl)]
 struct TemplateValues {
+    #[builder(setter(into))]
     gateway_name: String,
+    #[builder(setter(into))]
     config_yaml: String,
 }
 
-#[derive(Builder, CloneGetters, Clone)]
-#[builder(setter(into))]
+#[derive(TypedBuilder, CloneGetters, Clone)]
 pub struct SyncGatewayConfigmapsParams {
     #[getset(get_clone = "pub")]
     options: Arc<Options>,
@@ -64,12 +64,6 @@ pub struct SyncGatewayConfigmapsParams {
     backends_rx: Receiver<HashMap<ObjectRef, Backend>>,
 }
 
-impl SyncGatewayConfigmapsParams {
-    pub fn new_builder() -> SyncGatewayConfigmapsParamsBuilder {
-        SyncGatewayConfigmapsParamsBuilder::default()
-    }
-}
-
 pub fn sync_gateway_configmaps(task_builder: &TaskBuilder, params: SyncGatewayConfigmapsParams) {
     let options = params.options();
     let kube_client_rx = params.kube_client_rx();
@@ -85,7 +79,7 @@ pub fn sync_gateway_configmaps(task_builder: &TaskBuilder, params: SyncGatewayCo
         TEMPLATE
     );
 
-    let params = GenerateGatewayConfigmapsParamsBuilder::default()
+    let params = GenerateGatewayConfigmapsParams::builder()
         .options(params.options())
         .sync_tx(tx)
         .ipc_services(params.ipc_services())
@@ -94,14 +88,12 @@ pub fn sync_gateway_configmaps(task_builder: &TaskBuilder, params: SyncGatewayCo
         .gateway_instances_rx(params.gateway_instances_rx())
         .http_routes_rx(params.http_routes_rx())
         .backends_rx(params.backends_rx())
-        .build()
-        .expect("Failed to build GenerateGatewayConfigmapsParams");
+        .build();
 
     generate_gateway_configmaps(task_builder, params);
 }
 
-#[derive(Builder, CloneGetters, Clone)]
-#[builder(setter(into))]
+#[derive(TypedBuilder, CloneGetters, Clone)]
 struct GenerateGatewayConfigmapsParams {
     #[getset(get_clone = "pub")]
     options: Arc<Options>,
@@ -201,8 +193,7 @@ fn generate_gateway_configmaps(
         });
 }
 
-#[derive(Clone, Debug, Builder)]
-#[builder(setter(into))]
+#[derive(Clone, Debug, TypedBuilder)]
 struct GatewayState {
     gateway_ref: ObjectRef,
     configmap_ref: ObjectRef,
@@ -213,34 +204,30 @@ fn expand(configurations: &HashMap<ObjectRef, Option<GatewayConfiguration>>) -> 
     configurations
         .iter()
         .map(|(gateway_ref, config)| {
-            let configmap_ref = ObjectRef::new_builder()
-                .of_kind::<ConfigMap>()
+            let configmap_ref = ObjectRef::of_kind::<ConfigMap>()
                 .namespace(gateway_ref.namespace().clone())
                 .name(format!("{}-config", gateway_ref.name()))
-                .build()
-                .expect("Failed to build ObjectRef for ConfigMap");
+                .build();
 
-            let mut state_builder = GatewayStateBuilder::default();
-            state_builder
+            let state = GatewayState::builder()
                 .gateway_ref(gateway_ref.clone())
                 .configmap_ref(configmap_ref);
 
-            if let Some(config) = config {
+            let state = if let Some(config) = config {
                 let config_yaml = serde_yaml::to_string(config)
                     .expect("Failed to serialize GatewayConfiguration to YAML");
-                let template_values = TemplateValuesBuilder::default()
+                let template_values = TemplateValues::builder()
                     .gateway_name(gateway_ref.name())
                     .config_yaml(config_yaml)
-                    .build()
-                    .expect("Failed to build TemplateValues");
+                    .build();
 
-                state_builder.values(Some((template_values, config.clone())));
+                state.values(Some((template_values, config.clone())))
             } else {
                 warn!("No configuration found for gateway: {}", gateway_ref);
-                state_builder.values(None);
-            }
+                state.values(None)
+            };
 
-            state_builder.build().expect("Failed to build GatewayState")
+            state.build()
         })
         .collect::<Vec<_>>()
 }
@@ -306,8 +293,7 @@ fn generate_gateway_configurations(
 
 
                                                        for backend_ref in rule.backend_refs.iter().flatten() {
-                                                           let source = ObjectRef::new_builder()
-                                                               .of_kind::<Service>()
+                                                           let source_ref = ObjectRef::of_kind::<Service>()
                                                                .namespace(
                                                                    backend_ref.namespace.clone().or_else(
                                                                        || {
@@ -319,11 +305,9 @@ fn generate_gateway_configurations(
                                                                    ),
                                                                )
                                                                .name(&backend_ref.name)
-                                                               .build()
-                                                               .ok()
-                                                               .and_then(|r| backends.get(&r));
+                                                               .build();
 
-                                                           match source {
+                                                           match backends.get(&source_ref) {
                                                                Some(source) => {
                                                                    add_backend(source, target);
                                                                }

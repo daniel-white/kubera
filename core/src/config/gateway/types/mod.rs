@@ -135,7 +135,7 @@ impl GatewayConfigurationBuilder {
     where
         F: FnOnce(&mut ListenerBuilder),
     {
-        let mut listener = Listener::new_builder();
+        let mut listener = Listener::builder();
         factory(&mut listener);
         self.listeners_builders.push(listener);
         self

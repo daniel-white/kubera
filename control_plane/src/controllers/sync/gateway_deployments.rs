@@ -4,7 +4,6 @@ use crate::kubernetes::objects::{ObjectRef, SyncObjectAction};
 use crate::kubernetes::KubeClientCell;
 use crate::options::Options;
 use crate::{sync_objects, watch_objects};
-use derive_builder::Builder;
 use gtmpl_derive::Gtmpl;
 use k8s_openapi::api::apps::v1::Deployment;
 use kube::runtime::watcher::Config;
@@ -15,14 +14,17 @@ use kubera_macros::await_ready;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use tokio::sync::broadcast::Sender;
+use typed_builder::TypedBuilder;
 
 const TEMPLATE: &str = include_str!("./templates/gateway_deployment.kubernetes-helm-yaml");
 
-#[derive(Clone, Builder, Debug, Gtmpl)]
-#[builder(setter(into))]
+#[derive(Clone, TypedBuilder, Debug, Gtmpl)]
 struct TemplateValues {
+    #[builder(setter(into))]
     gateway_name: String,
+    #[builder(setter(into))]
     configmap_name: String,
+    #[builder(setter(into))]
     image_pull_policy: String,
 }
 
@@ -69,22 +71,18 @@ fn generate_gateway_deployments(
                         let desired_deployments: Vec<_> = gateway_instances
                             .iter()
                             .map(|(gateway_ref, instance)| {
-                                let deployment_ref = ObjectRef::new_builder()
-                                    .of_kind::<Deployment>()
+                                let deployment_ref = ObjectRef::of_kind::<Deployment>()
                                     .namespace(gateway_ref.namespace().clone())
                                     .name(gateway_ref.name())
-                                    .build()
-                                    .expect("Failed to build ObjectRef for Deployment");
+                                    .build();
 
-                                let image_pull_policy: &'static str =
-                                    instance.image_pull_policy().into();
-
-                                let template_values = TemplateValuesBuilder::default()
+                                let template_values = TemplateValues::builder()
                                     .gateway_name(gateway_ref.name())
                                     .configmap_name(format!("{}-config", gateway_ref.name()))
-                                    .image_pull_policy(image_pull_policy)
-                                    .build()
-                                    .expect("Failed to build TemplateValues");
+                                    .image_pull_policy(Into::<&'static str>::into(
+                                        instance.image_pull_policy(),
+                                    ))
+                                    .build();
 
                                 (
                                     deployment_ref,

@@ -8,7 +8,6 @@ anyhow = { workspace = true }
 atomic_refcell = "0.1.13"
 backtrace-on-stack-overflow = "0.3"
 console-subscriber = "0.4"
-derive_builder = { workspace = true }
 flexi_logger = { workspace = true }
 getset = { workspace = true }
 http = { workspace = true }
@@ -25,6 +24,7 @@ thiserror = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }
 unicase = { workspace = true }
+typed-builder = { workspace = true }
 
 
 [lib]

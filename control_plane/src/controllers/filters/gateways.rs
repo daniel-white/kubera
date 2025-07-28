@@ -28,25 +28,18 @@ pub fn filter_gateways(
                         debug!("Filtering Gateways for GatewayClass: {}", gateway_class_ref);
                         let gateways = gateways
                             .iter()
-                            .filter(|(gateway_ref, _, gateway)| {
-                                ObjectRef::new_builder()
-                                    .of_kind::<GatewayClass>()
-                                    .namespace(None)
+                            .filter(|(_, _, gateway)| {
+                                let current_ref = ObjectRef::of_kind::<GatewayClass>()
                                     .name(&gateway.spec.gateway_class_name)
-                                    .build()
-                                    .inspect_err(|err| {
-                                        warn!(
-                                            "Error creating GatewayClass reference for gateway {}: {}",
-                                            gateway_ref, err
-                                        );
-                                    })
-                                    .ok()
-                                    .is_some_and(|ref_| gateway_class_ref == ref_)
+                                    .build();
+                                current_ref == gateway_class_ref
                             })
                             .collect();
 
                         tx.set(gateways).await;
-                    }).run().await;
+                    })
+                    .run()
+                    .await;
 
                 continue_on!(gateway_class_rx.changed(), gateways_rx.changed());
             }
@@ -80,15 +73,12 @@ pub fn filter_gateway_parameters(
                                     .as_ref()
                                     .and_then(|i| i.parameters_ref.as_ref())
                                 {
-                                    let parameters_ref = ObjectRef::new_builder()
+                                    let parameters_ref = ObjectRef::builder()
                                         .group(Some(parameters_ref.group.clone()))
                                         .kind(parameters_ref.kind.clone())
                                         .namespace(gateway_ref.namespace().clone())
                                         .name(&parameters_ref.name)
-                                        .build()
-                                        .expect(
-                                            "Failed to build parameters reference from Gateway",
-                                        );
+                                        .build();
 
                                     if let Some(parameters) =
                                         gateway_parameters.get_by_ref(&parameters_ref)

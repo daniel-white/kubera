@@ -31,24 +31,16 @@ pub fn filter_http_routes(
                                     .parent_refs
                                     .iter()
                                     .flat_map(|parent_ref| parent_ref.iter())
-                                    .filter_map(|parent_ref| {
-                                        ObjectRef::new_builder()
-                                            .of_kind::<Gateway>() // Assuming v1 for simplicity, adjust as needed
+                                    .map(|parent_ref| {
+                                        ObjectRef::of_kind::<Gateway>() // Assuming v1 for simplicity, adjust as needed
                                             .namespace(
                                                 parent_ref
                                                     .namespace
                                                     .clone()
                                                     .or_else(|| http_route_ref.namespace().clone()),
                                             )
-                                            .name(parent_ref.name.clone())
+                                            .name(&parent_ref.name)
                                             .build()
-                                            .inspect_err(|err| {
-                                                warn!(
-                                                    "Error creating Gateway reference for HTTPRoute {}: {}",
-                                                    http_route_ref, err
-                                                );
-                                            })
-                                            .ok()
                                     })
                                     .unique()
                                     .any(|r| gateways.contains_by_ref(&r)) });

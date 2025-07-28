@@ -10,12 +10,11 @@ use crate::ipc::events::EventStreamFactory;
 use crate::ipc::gateways::GatewayConfigurationReader;
 use crate::kubernetes::KubeClientCell;
 use crate::options::Options;
-use axum::Router;
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::routing::get;
+use axum::Router;
 use axum_health::Health;
-use derive_builder::Builder;
 use getset::{CloneGetters, CopyGetters, Getters};
 use kubera_core::net::Port;
 use kubera_core::sync::signal::Receiver;
@@ -27,8 +26,9 @@ use thiserror::Error;
 use tokio::net::TcpListener;
 use tokio::select;
 use tracing::info;
+use typed_builder::TypedBuilder;
 
-#[derive(Builder, Getters, CloneGetters, Clone)]
+#[derive(TypedBuilder, Getters, CloneGetters, Clone)]
 pub struct IpcEndpointState {
     #[getset(get_clone = "pub")]
     options: Arc<Options>,
@@ -40,14 +40,7 @@ pub struct IpcEndpointState {
     gateways: GatewayConfigurationReader,
 }
 
-impl IpcEndpointState {
-    fn new_builder() -> IpcEndpointStateBuilder {
-        IpcEndpointStateBuilder::default()
-    }
-}
-
-#[derive(Builder, CloneGetters, CopyGetters)]
-#[builder(setter(into))]
+#[derive(TypedBuilder, CloneGetters, CopyGetters)]
 pub struct SpawnIpcEndpointParameters {
     #[getset(get_clone = "")]
     options: Arc<Options>,
@@ -66,10 +59,6 @@ pub struct SpawnIpcEndpointParameters {
 }
 
 impl SpawnIpcEndpointParameters {
-    pub fn new_builder() -> SpawnIpcEndpointParametersBuilder {
-        SpawnIpcEndpointParametersBuilder::default()
-    }
-
     fn endpoint(&self) -> SocketAddr {
         SocketAddr::from(([0, 0, 0, 0], self.port().into()))
     }
@@ -77,8 +66,8 @@ impl SpawnIpcEndpointParameters {
 
 #[derive(Debug, Error)]
 pub enum SpawnIpcEndpointError {
-    #[error("Failed to create initial IPC endpoint state: {0}")]
-    InitialState(#[from] IpcEndpointStateBuilderError),
+    #[error("Failed to create initial IPC endpoint state")]
+    InitialState,
 
     #[error("Failed to bind IPC endpoint: {0}")]
     NetworkBind(#[from] std::io::Error),
@@ -88,11 +77,11 @@ pub async fn spawn_ipc_endpoint(
     task_builder: &TaskBuilder,
     params: SpawnIpcEndpointParameters,
 ) -> Result<(), SpawnIpcEndpointError> {
-    let initial_state = IpcEndpointState::new_builder()
+    let initial_state = IpcEndpointState::builder()
         .options(params.options())
         .gateways(params.gateways())
         .events(params.events())
-        .build()?;
+        .build();
 
     let kube_health = KubernetesApiHealthIndicator::new(&params.kube_client_rx);
     let health = Health::builder().with_indicator(kube_health).build();
