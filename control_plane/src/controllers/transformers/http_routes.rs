@@ -65,8 +65,14 @@ pub fn collect_http_route_backends(
                                             .port(
                                                 backend_ref
                                                     .port
-                                                    .map(|p| {
-                                                        u16::try_from(p).expect("Port must be u16")
+                                                    .and_then(|port| {
+                                                        u16::try_from(port)
+                                                            .inspect_err(|err| {
+                                                                warn!(
+                                                                    "Invalid port {port} for backend reference at rule index {rule_idx}, backend index {backend_idx} for HTTPRoute {http_route_ref}: {err}"
+                                                                );
+                                                            })
+                                                            .ok()
                                                     })
                                                     .map(Port::new),
                                             )
@@ -114,7 +120,7 @@ pub fn collect_http_routes_by_gateway(
                     for (http_route_ref, _, http_route) in http_routes.iter() {
                         info!("Collecting HTTPRoute: object.ref={}", http_route_ref);
 
-                        for (parent_idx, parent_ref) in
+                        for (_parent_idx, parent_ref) in
                             http_route.spec.parent_refs.iter().flatten().enumerate()
                         {
                             let gateway_ref = ObjectRef::of_kind::<Gateway>()

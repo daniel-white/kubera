@@ -6,7 +6,7 @@ use axum::{extract::State, response::IntoResponse};
 use gateway_api::apis::standard::gateways::Gateway;
 use problemdetails::Problem;
 use serde::Deserialize;
-use tracing::{debug, info};
+use tracing::debug;
 
 #[derive(Deserialize)]
 pub struct PathParams {

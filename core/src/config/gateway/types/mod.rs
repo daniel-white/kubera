@@ -8,7 +8,7 @@ use crate::config::gateway::types::net::{
     ClientAddrs, ClientAddrsBuilder, Listener, ListenerBuilder, ListenerBuilderError,
 };
 use crate::net::Port;
-use getset::Getters;
+use getset::{CloneGetters, CopyGetters, Getters};
 use itertools::{Either, Itertools};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -22,6 +22,7 @@ use thiserror::Error;
     Default,
     Debug,
     Clone,
+    Copy,
     PartialEq,
     Eq,
     Serialize,
@@ -36,9 +37,20 @@ pub enum GatewayConfigurationVersion {
     V1Alpha1,
 }
 
-#[derive(Validate, Getters, Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(
+    Validate,
+    Getters,
+    CloneGetters,
+    CopyGetters,
+    Debug,
+    Clone,
+    PartialEq,
+    Serialize,
+    Deserialize,
+    JsonSchema,
+)]
 pub struct GatewayConfiguration {
-    #[getset(get = "pub")]
+    #[getset(get_copy = "pub")]
     version: GatewayConfigurationVersion,
 
     #[getset(get = "pub")]

@@ -8,7 +8,7 @@ use kubera_core::task::Builder as TaskBuilder;
 use kubera_macros::await_ready;
 use std::collections::HashMap;
 use std::sync::Arc;
-use tracing::{debug, info, warn};
+use tracing::{debug, info};
 
 pub fn filter_gateways(
     task_builder: &TaskBuilder,

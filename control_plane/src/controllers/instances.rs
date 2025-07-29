@@ -63,10 +63,9 @@ pub fn watch_leader_instance_ip_addr(
         .spawn(async move {
         let controller_context = Arc::new(ControllerContext { options, tx });
         loop {
-            match (kube_client_rx.get().await.as_deref(), instance_role_rx.get().await.as_ref()) {
-                (Some(kube_client), Some(instance_role)) => {
-                    let primary_pod_ref = instance_role.primary_pod_ref();
-                    info!("Determining instance IP address for pod as it is the primary: {}", primary_pod_ref);
+            match (kube_client_rx.get().await.as_deref(), instance_role_rx.get().await.and_then(|r| r.primary_pod_ref().cloned())) {
+                (Some(kube_client), Some(primary_pod_ref)) => {
+                    info!("Determining instance IP address for pod as it is the primary: {:?}", primary_pod_ref);
                     let api = Api::<Pod>::namespaced(
                         kube_client.clone(),
                         primary_pod_ref
@@ -111,12 +110,14 @@ pub fn watch_leader_instance_ip_addr(
 pub enum InstanceRole {
     Primary(ObjectRef),
     Redundant(ObjectRef),
+    Undetermined,
 }
 
 impl InstanceRole {
-    pub fn primary_pod_ref(&self) -> ObjectRef {
+    pub fn primary_pod_ref(&self) -> Option<&ObjectRef> {
         match self {
-            InstanceRole::Primary(pod_ref) | InstanceRole::Redundant(pod_ref) => pod_ref.clone(),
+            InstanceRole::Primary(pod_ref) | InstanceRole::Redundant(pod_ref) => Some(pod_ref),
+            InstanceRole::Undetermined => None,
         }
     }
 
@@ -157,16 +158,27 @@ pub fn determine_instance_role(
             loop {
                 match lock.try_acquire_or_renew().await {
                     Ok(LeaseLockResult::Acquired(lease)) => {
-                        debug!("Acquired lease, assuming primary role");
-                        let pod_ref = get_pod_ref(&namespace, &lease);
-                        tx.set(InstanceRole::Primary(pod_ref)).await;
+                        if let Some(pod_ref) = get_pod_ref(&namespace, &lease) {
+                            debug!("Acquired lease, assuming primary role");
+                            tx.set(InstanceRole::Primary(pod_ref)).await;
+                        } else {
+                            warn!("Lease acquired and pod reference is missing, assuming undetermined role");
+                            tx.set(InstanceRole::Undetermined).await;
+                        }
                     }
                     Ok(LeaseLockResult::NotAcquired(lease)) => {
-                        debug!("Lease renewed, assuming redundant role");
-                        let pod_ref = get_pod_ref(&namespace, &lease);
-                        tx.set(InstanceRole::Redundant(pod_ref)).await;
+                        if let Some(pod_ref) = get_pod_ref(&namespace, &lease) {
+                            debug!("Lease not acquired, assuming redundant role");
+                            tx.set(InstanceRole::Redundant(pod_ref)).await;
+                        } else {
+                            warn!("Lease not acquired and pod reference is missing, assuming undetermined role");
+                            tx.set(InstanceRole::Undetermined).await;
+                        }
                     }
-                    Err(err) => warn!("Failed to acquire or renew lease: {err}"),
+                    Err(err) => {
+                        warn!("Failed to acquire or renew lease: {err}");
+                        tx.set(InstanceRole::Undetermined).await;
+                    },
                 }
 
                 continue_after!(options.lease_check_interval());
@@ -176,18 +188,14 @@ pub fn determine_instance_role(
     rx
 }
 
-fn get_pod_ref(namespace: &str, lease: &Lease) -> ObjectRef {
-    let lease = lease
-        .spec
-        .as_ref()
-        .expect("Lease spec should be present when determining pod reference");
-    let holder_id = lease
-        .holder_identity
-        .clone()
-        .expect("Holder identity should be present in lease spec");
+fn get_pod_ref(namespace: &str, lease: &Lease) -> Option<ObjectRef> {
+    let lease = lease.spec.as_ref()?;
+    let holder_id = lease.holder_identity.as_ref()?;
 
-    ObjectRef::of_kind::<Pod>()
+    let object_ref = ObjectRef::of_kind::<Pod>()
         .namespace(Some(namespace.to_string()))
         .name(holder_id)
-        .build()
+        .build();
+
+    Some(object_ref)
 }

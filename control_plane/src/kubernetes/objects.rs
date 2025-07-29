@@ -11,7 +11,7 @@ use tracing::warn;
 use typed_builder::TypedBuilder;
 
 #[derive(Error, Debug)]
-pub enum ObjectRefBuilderError {
+pub enum ObjectRefError {
     #[error("Object is missing a name")]
     MissingName,
 }
@@ -61,6 +61,7 @@ impl Display for ObjectRef {
 }
 
 impl ObjectRef {
+    #[allow(clippy::type_complexity)] // Generated type
     pub fn of_kind<K: Resource>()
     -> ObjectRefBuilder<((String,), (Option<String>,), (Option<String>,), (), ())>
     where
@@ -75,22 +76,20 @@ impl ObjectRef {
             .kind(kind)
             .version(Some(version.to_string()));
 
-        let builder = if !group.is_empty() {
-            builder.group(Some(group.to_string()))
-        } else {
+        if group.is_empty() {
             builder.group(None)
-        };
-
-        builder
+        } else {
+            builder.group(Some(group.to_string()))
+        }
     }
 
-    pub fn for_object<K: Resource + ResourceExt>(object: &K) -> Result<Self, ObjectRefBuilderError>
+    pub fn for_object<K: Resource + ResourceExt>(object: &K) -> Result<Self, ObjectRefError>
     where
         K::DynamicType: 'static + Default,
     {
         let name = object
             .name()
-            .ok_or(ObjectRefBuilderError::MissingName)?
+            .ok_or(ObjectRefError::MissingName)?
             .to_string();
 
         Ok(Self::of_kind::<K>()

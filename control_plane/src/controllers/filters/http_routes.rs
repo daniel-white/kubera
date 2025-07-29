@@ -6,7 +6,7 @@ use kubera_core::continue_on;
 use kubera_core::sync::signal::{signal, Receiver};
 use kubera_core::task::Builder as TaskBuilder;
 use kubera_macros::await_ready;
-use tracing::{debug, debug_span, info, warn};
+use tracing::{debug, debug_span, info};
 
 pub fn filter_http_routes(
     task_builder: &TaskBuilder,

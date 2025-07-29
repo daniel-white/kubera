@@ -14,7 +14,7 @@ use kubera_macros::await_ready;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use tokio::sync::broadcast::Sender;
-use tracing::debug;
+use tracing::{debug, warn};
 use typed_builder::TypedBuilder;
 
 const TEMPLATE: &str = include_str!("./templates/gateway_service.kubernetes-helm-yaml");
@@ -94,7 +94,8 @@ fn generate_gateway_services(
                         let deleted_refs = service_refs.difference(&desired_service_refs);
                         for deleted_ref in deleted_refs {
                             tx.send(SyncObjectAction::Delete(deleted_ref.clone()))
-                                .expect("Failed to send delete action");
+                                .inspect_err(|err| warn!("Failed to send delete action: {}", err))
+                                .ok();
                         }
 
                         for (service_ref, gateway_ref, template_values, service_overrides) in
@@ -106,7 +107,8 @@ fn generate_gateway_services(
                                 template_values,
                                 Some(service_overrides.clone()),
                             ))
-                            .expect("Failed to send upsert action");
+                            .inspect_err(|err| warn!("Failed to send upsert action: {}", err))
+                            .ok();
                         }
                     })
                     .run()

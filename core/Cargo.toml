@@ -6,6 +6,7 @@ edition = "2024"
 [dependencies]
 anyhow = { workspace = true }
 atomic_refcell = "0.1.13"
+assertables = { workspace = true }
 backtrace-on-stack-overflow = "0.3"
 console-subscriber = "0.4"
 flexi_logger = { workspace = true }
@@ -25,6 +26,8 @@ tokio = { workspace = true }
 tracing = { workspace = true }
 unicase = { workspace = true }
 typed-builder = { workspace = true }
+
+[dev-dependencies]
 
 
 [lib]

@@ -214,8 +214,17 @@ fn expand(configurations: &HashMap<ObjectRef, Option<GatewayConfiguration>>) -> 
                 .configmap_ref(configmap_ref);
 
             let state = if let Some(config) = config {
-                let config_yaml = serde_yaml::to_string(config)
-                    .expect("Failed to serialize GatewayConfiguration to YAML");
+                let config_yaml = match serde_yaml::to_string(config) {
+                    Ok(yaml) => yaml,
+                    Err(err) => {
+                        warn!(
+                            "Failed to serialize configuration for gateway {}: {}",
+                            gateway_ref, err
+                        );
+                        return state.values(None).build();
+                    }
+                };
+
                 let template_values = TemplateValues::builder()
                     .gateway_name(gateway_ref.name())
                     .config_yaml(config_yaml)
@@ -490,12 +499,22 @@ fn add_listeners(
     gateway_configuration: &mut GatewayConfigurationBuilder,
     instance: &GatewayInstanceConfiguration,
 ) {
-    for listener in &instance.gateway().spec.listeners {
+    for (idx, listener) in instance.gateway().spec.listeners.iter().enumerate() {
+        let port = if let Ok(port) = u16::try_from(listener.port) {
+            Port::new(port)
+        } else {
+            warn!(
+                "Invalid port {} for listener {} at index {} in gateway {:?}",
+                listener.port,
+                listener.name,
+                idx,
+                instance.gateway().metadata.name
+            );
+            continue;
+        };
         gateway_configuration.add_listener(|l| {
             l.with_name(&listener.name)
-                .with_port(Port::new(
-                    u16::try_from(listener.port).expect("Port must be a valid u16"),
-                ))
+                .with_port(port)
                 .with_protocol(&listener.protocol);
 
             match map_hostname_match_to_type(listener.hostname.as_deref()) {
@@ -525,20 +544,20 @@ fn set_client_addrs_strategy(
                 ClientAddressesSource::None => {
                     // No strategy, use default behavior
                 }
-                ClientAddressesSource::Header => {
-                    c.trust_header(
-                        client_addresses
-                            .header
-                            .clone()
-                            .expect("Header must be set when using source: Header"),
-                    );
-                }
+                ClientAddressesSource::Header => match &client_addresses.header {
+                    Some(header) => {
+                        c.trust_header(header);
+                    }
+                    None => {
+                        warn!("ClientAddressesSource::Header requires a header to be set");
+                    }
+                },
                 ClientAddressesSource::Proxies => {
                     c.trust_proxies(|p| {
-                        let proxies = client_addresses
-                            .proxies
-                            .as_ref()
-                            .expect("Proxies must be set when using source: Proxies");
+                        let Some(proxies) = &client_addresses.proxies else {
+                            warn!("ClientAddressesSource::Proxies requires proxies to be set");
+                            return;
+                        };
                         if proxies.trust_local_ranges {
                             p.trust_local_ranges();
                         }

@@ -5,7 +5,7 @@ use kubera_core::continue_after;
 use kubera_core::io::file_watcher::spawn_file_watcher;
 use kubera_core::sync::signal::{Receiver, signal};
 use std::io::Cursor;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::time::{Duration, Instant};
 use tokio::fs::read;
 use tokio::task::JoinSet;

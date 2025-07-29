@@ -6,7 +6,7 @@ pub mod topology;
 use crate::proxy::router::matches::{HostMatch, HostValueMatch};
 use crate::proxy::router::routes::{HttpRouteBuilder, HttpRouteMatchResult};
 use crate::proxy::router::topology::{
-    TopologyLocation, TopologyLocationBuilder, TopologyLocationMatch,
+    TopologyLocation, TopologyLocationMatch,
 };
 use enumflags2::BitFlags;
 use getset::Getters;

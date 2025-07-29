@@ -14,6 +14,7 @@ use kubera_macros::await_ready;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use tokio::sync::broadcast::Sender;
+use tracing::warn;
 use typed_builder::TypedBuilder;
 
 const TEMPLATE: &str = include_str!("./templates/gateway_deployment.kubernetes-helm-yaml");
@@ -102,19 +103,31 @@ fn generate_gateway_deployments(
                             current_service_refs.difference(&desired_deployments_ref);
                         for deleted_ref in deleted_refs {
                             tx.send(SyncObjectAction::Delete(deleted_ref.clone()))
-                                .expect("Failed to send delete action");
+                                .inspect_err(|err| {
+                                    warn!(
+                                        "Failed to send delete action for deployment {}: {}",
+                                        deleted_ref, err
+                                    );
+                                })
+                                .ok();
                         }
 
                         for (deployment_ref, gateway_ref, template_values, deployment_overrides) in
                             desired_deployments
                         {
                             tx.send(SyncObjectAction::Upsert(
-                                deployment_ref,
+                                deployment_ref.clone(),
                                 gateway_ref.clone(),
                                 template_values,
                                 Some(deployment_overrides.clone()),
                             ))
-                            .expect("Failed to send upsert action");
+                            .inspect_err(|err| {
+                                warn!(
+                                    "Failed to send upsert action for deployment {}: {}",
+                                    deployment_ref, err
+                                );
+                            })
+                            .ok();
                         }
                     })
                     .run()

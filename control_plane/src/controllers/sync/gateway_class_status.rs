@@ -57,8 +57,13 @@ pub fn sync_gateway_class_status(
                         match current_gateway_class {
                             Some(mut current_gateway_class) if instance_role.is_primary() => {
                                 current_gateway_class.status = Some(status);
-                                let patch = serde_json::to_vec(&current_gateway_class)
-                                    .expect("Failed to serialize GatewayClassStatus");
+                                let patch = match serde_json::to_vec(&current_gateway_class) {
+                                    Ok(patch) => patch,
+                                    Err(err) => {
+                                        warn!("Failed to serialize GatewayClassStatus: {}", err);
+                                        return;
+                                    }
+                                };
 
                                 gateway_class_api
                                     .replace_status(
@@ -98,10 +103,9 @@ pub fn sync_gateway_class_status(
 }
 
 fn map_to_status(parameters_state: GatewayClassParametersReferenceState) -> GatewayClassStatus {
-    use GatewayClassParametersReferenceState::{Linked, NoRef, InvalidRef, NotFound};
+    use GatewayClassParametersReferenceState::{InvalidRef, Linked, NoRef, NotFound};
     let now = chrono::Utc::now();
 
-    
     match parameters_state {
         Linked(_) | NoRef => GatewayClassStatus {
             conditions: Some(vec![Condition {

@@ -18,7 +18,6 @@ use kubera_core::sync::signal::signal;
 use pingora::prelude::*;
 use pingora::server::Server;
 use pingora::services::listening::Service;
-use proxy::ProxyBuilder;
 use proxy::filters::client_addrs::client_addr_filter;
 use proxy::router::topology::TopologyLocation;
 use tokio::task::JoinSet;

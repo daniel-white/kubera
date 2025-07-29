@@ -11,7 +11,7 @@ use futures::TryStreamExt;
 use gateway_api::apis::standard::gateways::Gateway;
 use problemdetails::Problem;
 use serde::Deserialize;
-use tracing::{debug, info, warn};
+use tracing::{debug, warn};
 
 #[derive(Deserialize)]
 pub struct PathParams {

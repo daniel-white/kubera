@@ -23,7 +23,7 @@ pub mod ipc;
 pub mod kubernetes;
 mod options;
 
-use crate::controllers::{spawn_controllers, SpawnControllersError, SpawnControllersParams};
+use crate::controllers::{spawn_controllers, SpawnControllersParams};
 use crate::ipc::{spawn_ipc, SpawnIpcError, SpawnIpcParameters};
 use crate::kubernetes::start_kubernetes_client;
 use crate::options::Options;
@@ -44,8 +44,6 @@ pub enum MainError {
     SpawnIpc(#[from] SpawnIpcError),
     #[error("Failed to build controllers parameters")]
     SpawnControllersParams,
-    #[error("Failed to spawn controllers: {0}")]
-    SpawnControllers(#[from] SpawnControllersError),
 }
 
 #[tokio::main(flavor = "multi_thread")]
@@ -86,8 +84,7 @@ async fn main() -> Result<(), MainError> {
             .instance_name(args.instance_name())
             .build();
 
-        spawn_controllers(&task_builder, params)
-            .inspect_err(|err| error!("Failed to spawn controllers: {}", err))?;
+        spawn_controllers(&task_builder, params);
     }
 
     task_builder.join_all().await;

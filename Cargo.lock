@@ -189,6 +189,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "assertables"
+version = "9.8.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0118bf39618c9958c058d23c1453fdfc40c99688d9a0dfdc441244421ef89407"
+
+[[package]]
 name = "async-broadcast"
 version = "0.7.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2358,6 +2364,7 @@ name = "kubera_core"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "assertables",
  "atomic_refcell",
  "backtrace-on-stack-overflow",
  "console-subscriber",

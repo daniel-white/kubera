@@ -47,16 +47,7 @@ pub struct SpawnControllersParams {
     instance_name: String,
 }
 
-#[derive(Debug, Error)]
-pub enum SpawnControllersError {
-    #[error("Failed to build SyncGatewayConfigmapsParams")]
-    SyncGatewayConfigmapsParams,
-}
-
-pub fn spawn_controllers(
-    task_builder: &TaskBuilder,
-    params: SpawnControllersParams,
-) -> Result<(), SpawnControllersError> {
+pub fn spawn_controllers(task_builder: &TaskBuilder, params: SpawnControllersParams) {
     let options = params.options.clone();
     let kube_client_rx = params.kube_client_rx;
 
@@ -145,6 +136,4 @@ pub fn spawn_controllers(
         &instance_role_rx,
         &gateway_instances_rx,
     );
-
-    Ok(())
 }
