@@ -23,7 +23,7 @@ impl TopologyLocationMatch {
     }
 }
 
-#[derive(Default, Getters, Debug, Clone, PartialEq, Eq, TypedBuilder)]
+#[derive(Default, Getters, Debug, Clone, PartialEq, Eq, TypedBuilder, Hash)]
 pub struct TopologyLocation {
     #[getset(get = "pub")]
     node: Option<String>,

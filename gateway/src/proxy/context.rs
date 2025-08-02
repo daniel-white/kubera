@@ -1,11 +1,10 @@
-use crate::proxy::router::{HttpRoute, HttpRouteRule, HttpRouter};
-use kubera_core::sync::signal::Receiver;
+use std::net::IpAddr;
+use crate::proxy::router::{HttpRoute, HttpRouteRule};
 use std::sync::{Arc, OnceLock};
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Context {
-    router_rx: Receiver<HttpRouter>,
-    route: OnceLock<MatchRouteResult>,
+    state: OnceLock<(MatchRouteResult, Option<IpAddr>)>,
 }
 
 unsafe impl Send for Context {}
@@ -20,25 +19,16 @@ pub enum MatchRouteResult {
 }
 
 impl Context {
-    pub fn new(router_rx: &Receiver<HttpRouter>) -> Self {
-        Self {
-            router_rx: router_rx.clone(),
-            route: OnceLock::new(),
-        }
-    }
-
-    // pub async fn set_route(&self, parts: &Parts) -> &MatchRouteResult {
-    //     self.route
-    //         .get_or_init(|| match self.router_rx.get() {
-    //             None => MatchRouteResult::MissingConfiguration,
-    //             Some(router) => match router.match_route(parts) {
-    //                 Some((route, rule)) => MatchRouteResult::Found(route, rule),
-    //                 _ => MatchRouteResult::NotFound,
-    //             },
-    //         })
-    // }
-
+    
     pub fn route(&self) -> Option<&MatchRouteResult> {
-        self.route.get()
+        self.state.get().map(|x| &(*x).0)
+    }
+    
+    pub fn client_addr(&self) -> Option<IpAddr> {
+        self.state.get().and_then(|x| x.1)
+    }
+    
+    pub fn set(&self, route: MatchRouteResult, client_addr: Option<IpAddr>) {
+        let _ = self.state.set((route, client_addr));
     }
 }

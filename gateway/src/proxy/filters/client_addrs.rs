@@ -116,7 +116,7 @@ impl ClientAddrFilter {
         Self { extractor }
     }
 
-    pub fn filter(&self, session: &mut Session) {
+    pub fn filter(&self, session: &mut Session) -> Option<IpAddr> {
         let extractor = self.extractor.extractor();
         if let Some(client_addr) = extractor.extract(session) {
             let headers = session.req_header_mut();
@@ -131,9 +131,11 @@ impl ClientAddrFilter {
                         KUBERA_CLIENT_IP_HEADER, err
                     );
                 });
+            Some(client_addr)
         } else {
             let headers = session.req_header_mut();
             headers.remove_header(&KUBERA_CLIENT_IP_HEADER); // **MUST** remove the header from the client if the address is not available
+            None
         }
     }
 }

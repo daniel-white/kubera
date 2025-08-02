@@ -5,6 +5,7 @@ use rand::SeedableRng;
 use rand_chacha::ChaCha8Rng;
 use std::hash::{DefaultHasher, Hasher};
 use std::net::{IpAddr, SocketAddr};
+use enumflags2::BitFlags;
 
 #[derive(Debug, Getters, Clone, PartialEq, Eq)]
 pub struct EndpointsResolver {
@@ -40,7 +41,7 @@ impl EndpointsResolver {
         zone_local.shuffle(&mut rng);
         fallback.shuffle(&mut rng);
 
-        node_local.into_iter().chain(zone_local).chain(fallback)
+        node_local.into_iter().chain(zone_local).chain(fallback).fuse()
     }
 }
 
@@ -70,12 +71,10 @@ impl EndpointsResolverBuilder {
         }
     }
 
-    pub fn insert(&mut self, addr: SocketAddr, location: TopologyLocation) -> &mut Self {
-        let matches = TopologyLocationMatch::matches(&self.current_location, &location);
-
-        if matches.contains(TopologyLocationMatch::Node) {
+pub fn insert(&mut self, addr: SocketAddr, location_match: BitFlags<TopologyLocationMatch>) -> &mut Self {
+        if location_match.contains(TopologyLocationMatch::Node) {
             self.node_local.push(addr);
-        } else if matches.contains(TopologyLocationMatch::Zone) {
+        } else if location_match.contains(TopologyLocationMatch::Zone) {
             self.zone_local.push(addr);
         } else {
             self.fallback.push(addr);
@@ -104,37 +103,19 @@ mod tests {
             .node(Some("node1".to_string()))
             .zone(Some("zone1".to_string()))
             .build();
-        let mut addr_builder = EndpointsResolver::builder(location);
+        let mut addr_builder = EndpointsResolver::builder(location.clone());
 
-        let location = TopologyLocation::builder()
-            .node(Some("node1".to_string()))
-            .zone(Some("zone1".to_string()))
-            .build();
-        addr_builder.insert(node_ip1, location);
+        // Insert node-local addresses
+        addr_builder.insert(node_ip1, BitFlags::from(TopologyLocationMatch::Node));
+        addr_builder.insert(node_ip2, BitFlags::from(TopologyLocationMatch::Node));
 
-        let location = TopologyLocation::builder()
-            .node(Some("node1".to_string()))
-            .zone(Some("zone1".to_string()))
-            .build();
-        addr_builder.insert(node_ip2, location);
+        // Insert zone-local addresses
+        addr_builder.insert(zone_ip1, BitFlags::from(TopologyLocationMatch::Zone));
+        addr_builder.insert(zone_ip2, BitFlags::from(TopologyLocationMatch::Zone));
 
-        let location = TopologyLocation::builder()
-            .node(None)
-            .zone(Some("zone1".to_string()))
-            .build();
-        addr_builder.insert(zone_ip1, location);
-
-        let location = TopologyLocation::builder()
-            .node(None)
-            .zone(Some("zone1".to_string()))
-            .build();
-        addr_builder.insert(zone_ip2, location);
-
-        let location = TopologyLocation::builder().node(None).zone(None).build();
-        addr_builder.insert(fallback_ip1, location);
-
-        let location = TopologyLocation::builder().node(None).zone(None).build();
-        addr_builder.insert(fallback_ip2, location);
+        // Insert fallback addresses
+        addr_builder.insert(fallback_ip1, BitFlags::empty());
+        addr_builder.insert(fallback_ip2, BitFlags::empty());
 
         let topology_addrs = addr_builder.build();
 

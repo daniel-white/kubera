@@ -3,10 +3,12 @@ mod context;
 pub mod filters;
 pub mod router;
 
+use crate::proxy::context::MatchRouteResult;
 use async_trait::async_trait;
 use context::Context;
 use filters::client_addrs::ClientAddrFilter;
-use http::HeaderValue;
+use http::header::SERVER;
+use http::{HeaderValue, StatusCode};
 use kubera_core::sync::signal::Receiver;
 use pingora::http::ResponseHeader;
 use pingora::prelude::*;
@@ -25,21 +27,7 @@ impl ProxyHttp for Proxy {
     type CTX = Context;
 
     fn new_ctx(&self) -> Self::CTX {
-        Context::new(&self.router_rx)
-    }
-
-    async fn early_request_filter(
-        &self,
-        session: &mut Session,
-        _ctx: &mut Self::CTX,
-    ) -> Result<()> {
-        if let Some(client_addr_filter) = self.client_addr_filter_rx.get().await {
-            client_addr_filter.filter(session);
-        } else {
-            warn!("No client address filter configured");
-        }
-
-        Ok(())
+        Context::default()
     }
 
     async fn upstream_peer(
@@ -47,38 +35,62 @@ impl ProxyHttp for Proxy {
         session: &mut Session,
         ctx: &mut Self::CTX,
     ) -> Result<Box<HttpPeer>> {
-        Err(Error::explain(HTTPStatus(400), "Not implemented"))
-        // match ctx.set_route(session.req_header()) {
-        //     MatchRouteResult::Found(_, rule) => {
-        //         let mut location = TopologyLocation::new_builder();
-        //         location.on_node(Some("minikube".to_string()));
-        //         let location = location.build();
-        //
-        //         let mut endpoints = EndpointsResolver::new_builder(location.clone());
-        //         for be in rule.backends() {
-        //             for addrs in be.endpoints().values() {
-        //                 for addr in addrs {
-        //                     endpoints
-        //                         .insert(SocketAddr::new(*addr.address(), 80), location.clone());
-        //                 }
-        //             }
-        //         }
-        //
-        //         let endpoints = endpoints.build();
-        //
-        //         let ep: Vec<_> = endpoints.resolve(None).collect();
-        //
-        //         Ok(Box::new(HttpPeer::new(ep[0], false, "".to_string())))
-        //
-        //         //Err(Error::explain(HTTPStatus(400), "Not implemented")) // TODO implement route to upstream
-        //     }
-        //     MatchRouteResult::NotFound => {
-        //         Err(Error::explain(HTTPStatus(404), "No matching route found"))
-        //     }
-        //     MatchRouteResult::MissingConfiguration => {
-        //         Err(Error::explain(HTTPStatus(503), "Missing configuration"))
-        //     }
-        // }
+        match ctx.route() {
+            Some(MatchRouteResult::Found(_, rule)) => {
+                use crate::proxy::router::endpoints::EndpointsResolver;
+                use crate::proxy::router::topology::TopologyLocation;
+                let mut resolver_builder = EndpointsResolver::builder(TopologyLocation::default());
+                for backend in rule.backends() {
+                    for (location, endpoints) in backend.endpoints() {
+                        for endpoint in endpoints {
+                            resolver_builder.insert(endpoint.addr(), *location);
+                        }
+                    }
+                }
+                let resolver = resolver_builder.build();
+                let client_addr = ctx.client_addr();
+                if let Some(addr) = resolver.resolve(client_addr).next() {
+                    Ok(Box::new(HttpPeer::new(addr, false, "".to_string())))
+                } else {
+                    Err(Error::explain(
+                        HTTPStatus(StatusCode::SERVICE_UNAVAILABLE.into()),
+                        "No backend endpoints found",
+                    ))
+                }
+            }
+            Some(MatchRouteResult::NotFound) => Err(Error::explain(
+                HTTPStatus(StatusCode::NOT_FOUND.into()),
+                "No matching route found",
+            )),
+            Some(MatchRouteResult::MissingConfiguration) | None => Err(Error::explain(
+                HTTPStatus(StatusCode::SERVICE_UNAVAILABLE.into()),
+                "Missing configuration",
+            )),
+        }
+    }
+
+    async fn early_request_filter(&self, session: &mut Session, ctx: &mut Self::CTX) -> Result<()> {
+        let client_addr = if let Some(client_addr_filter) = self.client_addr_filter_rx.get().await {
+            client_addr_filter.filter(session)
+        } else {
+            warn!("No client address filter configured");
+            None
+        };
+        
+        let router = self.router_rx.get().await;
+        let route = if let Some(router) = router {
+            let req_parts = session.req_header();
+            match router.match_route(req_parts) {
+                Some((route, rule)) => MatchRouteResult::Found(route, rule),
+                None => MatchRouteResult::NotFound,
+            }
+        } else {
+            MatchRouteResult::MissingConfiguration
+        };
+        
+        ctx.set(route, client_addr);
+        
+        Ok(())
     }
 
     async fn response_filter(
@@ -91,10 +103,8 @@ impl ProxyHttp for Proxy {
         Self::CTX: Send + Sync,
     {
         warn!("Response filter is not implemented yet");
-        let _ = _upstream_response.insert_header(
-            http_constant::SERVER,
-            HeaderValue::from_str("Kubera Gateway").unwrap(),
-        );
+        let _ = _upstream_response
+            .insert_header(SERVER, HeaderValue::from_str("Kubera Gateway").unwrap());
         Ok(())
     }
 }

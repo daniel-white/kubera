@@ -5,11 +5,9 @@ pub mod topology;
 
 use crate::proxy::router::matches::{HostMatch, HostValueMatch};
 use crate::proxy::router::routes::{HttpRouteBuilder, HttpRouteMatchResult};
-use crate::proxy::router::topology::{
-    TopologyLocation, TopologyLocationMatch,
-};
+use crate::proxy::router::topology::{TopologyLocation, TopologyLocationMatch};
 use enumflags2::BitFlags;
-use getset::Getters;
+use getset::{CopyGetters, Getters};
 use http::request::Parts;
 use itertools::Itertools;
 use kubera_core::net::Hostname;
@@ -17,7 +15,7 @@ pub use matches::HttpRouteRuleMatches;
 pub use routes::HttpRoute;
 pub use routes::HttpRouteRule;
 use std::collections::HashMap;
-use std::net::IpAddr;
+use std::net::{IpAddr, SocketAddr};
 use std::sync::Arc;
 use tracing::debug;
 use typed_builder::TypedBuilder;
@@ -128,11 +126,16 @@ impl HttpBackendBuilder {
         }
     }
 
-    pub fn build(self) -> HttpBackend {
+    pub fn build(mut self) -> HttpBackend {
+        // Apply the port to all endpoints if not already set
+        let port = self.port.unwrap_or(80);
         let endpoints: HashMap<_, _> = self
             .endpoints
             .into_iter()
-            .map(|(location, endpoint)| {
+            .map(|(location, mut endpoint)| {
+                // Overwrite the port in the endpoint's SocketAddr
+                let addr = SocketAddr::new(endpoint.addr.ip(), port);
+                endpoint.addr = addr;
                 let score = TopologyLocationMatch::matches(&self.current_location, &location);
                 let score = if score.contains(TopologyLocationMatch::Node) {
                     BitFlags::from(TopologyLocationMatch::Node)
@@ -141,7 +144,6 @@ impl HttpBackendBuilder {
                 } else {
                     BitFlags::empty()
                 };
-
                 (score, endpoint)
             })
             .into_group_map();
@@ -163,14 +165,16 @@ impl HttpBackendBuilder {
     }
 
     pub fn add_endpoint(&mut self, ip_addr: IpAddr, location: TopologyLocation) -> &mut Self {
-        let endpoint = HttpBackendEndpoint::builder().address(ip_addr).build();
+        let endpoint = HttpBackendEndpoint::builder()
+            .addr(SocketAddr::new(ip_addr, 0))
+            .build();
         self.endpoints.push((location, endpoint));
         self
     }
 }
 
-#[derive(Getters, Debug, Clone, PartialEq, Eq, TypedBuilder)]
+#[derive(CopyGetters, Debug, Clone, PartialEq, Eq, TypedBuilder)]
 pub struct HttpBackendEndpoint {
-    #[getset(get = "pub")]
-    address: IpAddr,
+    #[getset(get_copy = "pub")]
+    addr: SocketAddr,
 }
