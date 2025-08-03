@@ -66,6 +66,7 @@ impl Context {
         let (route, endpoint_resolver) = match route {
             MatchRouteResult::Found(route, rule) => {
                 let mut resolver_builder = EndpointsResolver::builder(client_addr);
+                resolver_builder.unique_id(rule.unique_id());
                 for backend in rule.backends() {
                     for (location, endpoints) in backend.endpoints() {
                         for endpoint in endpoints {

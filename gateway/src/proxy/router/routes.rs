@@ -128,6 +128,12 @@ impl HttpRouteRuleUniqueId {
     }
 }
 
+impl AsRef<str> for HttpRouteRuleUniqueId {
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
+}
+
 impl From<kubera_core::config::gateway::types::http::router::HttpRouteRuleUniqueId>
     for HttpRouteRuleUniqueId
 {
