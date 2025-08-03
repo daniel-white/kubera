@@ -2393,6 +2393,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
+ "bytes",
  "clap 4.5.42",
  "enumflags2",
  "eventsource-client",
