@@ -41,7 +41,7 @@ pub async fn get_gateway_events(
             .with_detail("Gateway name cannot be empty")
             .into_response();
     }
-    
+
     let gateway_ref = ObjectRef::of_kind::<Gateway>()
         .name(path_params.gateway_name)
         .namespace(Some(path_params.gateway_namespace))

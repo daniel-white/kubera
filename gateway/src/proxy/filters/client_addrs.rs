@@ -1,9 +1,9 @@
 use http::{HeaderName, HeaderValue};
 use ipnet::IpNet;
-use kubera_core::config::gateway::types::net::{ClientAddrsSource, ProxyHeaders};
 use kubera_core::config::gateway::types::GatewayConfiguration;
+use kubera_core::config::gateway::types::net::{ClientAddrsSource, ProxyHeaders};
 use kubera_core::continue_on;
-use kubera_core::sync::signal::{signal, Receiver};
+use kubera_core::sync::signal::{Receiver, signal};
 use pingora::proxy::Session;
 use std::net::IpAddr;
 use std::str::FromStr;

@@ -23,8 +23,8 @@ pub mod ipc;
 pub mod kubernetes;
 mod options;
 
-use crate::controllers::{spawn_controllers, SpawnControllersParams};
-use crate::ipc::{spawn_ipc, SpawnIpcError, SpawnIpcParameters};
+use crate::controllers::{SpawnControllersParams, spawn_controllers};
+use crate::ipc::{SpawnIpcError, SpawnIpcParameters, spawn_ipc};
 use crate::kubernetes::start_kubernetes_client;
 use crate::options::Options;
 use clap::Parser;
@@ -66,7 +66,7 @@ async fn main() -> Result<(), MainError> {
             .port(args.port())
             .kube_client_rx(kube_client_rx.clone())
             .build();
-        
+
         spawn_ipc(&task_builder, params)
             .await
             .inspect_err(|err| error!("Failed to spawn IPC services: {}", err))?

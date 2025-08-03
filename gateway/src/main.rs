@@ -11,6 +11,7 @@ use crate::controllers::config::ipc::{
 use crate::controllers::config::selector::{SelectorParams, select_configuration};
 use crate::controllers::ipc_events::{PollGatewayEventsParams, poll_gateway_events};
 use crate::controllers::router::synthesize_http_router;
+use crate::proxy::Proxy;
 use clap::Parser;
 use kubera_core::crypto::init_crypto;
 use kubera_core::instrumentation::init_instrumentation;
@@ -21,7 +22,6 @@ use pingora::services::listening::Service;
 use proxy::filters::client_addrs::client_addr_filter;
 use proxy::router::topology::TopologyLocation;
 use tokio::task::JoinSet;
-use crate::proxy::Proxy;
 
 #[tokio::main]
 async fn main() {
@@ -68,7 +68,7 @@ async fn main() {
         let params = WatchConfigurationFileParams::builder()
             .file_path(args.config_file_path())
             .build();
-        
+
         watch_configuration_file(&mut join_set, params)
     };
 

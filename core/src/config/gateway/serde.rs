@@ -1,6 +1,6 @@
 use crate::config::gateway::types::GatewayConfiguration;
-use serde_valid::validation::{Error, Errors};
 use serde_valid::Validate;
+use serde_valid::validation::{Error, Errors};
 use std::fmt::Debug;
 use std::io::{Read, Write};
 use thiserror::Error;
@@ -52,9 +52,9 @@ pub fn write_configuration<W: Write>(
 
 #[cfg(test)]
 mod tests {
-    use assertables::{assert_ok, assert_ok_eq};
     use super::*;
     use crate::config::gateway::types::GatewayConfigurationVersion;
+    use assertables::{assert_ok, assert_ok_eq};
 
     #[test]
     fn test_read_configuration() {
@@ -63,11 +63,9 @@ mod tests {
         let config = read_configuration(yaml);
         let version = config.map(|c| c.version());
         let version: Result<&GatewayConfigurationVersion, &ReadError> = version.as_ref();
-        let expected: Result<&GatewayConfigurationVersion, &ReadError> = Ok(GatewayConfigurationVersion::V1Alpha1).as_ref();
-        assert_ok_eq!(
-            version,
-            expected
-        );
+        let expected: Result<&GatewayConfigurationVersion, &ReadError> =
+            Ok(GatewayConfigurationVersion::V1Alpha1).as_ref();
+        assert_ok_eq!(version, expected);
     }
 
     #[test]
@@ -78,7 +76,7 @@ mod tests {
         let mut buffer = Vec::new();
         assert_ok!(write_configuration(&config, &mut buffer));
 
-        let round_trip_config =  assert_ok!(read_configuration(buffer.as_slice()));
+        let round_trip_config = assert_ok!(read_configuration(buffer.as_slice()));
         assert_eq!(round_trip_config, config);
     }
 

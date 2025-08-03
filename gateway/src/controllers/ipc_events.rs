@@ -24,7 +24,6 @@ pub struct PollGatewayEventsParams {
     gateway_name: String,
 }
 
-
 pub fn poll_gateway_events(
     join_set: &mut JoinSet<()>,
     params: PollGatewayEventsParams,

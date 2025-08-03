@@ -3,7 +3,7 @@ use kubera_core::config::gateway::serde::read_configuration;
 use kubera_core::config::gateway::types::GatewayConfiguration;
 use kubera_core::continue_on;
 use kubera_core::ipc::GatewayEvent;
-use kubera_core::sync::signal::{signal, Receiver, Sender};
+use kubera_core::sync::signal::{Receiver, Sender, signal};
 use reqwest::Client;
 use std::io::BufReader;
 use std::net::SocketAddr;

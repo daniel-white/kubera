@@ -1,10 +1,26 @@
-use std::net::IpAddr;
+use crate::proxy::router::endpoints::EndpointsResolver;
 use crate::proxy::router::{HttpRoute, HttpRouteRule};
+use std::net::{IpAddr, SocketAddr};
 use std::sync::{Arc, OnceLock};
+
+#[derive(Debug)]
+pub enum UpstreamPeerResult {
+    Addr(SocketAddr),
+    NotFound,
+    ServiceUnavailable,
+    MissingConfiguration,
+}
+
+#[derive(Debug)]
+struct ContextState {
+    route: MatchRouteResult,
+    endpoint_resolver: Option<EndpointsResolver>,
+    client_addr: Option<IpAddr>,
+}
 
 #[derive(Debug, Default)]
 pub struct Context {
-    state: OnceLock<(MatchRouteResult, Option<IpAddr>)>,
+    state: OnceLock<ContextState>,
 }
 
 unsafe impl Send for Context {}
@@ -19,16 +35,60 @@ pub enum MatchRouteResult {
 }
 
 impl Context {
-    
     pub fn route(&self) -> Option<&MatchRouteResult> {
-        self.state.get().map(|x| &(*x).0)
+        self.state.get().map(|x| &x.route)
     }
-    
+
+    pub fn next_upstream_peer(&mut self) -> UpstreamPeerResult {
+        if let Some(state) = self.state.get_mut() {
+            if let Some(resolver) = &mut state.endpoint_resolver {
+                return if let Some(addr) = resolver.next() {
+                    UpstreamPeerResult::Addr(addr)
+                } else {
+                    UpstreamPeerResult::NotFound
+                };
+            }
+        }
+        match self.route() {
+            Some(MatchRouteResult::NotFound) => UpstreamPeerResult::NotFound,
+            Some(MatchRouteResult::MissingConfiguration) | None => {
+                UpstreamPeerResult::MissingConfiguration
+            }
+            Some(MatchRouteResult::Found(_, _)) => UpstreamPeerResult::ServiceUnavailable,
+        }
+    }
+
     pub fn client_addr(&self) -> Option<IpAddr> {
-        self.state.get().and_then(|x| x.1)
+        self.state.get().and_then(|x| x.client_addr)
     }
-    
+
     pub fn set(&self, route: MatchRouteResult, client_addr: Option<IpAddr>) {
-        let _ = self.state.set((route, client_addr));
+        let (route, endpoint_resolver) = match route {
+            MatchRouteResult::Found(route, rule) => {
+                let mut resolver_builder = EndpointsResolver::builder(client_addr);
+                for backend in rule.backends() {
+                    for (location, endpoints) in backend.endpoints() {
+                        for endpoint in endpoints {
+                            resolver_builder.insert(endpoint.addr(), *location);
+                        }
+                    }
+                }
+                let endpoint_resolver = resolver_builder.build();
+                (
+                    MatchRouteResult::Found(route, rule),
+                    Some(endpoint_resolver),
+                )
+            }
+            MatchRouteResult::NotFound => (MatchRouteResult::NotFound, None),
+            MatchRouteResult::MissingConfiguration => {
+                (MatchRouteResult::MissingConfiguration, None)
+            }
+        };
+
+        let _ = self.state.set(ContextState {
+            route,
+            endpoint_resolver,
+            client_addr,
+        });
     }
 }

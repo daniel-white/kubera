@@ -3,15 +3,15 @@ pub mod events;
 mod gateways;
 
 use crate::ipc::endpoints::{
-    spawn_ipc_endpoint, SpawnIpcEndpointError, SpawnIpcEndpointParameters,
+    SpawnIpcEndpointError, SpawnIpcEndpointParameters, spawn_ipc_endpoint,
 };
 use crate::ipc::events::EventSender;
 use crate::ipc::gateways::{
-    create_gateway_configuration_services, GatewayConfigurationManager,
-    GatewayConfigurationManagerInsertError,
+    GatewayConfigurationManager, GatewayConfigurationManagerInsertError,
+    create_gateway_configuration_services,
 };
-use crate::kubernetes::objects::ObjectRef;
 use crate::kubernetes::KubeClientCell;
+use crate::kubernetes::objects::ObjectRef;
 use crate::options::Options;
 use getset::{CopyGetters, Getters};
 use kubera_core::config::gateway::types::GatewayConfiguration;

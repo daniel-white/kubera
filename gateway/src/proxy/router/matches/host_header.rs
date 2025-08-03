@@ -73,7 +73,7 @@ impl HostHeaderMatchBuilder {
             host_header_value_matches: Vec::new(),
         }
     }
-    
+
     pub fn build(self) -> HostHeaderMatch {
         HostHeaderMatch {
             host_header_value_matches: self.host_header_value_matches,

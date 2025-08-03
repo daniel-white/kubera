@@ -3,7 +3,8 @@ mod context;
 pub mod filters;
 pub mod router;
 
-use crate::proxy::context::MatchRouteResult;
+use crate::proxy::context::{MatchRouteResult, UpstreamPeerResult};
+use crate::proxy::router::endpoints::EndpointsResolver;
 use async_trait::async_trait;
 use context::Context;
 use filters::client_addrs::ClientAddrFilter;
@@ -32,37 +33,22 @@ impl ProxyHttp for Proxy {
 
     async fn upstream_peer(
         &self,
-        session: &mut Session,
+        _session: &mut Session,
         ctx: &mut Self::CTX,
     ) -> Result<Box<HttpPeer>> {
-        match ctx.route() {
-            Some(MatchRouteResult::Found(_, rule)) => {
-                use crate::proxy::router::endpoints::EndpointsResolver;
-                use crate::proxy::router::topology::TopologyLocation;
-                let mut resolver_builder = EndpointsResolver::builder(TopologyLocation::default());
-                for backend in rule.backends() {
-                    for (location, endpoints) in backend.endpoints() {
-                        for endpoint in endpoints {
-                            resolver_builder.insert(endpoint.addr(), *location);
-                        }
-                    }
-                }
-                let resolver = resolver_builder.build();
-                let client_addr = ctx.client_addr();
-                if let Some(addr) = resolver.resolve(client_addr).next() {
-                    Ok(Box::new(HttpPeer::new(addr, false, "".to_string())))
-                } else {
-                    Err(Error::explain(
-                        HTTPStatus(StatusCode::SERVICE_UNAVAILABLE.into()),
-                        "No backend endpoints found",
-                    ))
-                }
+        match ctx.next_upstream_peer() {
+            UpstreamPeerResult::Addr(addr) => {
+                Ok(Box::new(HttpPeer::new(addr, false, "".to_string())))
             }
-            Some(MatchRouteResult::NotFound) => Err(Error::explain(
+            UpstreamPeerResult::NotFound => Err(Error::explain(
                 HTTPStatus(StatusCode::NOT_FOUND.into()),
                 "No matching route found",
             )),
-            Some(MatchRouteResult::MissingConfiguration) | None => Err(Error::explain(
+            UpstreamPeerResult::ServiceUnavailable => Err(Error::explain(
+                HTTPStatus(StatusCode::SERVICE_UNAVAILABLE.into()),
+                "Service unavailable",
+            )),
+            UpstreamPeerResult::MissingConfiguration => Err(Error::explain(
                 HTTPStatus(StatusCode::SERVICE_UNAVAILABLE.into()),
                 "Missing configuration",
             )),
@@ -76,7 +62,7 @@ impl ProxyHttp for Proxy {
             warn!("No client address filter configured");
             None
         };
-        
+
         let router = self.router_rx.get().await;
         let route = if let Some(router) = router {
             let req_parts = session.req_header();
@@ -87,9 +73,9 @@ impl ProxyHttp for Proxy {
         } else {
             MatchRouteResult::MissingConfiguration
         };
-        
+
         ctx.set(route, client_addr);
-        
+
         Ok(())
     }
 

@@ -5,10 +5,10 @@ use kubera_core::config::gateway::types::GatewayConfiguration;
 use kubera_core::config::gateway::types::http::router::*;
 use kubera_core::continue_on;
 use kubera_core::sync::signal::{Receiver, signal};
+use kubera_macros::await_ready;
 use std::sync::Arc;
 use tokio::task::JoinSet;
 use tracing::debug;
-use kubera_macros::await_ready;
 
 pub fn synthesize_http_router(
     join_set: &mut JoinSet<()>,
@@ -22,10 +22,13 @@ pub fn synthesize_http_router(
     join_set.spawn(async move {
         let current_location = Arc::new(current_location);
         loop {
-            await_ready!(gateway_configuration_rx).and_then(async |gateway_configuration| {
-                let router = build_router(&gateway_configuration, current_location.clone());
-                tx.set(router).await;
-            }).run().await;
+            await_ready!(gateway_configuration_rx)
+                .and_then(async |gateway_configuration| {
+                    let router = build_router(&gateway_configuration, current_location.clone());
+                    tx.set(router).await;
+                })
+                .run()
+                .await;
 
             continue_on!(gateway_configuration_rx.changed())
         }

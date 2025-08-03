@@ -4,7 +4,7 @@ use itertools::Itertools;
 use kubera_api::constants::GATEWAY_CLASS_CONTROLLER_NAME;
 use kubera_api::v1alpha1::GatewayClassParameters;
 use kubera_core::continue_on;
-use kubera_core::sync::signal::{signal, Receiver};
+use kubera_core::sync::signal::{Receiver, signal};
 use kubera_core::task::Builder as TaskBuilder;
 use kubera_macros::await_ready;
 use std::sync::Arc;
@@ -41,8 +41,7 @@ pub fn filter_gateway_classes(
 
                         match gateway_class {
                             Ok(gateway_class) => {
-                                match ObjectRef::for_object(gateway_class.as_ref())
-                                {
+                                match ObjectRef::for_object(gateway_class.as_ref()) {
                                     Ok(gateway_class_ref) => {
                                         info!(
                                             "Found GatewayClass: object.ref={}",

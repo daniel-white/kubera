@@ -1,30 +1,77 @@
-use crate::proxy::router::topology::{TopologyLocation, TopologyLocationMatch};
+use crate::proxy::router::topology::TopologyLocationMatch;
+use enumflags2::BitFlags;
 use getset::Getters;
-use rand::seq::SliceRandom;
 use rand::SeedableRng;
+use rand::seq::SliceRandom;
 use rand_chacha::ChaCha8Rng;
 use std::hash::{DefaultHasher, Hasher};
 use std::net::{IpAddr, SocketAddr};
-use enumflags2::BitFlags;
+use tracing::{debug, warn};
 
 #[derive(Debug, Getters, Clone, PartialEq, Eq)]
 pub struct EndpointsResolver {
+    endpoints: Vec<SocketAddr>,
+    attempt: usize,
+}
+
+impl EndpointsResolver {
+    pub fn builder(client_addr: Option<IpAddr>) -> EndpointsResolverBuilder {
+        EndpointsResolverBuilder::new(client_addr)
+    }
+
+    pub fn next(&mut self) -> Option<SocketAddr> {
+        if self.endpoints.is_empty() || self.attempt >= 5 {
+            // Arbitrary limit to avoid infinite loop; TODO: Make configurable
+            warn!("No endpoints available or too many attempts made");
+            return None;
+        }
+
+        let addr = self.endpoints[self.attempt % self.endpoints.len()];
+        self.attempt += 1;
+        debug!("On attempt {} using endpoint: {}", self.attempt, addr);
+        Some(addr)
+    }
+}
+
+#[derive(Debug)]
+pub struct EndpointsResolverBuilder {
+    client_addr: Option<IpAddr>,
     node_local: Vec<SocketAddr>,
     zone_local: Vec<SocketAddr>,
     fallback: Vec<SocketAddr>,
 }
 
-impl EndpointsResolver {
-    pub fn builder(location: TopologyLocation) -> EndpointsResolverBuilder {
-        EndpointsResolverBuilder::new(location)
+impl EndpointsResolverBuilder {
+    fn new(client_addr: Option<IpAddr>) -> Self {
+        Self {
+            client_addr,
+            node_local: Vec::new(),
+            zone_local: Vec::new(),
+            fallback: Vec::new(),
+        }
+    }
+    pub fn insert(
+        &mut self,
+        addr: SocketAddr,
+        location_match: BitFlags<TopologyLocationMatch>,
+    ) -> &mut Self {
+        if location_match.contains(TopologyLocationMatch::Node) {
+            self.node_local.push(addr);
+        } else if location_match.contains(TopologyLocationMatch::Zone) {
+            self.zone_local.push(addr);
+        } else {
+            self.fallback.push(addr);
+        }
+
+        self
     }
 
-    pub fn resolve(&self, client_addr: Option<IpAddr>) -> impl Iterator<Item = SocketAddr> {
+    pub fn build(self) -> EndpointsResolver {
         let mut node_local = self.node_local.clone();
         let mut zone_local = self.zone_local.clone();
         let mut fallback = self.fallback.clone();
 
-        let mut rng = match client_addr {
+        let mut rng = match self.client_addr {
             Some(addr) => {
                 let mut hasher = DefaultHasher::new();
                 match addr {
@@ -41,46 +88,14 @@ impl EndpointsResolver {
         zone_local.shuffle(&mut rng);
         fallback.shuffle(&mut rng);
 
-        node_local.into_iter().chain(zone_local).chain(fallback).fuse()
-    }
-}
-
-#[derive(Debug)]
-pub struct EndpointsResolverBuilder {
-    current_location: TopologyLocation,
-    node_local: Vec<SocketAddr>,
-    zone_local: Vec<SocketAddr>,
-    fallback: Vec<SocketAddr>,
-}
-
-impl EndpointsResolverBuilder {
-    fn new(location: TopologyLocation) -> Self {
-        Self {
-            current_location: location,
-            node_local: Vec::new(),
-            zone_local: Vec::new(),
-            fallback: Vec::new(),
-        }
-    }
-
-    pub fn build(self) -> EndpointsResolver {
         EndpointsResolver {
-            node_local: self.node_local,
-            zone_local: self.zone_local,
-            fallback: self.fallback,
+            endpoints: node_local
+                .into_iter()
+                .chain(zone_local)
+                .chain(fallback)
+                .collect(),
+            attempt: 0,
         }
-    }
-
-pub fn insert(&mut self, addr: SocketAddr, location_match: BitFlags<TopologyLocationMatch>) -> &mut Self {
-        if location_match.contains(TopologyLocationMatch::Node) {
-            self.node_local.push(addr);
-        } else if location_match.contains(TopologyLocationMatch::Zone) {
-            self.zone_local.push(addr);
-        } else {
-            self.fallback.push(addr);
-        }
-
-        self
     }
 }
 
@@ -99,38 +114,32 @@ mod tests {
         let fallback_ip1: SocketAddr = "192.168.3.1:8080".parse().unwrap();
         let fallback_ip2: SocketAddr = "192.168.3.2:8080".parse().unwrap();
 
-        let location = TopologyLocation::builder()
-            .node(Some("node1".to_string()))
-            .zone(Some("zone1".to_string()))
-            .build();
-        let mut addr_builder = EndpointsResolver::builder(location.clone());
+        let mut resolver_builder =
+            EndpointsResolver::builder(Some(IpAddr::from_str("127.0.0.1").unwrap()));
 
         // Insert node-local addresses
-        addr_builder.insert(node_ip1, BitFlags::from(TopologyLocationMatch::Node));
-        addr_builder.insert(node_ip2, BitFlags::from(TopologyLocationMatch::Node));
+        resolver_builder.insert(node_ip1, BitFlags::from(TopologyLocationMatch::Node));
+        resolver_builder.insert(node_ip2, BitFlags::from(TopologyLocationMatch::Node));
 
         // Insert zone-local addresses
-        addr_builder.insert(zone_ip1, BitFlags::from(TopologyLocationMatch::Zone));
-        addr_builder.insert(zone_ip2, BitFlags::from(TopologyLocationMatch::Zone));
+        resolver_builder.insert(zone_ip1, BitFlags::from(TopologyLocationMatch::Zone));
+        resolver_builder.insert(zone_ip2, BitFlags::from(TopologyLocationMatch::Zone));
 
         // Insert fallback addresses
-        addr_builder.insert(fallback_ip1, BitFlags::empty());
-        addr_builder.insert(fallback_ip2, BitFlags::empty());
+        resolver_builder.insert(fallback_ip1, BitFlags::empty());
+        resolver_builder.insert(fallback_ip2, BitFlags::empty());
 
-        let topology_addrs = addr_builder.build();
-
-        let sequence: Vec<SocketAddr> = topology_addrs
-            .resolve(Some(IpAddr::from_str("127.0.0.1").unwrap()))
-            .collect();
+        let resolver = resolver_builder.build();
+        let endpoints = resolver.endpoints;
 
         // Assert that node addresses come first
-        assert!(sequence.starts_with(&[node_ip1, node_ip2]));
+        assert!(endpoints.starts_with(&[node_ip1, node_ip2]));
 
         // Assert that zone addresses come next
-        assert!(sequence.contains(&zone_ip1));
-        assert!(sequence.contains(&zone_ip2));
+        assert!(endpoints.contains(&zone_ip1));
+        assert!(endpoints.contains(&zone_ip2));
 
         // Assert that fallback addresses come last
-        assert!(sequence.ends_with(&[fallback_ip1, fallback_ip2]));
+        assert!(endpoints.ends_with(&[fallback_ip1, fallback_ip2]));
     }
 }

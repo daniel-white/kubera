@@ -4,7 +4,7 @@ use quote::{format_ident, quote};
 use stringcase::pascal_case;
 use syn::parse::{Parse, ParseStream};
 use syn::punctuated::Punctuated;
-use syn::{parse_macro_input, Ident, Token};
+use syn::{Ident, Token, parse_macro_input};
 
 struct Receivers {
     receivers: Punctuated<Ident, Token![,]>,

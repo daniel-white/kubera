@@ -1,7 +1,7 @@
 use crate::net::{Hostname, Port};
 use getset::Getters;
 use ipnet::IpNet;
-use schemars::{json_schema, JsonSchema, Schema, SchemaGenerator};
+use schemars::{JsonSchema, Schema, SchemaGenerator, json_schema};
 use serde::{Deserialize, Serialize};
 use serde_valid::Validate;
 use std::net::IpAddr;
@@ -192,8 +192,7 @@ impl ListenerBuilder {
             protocol: None,
         }
     }
-    
-    
+
     pub fn build(self) -> Result<Listener, ListenerBuilderError> {
         Ok(Listener {
             name: self.name.ok_or(ListenerBuilderError::MissingName)?,
