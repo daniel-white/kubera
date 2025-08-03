@@ -29,7 +29,7 @@ gateways:
   logLevel: ""
   deployment:
     imagePullPolicy: ""
-    replicas: 4
+    replicas: 3
     strategy:
       type: RollingUpdate
       rollingUpdate:

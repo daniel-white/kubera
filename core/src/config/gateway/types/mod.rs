@@ -5,10 +5,12 @@ use crate::config::gateway::types::http::router::{
     HttpRoute, HttpRouteBuilder, HttpRouteBuilderError,
 };
 use crate::config::gateway::types::net::{
-    ClientAddrs, ClientAddrsBuilder, Listener, ListenerBuilder, ListenerBuilderError,
+    ClientAddrs, ClientAddrsBuilder, ErrorResponses, Listener, ListenerBuilder,
+    ListenerBuilderError,
 };
 use crate::net::Port;
 use getset::{CloneGetters, CopyGetters, Getters};
+use ::http::Error;
 use itertools::{Either, Itertools};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -66,6 +68,9 @@ pub struct GatewayConfiguration {
 
     #[getset(get = "pub")]
     client_addrs: Option<ClientAddrs>,
+
+    #[getset(get = "pub")]
+    error_responses: Option<ErrorResponses>,
 }
 
 #[derive(Debug, Default)]
@@ -75,6 +80,7 @@ pub struct GatewayConfigurationBuilder {
     listeners_builders: Vec<ListenerBuilder>,
     http_route_builders: Vec<HttpRouteBuilder>,
     client_addrs_builder: Option<ClientAddrsBuilder>,
+    error_responses: Option<ErrorResponses>,
 }
 
 #[derive(Debug, Error)]
@@ -125,6 +131,7 @@ impl GatewayConfigurationBuilder {
             listeners,
             http_routes,
             client_addrs: self.client_addrs_builder.map(ClientAddrsBuilder::build),
+            error_responses: self.error_responses,
         })
     }
 
@@ -170,6 +177,11 @@ impl GatewayConfigurationBuilder {
         let mut builder = ClientAddrsBuilder::new();
         factory(&mut builder);
         self.client_addrs_builder = Some(builder);
+        self
+    }
+
+    pub fn with_error_responses(&mut self, error_responses: ErrorResponses) -> &mut Self {
+        self.error_responses = Some(error_responses);
         self
     }
 }

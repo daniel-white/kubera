@@ -145,32 +145,38 @@ fn merge_deployment_overrides(
 ) -> (Deployment, ImagePullPolicy) {
     let mut spec = DeploymentSpec::default();
 
-    let class_params = gateway_class_parameters
+    let class_deployment_params = gateway_class_parameters
         .as_ref()
         .and_then(|p| p.spec.common.deployment.as_ref());
-    let gateway_params = gateway_parameters
+    let class_gateway_params = gateway_class_parameters
+        .as_ref()
+        .and_then(|p| p.spec.common.gateway.as_ref());
+    let deployment_params = gateway_parameters
         .and_then(|p| p.spec.common.as_ref())
         .and_then(|c| c.deployment.as_ref());
+    let gateway_params = gateway_parameters
+        .and_then(|p| p.spec.common.as_ref())
+        .and_then(|c| c.gateway.as_ref());
 
-    let image_pull_policy = class_params
+    let image_pull_policy = class_deployment_params
         .and_then(|p| p.image_pull_policy)
-        .or_else(|| gateway_params.and_then(|p| p.image_pull_policy))
+        .or_else(|| deployment_params.and_then(|p| p.image_pull_policy))
         .unwrap_or_default()
         .into();
 
-    spec.replicas = class_params
+    spec.replicas = deployment_params
         .as_ref()
         .and_then(|p| p.replicas)
-        .or_else(|| gateway_params.as_ref().and_then(|p| p.replicas));
+        .or_else(|| deployment_params.as_ref().and_then(|p| p.replicas));
 
-    if class_params.is_some() || gateway_params.is_some() {
+    if class_deployment_params.is_some() || deployment_params.is_some() {
         let mut strategy = DeploymentStrategy::default();
 
-        if let Some(class_strategy) = class_params.and_then(|p| p.strategy.as_ref()) {
+        if let Some(class_strategy) = class_deployment_params.and_then(|p| p.strategy.as_ref()) {
             strategy.merge_from(class_strategy.clone());
         }
 
-        if let Some(gateway_strategy) = gateway_params.and_then(|p| p.strategy.as_ref()) {
+        if let Some(gateway_strategy) = deployment_params.and_then(|p| p.strategy.as_ref()) {
             strategy.merge_from(gateway_strategy.clone());
         }
 
@@ -178,9 +184,9 @@ fn merge_deployment_overrides(
     }
 
     // Optionally set the log level for the gateway container
-    let log_level = class_params
+    let log_level = gateway_params
         .and_then(|p| p.log_level)
-        .or_else(|| gateway_params.and_then(|p| p.log_level));
+        .or_else(|| class_gateway_params.and_then(|p| p.log_level));
 
     #[allow(clippy::expect_used)]
     if let Some(log_level) = log_level {

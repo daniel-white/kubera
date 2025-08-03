@@ -1,11 +1,12 @@
 use crate::net::{Hostname, Port};
 use getset::Getters;
 use ipnet::IpNet;
-use schemars::{JsonSchema, Schema, SchemaGenerator, json_schema};
+use schemars::{json_schema, JsonSchema, Schema, SchemaGenerator};
 use serde::{Deserialize, Serialize};
 use serde_valid::Validate;
 use std::net::IpAddr;
 use thiserror::Error;
+use typed_builder::TypedBuilder;
 
 #[derive(
     Validate, Getters, Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, Hash,
@@ -437,4 +438,34 @@ impl ClientAddrsBuilder {
             },
         }
     }
+}
+
+#[derive(Default, Deserialize, Serialize, Clone, Debug, JsonSchema, PartialEq)]
+pub enum ErrorResponseKind {
+    Empty,
+    #[default]
+    Html,
+    ProblemDetail,
+}
+
+#[derive(
+    Deserialize, Serialize, Clone, Debug, JsonSchema, PartialEq, Getters, Default, TypedBuilder,
+)]
+pub struct ErrorResponses {
+    #[getset(get = "pub")]
+    kind: ErrorResponseKind,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[getset(get = "pub")]
+    #[builder(default, setter(strip_option))]
+    problem_detail: Option<ProblemDetailErrorResponse>,
+}
+
+#[derive(
+    Deserialize, Serialize, Clone, Debug, JsonSchema, PartialEq, Getters, Default, TypedBuilder,
+)]
+pub struct ProblemDetailErrorResponse {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[getset(get = "pub")]
+    #[builder(setter(into))]
+    authority: Option<String>,
 }

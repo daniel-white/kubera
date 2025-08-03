@@ -1,8 +1,8 @@
 use crate::controllers::instances::InstanceRole;
 use crate::controllers::transformers::{Backend, GatewayInstanceConfiguration};
 use crate::ipc::IpcServices;
-use crate::kubernetes::KubeClientCell;
 use crate::kubernetes::objects::{ObjectRef, SyncObjectAction};
+use crate::kubernetes::KubeClientCell;
 use crate::options::Options;
 use crate::{sync_objects, watch_objects};
 use gateway_api::apis::standard::httproutes::{
@@ -15,14 +15,19 @@ use getset::CloneGetters;
 use gtmpl_derive::Gtmpl;
 use k8s_openapi::api::core::v1::{ConfigMap, Service};
 use kube::runtime::watcher::Config;
-use kubera_api::v1alpha1::{ClientAddressesSource, ProxyIpAddressHeaders};
+use kubera_api::v1alpha1::{
+    ClientAddressesSource, ErrorResponseKind, ErrorResponses, ProxyIpAddressHeaders,
+};
 use kubera_core::config::gateway::types::http::router::{
     HttpMethodMatch, HttpRouteBuilder, HttpRouteRuleBuilder, HttpRouteRuleMatchesBuilder,
 };
-use kubera_core::config::gateway::types::net::ProxyHeaders;
+use kubera_core::config::gateway::types::net::{
+    ErrorResponseKind as ConfigErrorResponseKind, ErrorResponses as ConfigErrorResponses,
+    ProblemDetailErrorResponse, ProxyHeaders,
+};
 use kubera_core::config::gateway::types::{GatewayConfiguration, GatewayConfigurationBuilder};
 use kubera_core::net::{Hostname, Port};
-use kubera_core::sync::signal::{Receiver, signal};
+use kubera_core::sync::signal::{signal, Receiver};
 use kubera_core::task::Builder as TaskBuilder;
 use kubera_core::{continue_after, continue_on};
 use kubera_macros::await_ready;
@@ -273,6 +278,7 @@ fn generate_gateway_configurations(
                             primary_instance_ip_addr,
                         );
                         set_client_addrs_strategy(&mut gateway_configuration, instance);
+                        set_error_responses_strategy(&mut gateway_configuration, instance);
                         add_listeners(&mut gateway_configuration, instance);
 
                         let http_routes = http_routes
@@ -528,6 +534,41 @@ fn add_listeners(
             }
         });
     }
+}
+
+fn set_error_responses_strategy(
+    gateway_configuration: &mut GatewayConfigurationBuilder,
+    instance: &GatewayInstanceConfiguration,
+) {
+    let error_responses = instance
+        .configuration()
+        .error_responses
+        .clone()
+        .unwrap_or_default();
+
+    let error_responses = match error_responses.kind {
+        ErrorResponseKind::Empty => ConfigErrorResponses::builder()
+            .kind(ConfigErrorResponseKind::Empty)
+            .build(),
+        ErrorResponseKind::Html => ConfigErrorResponses::builder()
+            .kind(ConfigErrorResponseKind::Html)
+            .build(),
+        ErrorResponseKind::ProblemDetail => {
+            let problem_detail = match error_responses.problem_detail {
+                Some(problem_detail) => ProblemDetailErrorResponse::builder()
+                    .authority(problem_detail.authority)
+                    .build(),
+                None => ProblemDetailErrorResponse::default(),
+            };
+
+            ConfigErrorResponses::builder()
+                .kind(ConfigErrorResponseKind::ProblemDetail)
+                .problem_detail(problem_detail)
+                .build()
+        }
+    };
+
+    gateway_configuration.with_error_responses(error_responses);
 }
 
 fn set_client_addrs_strategy(

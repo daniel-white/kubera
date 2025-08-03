@@ -104,9 +104,6 @@ pub struct GatewayDeployment {
     pub strategy: Option<DeploymentStrategy>,
 
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub log_level: Option<LogLevel>,
-
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub image_pull_policy: Option<ImagePullPolicy>,
 }
 
@@ -120,7 +117,38 @@ pub struct GatewayServiceSpec {
 #[serde(rename_all = "camelCase")]
 pub struct GatewayConfiguration {
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub log_level: Option<LogLevel>,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub error_responses: Option<ErrorResponses>,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub client_addresses: Option<ClientAddresses>,
+}
+
+#[derive(Default, Deserialize, Serialize, Clone, Debug, PartialEq, JsonSchema, IntoStaticStr)]
+#[serde(rename_all = "PascalCase")]
+#[strum(serialize_all = "PascalCase")]
+pub enum ErrorResponseKind {
+    #[default]
+    Empty,
+    Html,
+    ProblemDetail,
+}
+
+#[derive(Default, Deserialize, Serialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ErrorResponses {
+    pub kind: ErrorResponseKind,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub problem_detail: Option<ProblemDetailErrorResponse>,
+}
+
+#[derive(Default, Deserialize, Serialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ProblemDetailErrorResponse {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub authority: Option<String>,
 }
 
 #[derive(Default, Deserialize, Serialize, Clone, Debug, PartialEq, JsonSchema, IntoStaticStr)]
