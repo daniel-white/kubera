@@ -36,6 +36,16 @@ strum = { workspace = true }
 axum-health = "0.1"
 typed-builder = { workspace = true }
 
+[dev-dependencies]
+tokio-test = { workspace = true }
+proptest = { workspace = true }
+criterion = { workspace = true }
+tempfile = { workspace = true }
+test-log = { workspace = true }
+rstest = { workspace = true }
+mockall = { workspace = true }
+kube = { workspace = true }
+
 [[bin]]
 name = "kubera_control_plane"
 path = "src/main.rs"

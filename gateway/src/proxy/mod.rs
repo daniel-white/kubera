@@ -9,8 +9,8 @@ use crate::proxy::responses::error_responses::{ErrorResponseCode, ErrorResponseG
 use async_trait::async_trait;
 use context::Context;
 use filters::client_addrs::ClientAddrFilter;
-use http::header::SERVER;
 use http::StatusCode;
+use http::header::SERVER;
 use kubera_core::sync::signal::Receiver;
 use pingora::http::ResponseHeader;
 use pingora::prelude::*;

@@ -35,6 +35,7 @@ use thiserror::Error;
 #[serde(rename_all = "lowercase")]
 pub enum GatewayConfigurationVersion {
     #[default]
+    #[serde(rename = "v1alpha1")]
     V1Alpha1,
 }
 
