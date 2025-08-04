@@ -1,53 +1,38 @@
 ARG RUST_VERSION=1.88
 ARG DEBIAN_RELEASE=bookworm
 ARG RUST_CONFIGURATION=release
+ARG RUST_PROFILE=release
 
-FROM rust:${RUST_VERSION}-${DEBIAN_RELEASE} AS builder
-RUN apt update && apt install -y \
-    cmake
-
+FROM rust:${RUST_VERSION}-${DEBIAN_RELEASE} AS chef
+RUN cargo install cargo-chef
 WORKDIR /usr/src/kubera
 
-# Dependencies
-COPY Cargo.toml Cargo.lock ./
-COPY api/Cargo.toml ./api/
-COPY build/src/lib.rs ./api/src/lib.rs
-COPY build/Cargo.toml ./build/
-COPY build/src/lib.rs ./build/src/lib.rs
-COPY control_plane/Cargo.toml ./control_plane/
-COPY build/src/lib.rs ./control_plane/src/main.rs
-COPY core/Cargo.toml ./core/
-COPY build/src/lib.rs ./core/src/lib.rs
-COPY macros/Cargo.toml ./macros/
-COPY build/src/lib.rs ./macros/src/lib.rs
-COPY gateway/Cargo.toml ./gateway/
-COPY build/src/lib.rs ./gateway/src/main.rs
-RUN cargo fetch
-RUN cargo build --${RUST_CONFIGURATION}
-RUN rm -rf \
-    ./api/src/lib.rs \
-    ./build/src/lib.rs \
-    ./control_plane/src/main.rs \
-    ./core/src/lib.rs \
-    ./gateway/src/main.rs \
-    ./macros/src/lib.rs \
-    .target/release/kubera_control_plane \
-    .target/release/kubera_gateway
-
-# Build binaries
+FROM chef AS planner
 COPY . .
-RUN touch api/src/lib.rs && \
-    touch build/src/lib.rs && \
-    touch control_plane/src/lib.rs && \
-    touch core/src/lib.rs && \
-    touch gateway/src/lib.rs && \
-    touch macros/src/lib.rs
-RUN cargo build --${RUST_CONFIGURATION}
+RUN cargo chef prepare --recipe-path recipe.json
 
-FROM debian:${DEBIAN_RELEASE}-slim
+FROM chef AS builder
+ARG RUST_CONFIGURATION
+ARG RUST_PROFILE
+RUN apt update && apt install -y cmake
+
+# Copy recipe and build dependencies
+COPY --from=planner /usr/src/kubera/recipe.json recipe.json
+RUN cargo chef cook --recipe-path recipe.json $(if [ "${RUST_CONFIGURATION}" = "release" ]; then echo "--release"; fi)
+
+# Build application
+COPY . .
+RUN cargo build $(if [ "${RUST_CONFIGURATION}" = "release" ]; then echo "--release"; fi) --profile ${RUST_PROFILE} --bins
+
+FROM debian:${DEBIAN_RELEASE}-slim AS runtime
 ARG RUST_CONFIGURATION
 RUN apt update && apt install -y \
-    ca-certificates
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /usr/src/kubera/target/${RUST_CONFIGURATION}/kubera_control_plane /usr/local/bin/
 COPY --from=builder /usr/src/kubera/target/${RUST_CONFIGURATION}/kubera_gateway /usr/local/bin/
+
+# Add non-root user for security
+RUN useradd kubera
+USER kubera

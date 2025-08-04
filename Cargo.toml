@@ -8,6 +8,14 @@ members = ["api",
     "macros"
 ]
 
+# Enable faster builds
+[profile.dev]
+incremental = true
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+
 [workspace.dependencies]
 anyhow = "1"
 assertables = "9"
@@ -42,4 +50,3 @@ tracing = { version = "0.1", features = ["log"] }
 typed-builder = "0.21"
 unicase = "2"
 url = "2"
-

@@ -1,6 +1,13 @@
-helm/charts/
-helm/crds/generated/
-examples/
 target/
+.git/
+.gitignore
+README.md
 Dockerfile
 .dockerignore
+examples/
+helm/
+*.md
+.DS_Store
+.vscode/
+.idea/
+
