@@ -52,12 +52,12 @@ impl EndpointsResolverBuilder {
             fallback: Vec::new(),
         }
     }
-    
+
     pub fn unique_id<S: AsRef<str>>(&mut self, unique_id: S) -> &mut Self {
         self.unique_id = Some(unique_id.as_ref().to_string());
         self
     }
-    
+
     pub fn insert(
         &mut self,
         addr: SocketAddr,
@@ -86,7 +86,7 @@ impl EndpointsResolverBuilder {
                     IpAddr::V4(addr) => hasher.write(addr.octets().as_slice()),
                     IpAddr::V6(addr) => hasher.write(addr.octets().as_slice()),
                 };
-                
+
                 if let Some(unique_id) = &self.unique_id {
                     hasher.write(unique_id.as_bytes());
                 }

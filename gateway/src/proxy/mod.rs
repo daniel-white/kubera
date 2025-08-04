@@ -1,9 +1,11 @@
 mod constants;
 mod context;
 pub mod filters;
+pub mod responses;
 pub mod router;
 
 use crate::proxy::context::{MatchRouteResult, UpstreamPeerResult};
+use crate::proxy::responses::error_responses::{ErrorResponseCode, ErrorResponseGenerators};
 use crate::proxy::router::endpoints::EndpointsResolver;
 use async_trait::async_trait;
 use bytes::Bytes;
@@ -19,10 +21,11 @@ use router::HttpRouter;
 use tracing::warn;
 use typed_builder::TypedBuilder;
 
-#[derive(Debug, TypedBuilder)]
+#[derive(TypedBuilder)]
 pub struct Proxy {
     router_rx: Receiver<HttpRouter>,
     client_addr_filter_rx: Receiver<ClientAddrFilter>,
+    error_responses_rx: Receiver<ErrorResponseGenerators>,
 }
 
 #[async_trait]
@@ -30,7 +33,9 @@ impl ProxyHttp for Proxy {
     type CTX = Context;
 
     fn new_ctx(&self) -> Self::CTX {
-        Context::default()
+        Context::builder()
+            .error_response_generators_rx(self.error_responses_rx.clone())
+            .build()
     }
 
     async fn upstream_peer(
@@ -76,28 +81,26 @@ impl ProxyHttp for Proxy {
             MatchRouteResult::MissingConfiguration
         };
 
-        let (status_code, msg) = match route {
+        let error_code = match route {
             MatchRouteResult::Found(route, rule) => {
                 ctx.set(MatchRouteResult::Found(route, rule), client_addr);
                 return Ok(false);
             }
-            MatchRouteResult::NotFound => (StatusCode::NOT_FOUND, "No matching route found"),
-            MatchRouteResult::MissingConfiguration => (
-                StatusCode::SERVICE_UNAVAILABLE,
-                "Gateway configuration missing",
-            ),
+            MatchRouteResult::NotFound => ErrorResponseCode::NoRoute,
+            MatchRouteResult::MissingConfiguration => ErrorResponseCode::MissingConfiguration,
         };
-        let body = Bytes::from(format!(
-            "<html><body><h1>{msg}</h1></body></html>",
-        ));
+        let response = ctx
+            .generate_error_response(error_code)
+            .await;
 
-        let mut response = gen_error_response(status_code.into());
-        self.set_response_server_header(&mut response)?;
-        response.insert_header(CONTENT_TYPE, "text/html")?;
-        response.insert_header(CONTENT_LENGTH, body.len().to_string())?;
+        let mut error_response = gen_error_response(response.status().into());
+        self.set_response_server_header(&mut error_response)?;
+        for (name, value) in response.headers() {
+            error_response.insert_header(name, value)?;
+        }
 
-        session.write_response_header_ref(&response).await?;
-        session.write_response_body(Some(body), true).await?;
+        session.write_response_header_ref(&error_response).await?;
+        session.write_response_body(response.body().clone(), true).await?;
 
         Ok(true)
     }

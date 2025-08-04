@@ -22,6 +22,7 @@ use pingora::services::listening::Service;
 use proxy::filters::client_addrs::client_addr_filter;
 use proxy::router::topology::TopologyLocation;
 use tokio::task::JoinSet;
+use crate::proxy::responses::error_responses::error_responses;
 
 #[tokio::main]
 async fn main() {
@@ -86,12 +87,14 @@ async fn main() {
     let router_rx =
         synthesize_http_router(&mut join_set, &gateway_configuration_rx, current_location);
     let client_addr_filter_rx = client_addr_filter(&mut join_set, &gateway_configuration_rx);
+    let error_responses_rx = error_responses(&mut join_set, &gateway_configuration_rx);
 
     join_set.spawn_blocking(move || {
         let mut server = Server::new(None).unwrap();
         server.bootstrap();
         let proxy = Proxy::builder()
             .client_addr_filter_rx(client_addr_filter_rx)
+            .error_responses_rx(error_responses_rx)
             .router_rx(router_rx)
             .build();
         let mut service = http_proxy_service(&server.configuration, proxy);

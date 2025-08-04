@@ -1,7 +1,12 @@
+use crate::proxy::responses::error_responses::{ErrorResponseCode, ErrorResponseGenerators};
 use crate::proxy::router::endpoints::EndpointsResolver;
 use crate::proxy::router::{HttpRoute, HttpRouteRule};
+use bytes::Bytes;
+use http::Response;
+use kubera_core::sync::signal::Receiver;
 use std::net::{IpAddr, SocketAddr};
 use std::sync::{Arc, OnceLock};
+use typed_builder::TypedBuilder;
 
 #[derive(Debug)]
 pub enum UpstreamPeerResult {
@@ -18,8 +23,11 @@ struct ContextState {
     client_addr: Option<IpAddr>,
 }
 
-#[derive(Debug, Default)]
+#[derive(TypedBuilder)]
 pub struct Context {
+    error_response_generators_rx: Receiver<ErrorResponseGenerators>,
+
+    #[builder(default)]
     state: OnceLock<ContextState>,
 }
 
@@ -91,5 +99,17 @@ impl Context {
             endpoint_resolver,
             client_addr,
         });
+    }
+
+    pub async fn generate_error_response(
+        &self,
+        code: ErrorResponseCode,
+    ) -> Response<Option<Bytes>> {
+        let generator = self
+            .error_response_generators_rx
+            .get()
+            .await
+            .unwrap_or_default();
+        generator.get_response(code)
     }
 }

@@ -9,8 +9,8 @@ use crate::config::gateway::types::net::{
     ListenerBuilderError,
 };
 use crate::net::Port;
-use getset::{CloneGetters, CopyGetters, Getters};
 use ::http::Error;
+use getset::{CloneGetters, CopyGetters, Getters};
 use itertools::{Either, Itertools};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};

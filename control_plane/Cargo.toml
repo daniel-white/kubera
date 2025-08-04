@@ -22,7 +22,7 @@ kube = { workspace = true }
 kubera_api = { path = "../api" }
 kubera_core = { path = "../core" }
 kubera_macros = { path = "../macros" }
-problemdetails = { version = "0.6", features = ["axum"] }
+problemdetails = { workspace = true, features = ["axum"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
 serde_yaml = { workspace = true }
