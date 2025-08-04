@@ -6,17 +6,15 @@ pub mod router;
 
 use crate::proxy::context::{MatchRouteResult, UpstreamPeerResult};
 use crate::proxy::responses::error_responses::{ErrorResponseCode, ErrorResponseGenerators};
-use crate::proxy::router::endpoints::EndpointsResolver;
 use async_trait::async_trait;
-use bytes::Bytes;
 use context::Context;
 use filters::client_addrs::ClientAddrFilter;
-use http::header::{CONTENT_LENGTH, CONTENT_TYPE, SERVER};
-use http::{HeaderName, HeaderValue, StatusCode};
+use http::header::SERVER;
+use http::StatusCode;
 use kubera_core::sync::signal::Receiver;
 use pingora::http::ResponseHeader;
 use pingora::prelude::*;
-use pingora::protocols::http::error_resp::{gen_error_response, HTTP_400_RESPONSE};
+use pingora::protocols::http::error_resp::gen_error_response;
 use router::HttpRouter;
 use tracing::warn;
 use typed_builder::TypedBuilder;
@@ -89,9 +87,7 @@ impl ProxyHttp for Proxy {
             MatchRouteResult::NotFound => ErrorResponseCode::NoRoute,
             MatchRouteResult::MissingConfiguration => ErrorResponseCode::MissingConfiguration,
         };
-        let response = ctx
-            .generate_error_response(error_code)
-            .await;
+        let response = ctx.generate_error_response(error_code).await;
 
         let mut error_response = gen_error_response(response.status().into());
         self.set_response_server_header(&mut error_response)?;
@@ -100,7 +96,9 @@ impl ProxyHttp for Proxy {
         }
 
         session.write_response_header_ref(&error_response).await?;
-        session.write_response_body(response.body().clone(), true).await?;
+        session
+            .write_response_body(response.body().clone(), true)
+            .await?;
 
         Ok(true)
     }

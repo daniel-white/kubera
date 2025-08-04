@@ -4,89 +4,91 @@ use kubera_core::config::gateway::types::GatewayConfiguration;
 use kubera_core::config::gateway::types::net::{ClientAddrsSource, ProxyHeaders};
 use kubera_core::continue_on;
 use kubera_core::sync::signal::{Receiver, signal};
+use kubera_core::task::Builder as TaskBuilder;
 use pingora::proxy::Session;
 use std::net::IpAddr;
 use std::str::FromStr;
 use std::sync::Arc;
-use tokio::task::JoinSet;
 use tracing::{debug, warn};
 use trusted_proxies::{Config, Trusted};
 
 const KUBERA_CLIENT_IP_HEADER: HeaderName = HeaderName::from_static("kubera-client-ip");
 
 pub fn client_addr_filter(
-    join_set: &mut JoinSet<()>,
+    task_builder: &TaskBuilder,
     gateway_configuration_rx: &Receiver<GatewayConfiguration>,
 ) -> Receiver<ClientAddrFilter> {
     let (tx, rx) = signal();
     let gateway_configuration_rx = gateway_configuration_rx.clone();
 
-    join_set.spawn(async move {
-        loop {
-            if let Some(gateway_configuration) = gateway_configuration_rx.get().await
-                && let Some(client_addrs) = gateway_configuration.client_addrs()
-            {
-                let filter = match client_addrs.source() {
-                    ClientAddrsSource::None => None,
-                    ClientAddrsSource::Header => client_addrs
-                        .header()
-                        .as_ref()
-                        .and_then(|h| HeaderName::from_str(h).ok())
-                        .map(|header_name| {
-                            ClientAddrFilter::new(ClientAddrExtractorType::TrustedHeader(Arc::new(
-                                TrustedHeaderClientAddrExtractor::new(header_name),
-                            )))
-                        }),
-                    ClientAddrsSource::Proxies => {
-                        if let Some(proxies) = client_addrs.proxies().as_ref() {
-                            let mut extractor_builder =
-                                TrustedProxiesClientAddrExtractor::builder();
+    task_builder
+        .new_task(stringify!(client_addr_filter))
+        .spawn(async move {
+            loop {
+                if let Some(gateway_configuration) = gateway_configuration_rx.get().await
+                    && let Some(client_addrs) = gateway_configuration.client_addrs()
+                {
+                    let filter = match client_addrs.source() {
+                        ClientAddrsSource::None => None,
+                        ClientAddrsSource::Header => client_addrs
+                            .header()
+                            .as_ref()
+                            .and_then(|h| HeaderName::from_str(h).ok())
+                            .map(|header_name| {
+                                ClientAddrFilter::new(ClientAddrExtractorType::TrustedHeader(
+                                    Arc::new(TrustedHeaderClientAddrExtractor::new(header_name)),
+                                ))
+                            }),
+                        ClientAddrsSource::Proxies => {
+                            if let Some(proxies) = client_addrs.proxies().as_ref() {
+                                let mut extractor_builder =
+                                    TrustedProxiesClientAddrExtractor::builder();
 
-                            for ip in proxies.trusted_ips().iter().cloned() {
-                                extractor_builder.add_trusted_ip(ip);
-                            }
+                                for ip in proxies.trusted_ips().iter().cloned() {
+                                    extractor_builder.add_trusted_ip(ip);
+                                }
 
-                            for range in proxies.trusted_ranges().iter().cloned() {
-                                extractor_builder.add_trusted_ip_range(range);
-                            }
+                                for range in proxies.trusted_ranges().iter().cloned() {
+                                    extractor_builder.add_trusted_ip_range(range);
+                                }
 
-                            for header in proxies.trusted_headers() {
-                                match header {
-                                    ProxyHeaders::Forwarded => {
-                                        extractor_builder.trust_forwarded_header()
-                                    }
-                                    ProxyHeaders::XForwardedFor => {
-                                        extractor_builder.trust_x_forwarded_for_header()
-                                    }
-                                    ProxyHeaders::XForwardedProto => {
-                                        extractor_builder.trust_x_forwarded_proto_header()
-                                    }
-                                    ProxyHeaders::XForwardedHost => {
-                                        extractor_builder.trust_x_forwarded_host_header()
-                                    }
-                                    ProxyHeaders::XForwardedBy => {
-                                        extractor_builder.trust_x_forwarded_by_header()
+                                for header in proxies.trusted_headers() {
+                                    match header {
+                                        ProxyHeaders::Forwarded => {
+                                            extractor_builder.trust_forwarded_header()
+                                        }
+                                        ProxyHeaders::XForwardedFor => {
+                                            extractor_builder.trust_x_forwarded_for_header()
+                                        }
+                                        ProxyHeaders::XForwardedProto => {
+                                            extractor_builder.trust_x_forwarded_proto_header()
+                                        }
+                                        ProxyHeaders::XForwardedHost => {
+                                            extractor_builder.trust_x_forwarded_host_header()
+                                        }
+                                        ProxyHeaders::XForwardedBy => {
+                                            extractor_builder.trust_x_forwarded_by_header()
+                                        }
                                     }
                                 }
+
+                                let extractor = extractor_builder.build();
+
+                                Some(ClientAddrFilter::new(
+                                    ClientAddrExtractorType::TrustedProxies(Arc::new(extractor)),
+                                ))
+                            } else {
+                                None
                             }
-
-                            let extractor = extractor_builder.build();
-
-                            Some(ClientAddrFilter::new(
-                                ClientAddrExtractorType::TrustedProxies(Arc::new(extractor)),
-                            ))
-                        } else {
-                            None
                         }
-                    }
-                };
+                    };
 
-                tx.replace(filter).await;
+                    tx.replace(filter).await;
+                }
+
+                continue_on!(gateway_configuration_rx.changed());
             }
-
-            continue_on!(gateway_configuration_rx.changed());
-        }
-    });
+        });
 
     rx
 }

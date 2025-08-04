@@ -126,7 +126,7 @@ impl HttpBackendBuilder {
         }
     }
 
-    pub fn build(mut self) -> HttpBackend {
+    pub fn build(self) -> HttpBackend {
         // Apply the port to all endpoints if not already set
         let port = self.port.unwrap_or(80);
         let endpoints: HashMap<_, _> = self

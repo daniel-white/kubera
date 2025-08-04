@@ -1,65 +1,67 @@
 use bytes::Bytes;
 use http::header::{CONTENT_LENGTH, CONTENT_TYPE};
 use http::{Response, StatusCode};
-use kubera_core::config::gateway::types::net::{ErrorResponseKind, ErrorResponses};
 use kubera_core::config::gateway::types::GatewayConfiguration;
+use kubera_core::config::gateway::types::net::ErrorResponseKind;
 use kubera_core::continue_on;
-use kubera_core::sync::signal::{signal, Receiver};
+use kubera_core::sync::signal::{Receiver, signal};
+use kubera_core::task::Builder as TaskBuilder;
 use kubera_macros::await_ready;
 use problemdetails::Problem;
 use std::borrow::Cow;
 use strum::IntoStaticStr;
-use tokio::task::JoinSet;
 use url::Url;
 
 pub fn error_responses(
-    join_set: &mut JoinSet<()>,
+    task_builder: &TaskBuilder,
     gateway_configuration_rx: &Receiver<GatewayConfiguration>,
 ) -> Receiver<ErrorResponseGenerators> {
     let (tx, rx) = signal::<ErrorResponseGenerators>();
 
     let gateway_configuration_rx = gateway_configuration_rx.clone();
 
-    join_set.spawn(async move {
-        loop {
-            await_ready!(gateway_configuration_rx)
-                .and_then(async |gateway_configuration| {
-                    let error_responses = gateway_configuration
-                        .error_responses()
-                        .clone()
-                        .unwrap_or_default();
+    task_builder
+        .new_task(stringify!(error_responses))
+        .spawn(async move {
+            loop {
+                await_ready!(gateway_configuration_rx)
+                    .and_then(async |gateway_configuration| {
+                        let error_responses = gateway_configuration
+                            .error_responses()
+                            .clone()
+                            .unwrap_or_default();
 
-                    let generator = match error_responses.kind() {
-                        ErrorResponseKind::Empty => {
-                            ErrorResponseGenerators::Empty(EmptyErrorResponseGenerator)
-                        }
-                        ErrorResponseKind::Html => {
-                            ErrorResponseGenerators::Html(HtmlErrorResponseGenerator)
-                        }
-                        ErrorResponseKind::ProblemDetail => {
-                            let problem_detail =
-                                error_responses.problem_detail().clone().unwrap_or_default();
-                            let authority = problem_detail
-                                .authority()
-                                .clone()
-                                .unwrap_or_else(|| "http://kubera.whitefamily.in/problems/".into());
-                            let authority = Url::parse(&authority).unwrap_or_else(|_| {
-                                Url::parse("http://kubera.whitefamily.in/problems/").unwrap()
-                            });
-                            ErrorResponseGenerators::ProblemDetail(
-                                ProblemDetailErrorResponseGenerator::new(authority),
-                            )
-                        }
-                    };
+                        let generator = match error_responses.kind() {
+                            ErrorResponseKind::Empty => {
+                                ErrorResponseGenerators::Empty(EmptyErrorResponseGenerator)
+                            }
+                            ErrorResponseKind::Html => {
+                                ErrorResponseGenerators::Html(HtmlErrorResponseGenerator)
+                            }
+                            ErrorResponseKind::ProblemDetail => {
+                                let problem_detail =
+                                    error_responses.problem_detail().clone().unwrap_or_default();
+                                let authority =
+                                    problem_detail.authority().clone().unwrap_or_else(|| {
+                                        "http://kubera.whitefamily.in/problems/".into()
+                                    });
+                                let authority = Url::parse(&authority).unwrap_or_else(|_| {
+                                    Url::parse("http://kubera.whitefamily.in/problems/").unwrap()
+                                });
+                                ErrorResponseGenerators::ProblemDetail(
+                                    ProblemDetailErrorResponseGenerator::new(authority),
+                                )
+                            }
+                        };
 
-                    tx.set(generator).await;
-                })
-                .run()
-                .await;
+                        tx.set(generator).await;
+                    })
+                    .run()
+                    .await;
 
-            continue_on!(gateway_configuration_rx.changed())
-        }
-    });
+                continue_on!(gateway_configuration_rx.changed())
+            }
+        });
 
     rx
 }

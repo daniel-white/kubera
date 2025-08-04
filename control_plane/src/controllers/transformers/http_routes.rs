@@ -120,8 +120,8 @@ pub fn collect_http_routes_by_gateway(
                     for (http_route_ref, _, http_route) in http_routes.iter() {
                         info!("Collecting HTTPRoute: object.ref={}", http_route_ref);
 
-                        for (_parent_idx, parent_ref) in
-                            http_route.spec.parent_refs.iter().flatten().enumerate()
+                        for parent_ref in
+                            http_route.spec.parent_refs.iter().flatten()
                         {
                             let gateway_ref = ObjectRef::of_kind::<Gateway>()
                                 .namespace(

@@ -47,4 +47,21 @@ impl Spawner {
             error!("Failed to spawn task '{}': {}", self.name, err);
         }
     }
+
+    #[track_caller]
+    pub fn spawn_blocking<F>(self, task: F)
+    where
+        F: FnOnce() + Send + 'static,
+    {
+        let result = self
+            .join_set
+            .borrow_mut()
+            .build_task()
+            .name(self.name)
+            .spawn_blocking(task);
+
+        if let Err(err) = result {
+            error!("Failed to spawn blocking task '{}': {}", self.name, err);
+        }
+    }
 }

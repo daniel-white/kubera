@@ -4,11 +4,11 @@ use getset::Getters;
 use kubera_core::continue_on;
 use kubera_core::ipc::GatewayEvent;
 use kubera_core::sync::signal::Receiver;
+use kubera_core::task::Builder as TaskBuilder;
 use std::net::SocketAddr;
 use tokio::select;
 use tokio::signal::ctrl_c;
 use tokio::sync::broadcast::{Sender, channel};
-use tokio::task::JoinSet;
 use tracing::info;
 use typed_builder::TypedBuilder;
 use url::Url;
@@ -25,14 +25,16 @@ pub struct PollGatewayEventsParams {
 }
 
 pub fn poll_gateway_events(
-    join_set: &mut JoinSet<()>,
+    task_builder: &TaskBuilder,
     params: PollGatewayEventsParams,
 ) -> Sender<GatewayEvent> {
     let (tx, _) = channel(20);
     let ipc_endpoint_rx = params.ipc_endpoint_rx.clone();
     let events_tx = tx.clone();
 
-    join_set.spawn(async move {
+    task_builder
+        .new_task(stringify!(poll_gateway_events))
+        .spawn(async move {
         'primary: loop {
             if let Some(ipc_endpoint_addr) = ipc_endpoint_rx.get().await {
                 let url = {

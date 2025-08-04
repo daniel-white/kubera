@@ -12,20 +12,22 @@ use crate::controllers::config::selector::{SelectorParams, select_configuration}
 use crate::controllers::ipc_events::{PollGatewayEventsParams, poll_gateway_events};
 use crate::controllers::router::synthesize_http_router;
 use crate::proxy::Proxy;
+use crate::proxy::responses::error_responses::error_responses;
 use clap::Parser;
 use kubera_core::crypto::init_crypto;
 use kubera_core::instrumentation::init_instrumentation;
 use kubera_core::sync::signal::signal;
+use kubera_core::task::Builder as TaskBuilder;
 use pingora::prelude::*;
 use pingora::server::Server;
 use pingora::services::listening::Service;
 use proxy::filters::client_addrs::client_addr_filter;
 use proxy::router::topology::TopologyLocation;
-use tokio::task::JoinSet;
-use crate::proxy::responses::error_responses::error_responses;
 
 #[tokio::main]
 async fn main() {
+    let task_builder = TaskBuilder::default();
+
     init_crypto();
     init_instrumentation();
 
@@ -40,8 +42,6 @@ async fn main() {
 
     let (ipc_endpoint_tx, ipc_endpoint_rx) = signal();
 
-    let mut join_set = JoinSet::new();
-
     let gateway_events_tx = {
         let params = PollGatewayEventsParams::builder()
             .ipc_endpoint_rx(ipc_endpoint_rx.clone())
@@ -50,7 +50,7 @@ async fn main() {
             .gateway_name(args.gateway_name())
             .build();
 
-        poll_gateway_events(&mut join_set, params)
+        poll_gateway_events(&task_builder, params)
     };
 
     let ipc_configuration_source_rx = {
@@ -62,7 +62,7 @@ async fn main() {
             .gateway_name(args.gateway_name())
             .build();
 
-        fetch_configuration(&mut join_set, params)
+        fetch_configuration(&task_builder, params)
     };
 
     let fs_configuration_source_rx = {
@@ -70,7 +70,7 @@ async fn main() {
             .file_path(args.config_file_path())
             .build();
 
-        watch_configuration_file(&mut join_set, params)
+        watch_configuration_file(&task_builder, params)
     };
 
     let gateway_configuration_rx = {
@@ -79,17 +79,17 @@ async fn main() {
             .fs_configuration_source_rx(fs_configuration_source_rx)
             .build();
 
-        select_configuration(&mut join_set, params)
+        select_configuration(&task_builder, params)
     };
 
-    watch_ipc_endpoint(&mut join_set, &gateway_configuration_rx, ipc_endpoint_tx);
+    watch_ipc_endpoint(&task_builder, &gateway_configuration_rx, ipc_endpoint_tx);
 
     let router_rx =
-        synthesize_http_router(&mut join_set, &gateway_configuration_rx, current_location);
-    let client_addr_filter_rx = client_addr_filter(&mut join_set, &gateway_configuration_rx);
-    let error_responses_rx = error_responses(&mut join_set, &gateway_configuration_rx);
+        synthesize_http_router(&task_builder, &gateway_configuration_rx, current_location);
+    let client_addr_filter_rx = client_addr_filter(&task_builder, &gateway_configuration_rx);
+    let error_responses_rx = error_responses(&task_builder, &gateway_configuration_rx);
 
-    join_set.spawn_blocking(move || {
+    task_builder.new_task("server").spawn_blocking(move || {
         let mut server = Server::new(None).unwrap();
         server.bootstrap();
         let proxy = Proxy::builder()
@@ -103,12 +103,12 @@ async fn main() {
         server.add_service(service);
 
         let mut prometheus_service_http = Service::prometheus_http_service();
-        prometheus_service_http.add_tcp("0.0.0.0:1234");
+        prometheus_service_http.add_tcp("0.0.0.0:12340");
 
         server.add_service(prometheus_service_http);
 
         server.run_forever();
     });
 
-    join_set.join_all().await;
+    task_builder.join_all().await;
 }
