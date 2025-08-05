@@ -1,0 +1,125 @@
+apiVersion: kubera.whitefamily.in/v1alpha1
+kind: GatewayClassParameters
+metadata:
+  name: custom-image-gateway-class
+spec:
+  deployment:
+    imagePullPolicy: IfNotPresent
+    replicas: 2
+    image:
+      repository: my-custom-kubera-gateway
+      tag: v1.2.3
+    strategy:
+      type: RollingUpdate
+      rollingUpdate:
+        maxSurge: 1
+        maxUnavailable: 0
+  gateway:
+    logLevel: Info
+    errorResponses:
+      kind: ProblemDetail
+
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: GatewayClass
+metadata:
+  name: custom-image-gateway-class
+spec:
+  controllerName: kubera.whitefamily.in/control-plane
+  parametersRef:
+    group: kubera.whitefamily.in
+    kind: GatewayClassParameters
+    name: custom-image-gateway-class
+
+---
+apiVersion: kubera.whitefamily.in/v1alpha1
+kind: GatewayParameters
+metadata:
+  name: gateway-specific-image
+  namespace: default
+spec:
+  deployment:
+    # Gateway-specific image configuration that overrides class-level settings
+    image:
+      repository: special-gateway-image
+      tag: latest
+    replicas: 1
+
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: custom-image-gateway
+  namespace: default
+  annotations:
+    kubera.whitefamily.in/parameters: gateway-specific-image
+spec:
+  gatewayClassName: custom-image-gateway-class
+  listeners:
+    - name: http
+      protocol: HTTP
+      port: 80
+      allowedRoutes:
+        namespaces:
+          from: Same
+
+---
+# Example 1: Using global image configuration for both components
+# Both control plane and gateway will use "kubera:v2.0.0"
+deployments:
+  image:
+    repository: kubera
+    tag: v2.0.0
+
+---
+# Example 2: Same image, different versions for independent deployment
+# Control plane: kubera:v2.0.0
+# Gateway: kubera:v1.9.5 (can deploy gateway updates independently)
+deployments:
+  image:
+    repository: kubera
+    tag: v2.0.0
+
+gateways:
+  deployment:
+    image:
+      tag: v1.9.5  # Override just the tag for independent versioning
+
+---
+# Example 3: Completely different images per component
+# Control plane: my-control-plane:stable
+# Gateway: my-gateway:experimental
+controlPlane:
+  deployment:
+    image:
+      repository: my-control-plane
+      tag: stable
+
+gateways:
+  deployment:
+    image:
+      repository: my-gateway
+      tag: experimental
+
+---
+# Example 4: Gateway Class Parameters with custom image
+apiVersion: kubera.whitefamily.in/v1alpha1
+kind: GatewayClassParameters
+metadata:
+  name: custom-image-gateway-class
+spec:
+  deployment:
+    imagePullPolicy: IfNotPresent
+    replicas: 2
+    image:
+      repository: kubera
+      tag: v1.2.3
+    strategy:
+      type: RollingUpdate
+      rollingUpdate:
+        maxSurge: 1
+        maxUnavailable: 0
+  gateway:
+    logLevel: Info
+    errorResponses:
+      kind: ProblemDetail

@@ -2,16 +2,16 @@ use crate::controllers::filters::GatewayClassParametersReferenceState;
 use crate::kubernetes::objects::{ObjectRef, Objects};
 use gateway_api::apis::standard::gateways::Gateway;
 use getset::Getters;
-use k8s_openapi::DeepMerge;
 use k8s_openapi::api::apps::v1::{Deployment, DeploymentSpec, DeploymentStrategy};
 use k8s_openapi::api::core::v1::{Service, ServiceSpec};
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
+use k8s_openapi::DeepMerge;
 use kubera_api::v1alpha1::{
     GatewayClassParameters, GatewayConfiguration, GatewayParameters,
     ImagePullPolicy as ApiImagePullPolicy,
 };
 use kubera_core::continue_on;
-use kubera_core::sync::signal::{Receiver, signal};
+use kubera_core::sync::signal::{signal, Receiver};
 use kubera_core::task::Builder as TaskBuilder;
 use kubera_macros::await_ready;
 use serde_json::{from_value, json};
@@ -54,6 +54,12 @@ pub struct GatewayInstanceConfiguration {
     image_pull_policy: ImagePullPolicy,
 
     #[getset(get = "pub")]
+    image_repository: String,
+
+    #[getset(get = "pub")]
+    image_tag: String,
+
+    #[getset(get = "pub")]
     configuration: GatewayConfiguration,
 }
 
@@ -92,12 +98,16 @@ pub fn collect_gateway_instances(
                                 let gateway_parameters =
                                     gateway_parameters.get(&gateway_ref).cloned();
                                 let gateway_parameters = gateway_parameters.as_deref();
-                                let (deployment_overrides, image_pull_policy) =
-                                    merge_deployment_overrides(
-                                        &gateway,
-                                        gateway_class_parameters,
-                                        gateway_parameters,
-                                    );
+                                let (
+                                    deployment_overrides,
+                                    image_pull_policy,
+                                    image_repository,
+                                    image_tag,
+                                ) = merge_deployment_overrides(
+                                    &gateway,
+                                    gateway_class_parameters,
+                                    gateway_parameters,
+                                );
                                 let service_overrides = merge_service_overrides(
                                     &gateway,
                                     gateway_class_parameters,
@@ -115,6 +125,8 @@ pub fn collect_gateway_instances(
                                         service_overrides,
                                         deployment_overrides,
                                         image_pull_policy,
+                                        image_repository,
+                                        image_tag,
                                         configuration,
                                     },
                                 )
@@ -142,7 +154,7 @@ fn merge_deployment_overrides(
     gateway: &Gateway,
     gateway_class_parameters: Option<&GatewayClassParameters>,
     gateway_parameters: Option<&GatewayParameters>,
-) -> (Deployment, ImagePullPolicy) {
+) -> (Deployment, ImagePullPolicy, String, String) {
     let mut spec = DeploymentSpec::default();
 
     let class_deployment_params = gateway_class_parameters
@@ -164,10 +176,28 @@ fn merge_deployment_overrides(
         .unwrap_or_default()
         .into();
 
-    spec.replicas = deployment_params
-        .as_ref()
-        .and_then(|p| p.replicas)
-        .or_else(|| deployment_params.as_ref().and_then(|p| p.replicas));
+    // Extract image configuration with precedence: gateway-level params > class-level params > defaults
+    let image_repository = deployment_params
+        .and_then(|p| p.image.as_ref())
+        .and_then(|img| img.repository.as_ref())
+        .or_else(|| {
+            class_deployment_params
+                .and_then(|p| p.image.as_ref())
+                .and_then(|img| img.repository.as_ref())
+        })
+        .cloned()
+        .unwrap_or_else(|| "kubera".to_string());
+
+    let image_tag = deployment_params
+        .and_then(|p| p.image.as_ref())
+        .and_then(|img| img.tag.as_ref())
+        .or_else(|| {
+            class_deployment_params
+                .and_then(|p| p.image.as_ref())
+                .and_then(|img| img.tag.as_ref())
+        })
+        .cloned()
+        .unwrap_or_else(|| "latest".to_string());
 
     if class_deployment_params.is_some() || deployment_params.is_some() {
         let mut strategy = DeploymentStrategy::default();
@@ -213,6 +243,8 @@ fn merge_deployment_overrides(
             ..Default::default()
         },
         image_pull_policy,
+        image_repository,
+        image_tag,
     )
 }
 

@@ -24,7 +24,7 @@ spec:
                 path: config.yaml
       containers:
         - name: gateway
-          image: kubera:latest
+          image: {{ .image_repository | default "kubera" }}:{{ .image_tag | default "latest" }}
           imagePullPolicy: {{ .image_pull_policy | quote }}
           command:
             - /usr/local/bin/kubera_gateway

@@ -53,6 +53,16 @@ pub enum ImagePullPolicy {
 }
 
 #[derive(Default, Deserialize, Serialize, Clone, Debug, JsonSchema, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct Image {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub repository: Option<String>,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tag: Option<String>,
+}
+
+#[derive(Default, Deserialize, Serialize, Clone, Debug, JsonSchema, PartialEq)]
 pub struct CommonGatewayParameterSpec {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub deployment: Option<GatewayDeployment>,
@@ -105,6 +115,9 @@ pub struct GatewayDeployment {
 
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub image_pull_policy: Option<ImagePullPolicy>,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub image: Option<Image>,
 }
 
 #[derive(Deserialize, Serialize, Clone, Debug, JsonSchema, PartialEq)]

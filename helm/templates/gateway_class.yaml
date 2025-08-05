@@ -22,6 +22,9 @@ spec:
     strategy:
     {{- toYaml .Values.gateways.deployment.strategy | nindent 6 -}}
     {{- end }}
+    image:
+      repository: {{ .Values.gateways.deployment.image.repository | default .Values.deployments.image.repository | default "kubera" }}
+      tag: {{ .Values.gateways.deployment.image.tag | default .Values.deployments.image.tag | default "latest" }}
   gateway:
     logLevel: {{ .Values.gateways.logLevel | default "Info" }}
     errorResponses:

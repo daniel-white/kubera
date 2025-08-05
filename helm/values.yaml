@@ -2,6 +2,10 @@ logLevel: Info
 
 deployments:
   imagePullPolicy: IfNotPresent
+  # Global image configuration - serves as default for all components
+  image:
+    repository: kubera
+    tag: latest
 
 gatewayClass:
   name: ""
@@ -14,9 +18,11 @@ controlPlane:
     replicas: 2
     strategy:
       type: Recreate
-  image:
-    repository: kubera-control-plane
-    tag: latest
+    # Control plane specific image override (optional)
+    # Uses same base image as gateways but can be versioned independently
+    image:
+      repository: ""  # Will default to global image.repository
+      tag: ""         # Will default to global image.tag
   resources:
     limits:
       cpu: "500m"
@@ -35,6 +41,11 @@ gateways:
       rollingUpdate:
         maxSurge: 1
         maxUnavailable: 1
+    # Gateway specific image override (optional)
+    # Uses same base image as control plane but can be versioned independently
+    image:
+      repository: ""  # Will default to global image.repository
+      tag: ""         # Will default to global image.tag
 
 
 
@@ -45,5 +56,3 @@ podAnnotations: { }
 # This is for setting Kubernetes Labels to a Pod.
 # For more information checkout: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/
 podLabels: { }
-
-

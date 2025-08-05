@@ -1,7 +1,7 @@
 use crate::controllers::instances::InstanceRole;
 use crate::controllers::transformers::GatewayInstanceConfiguration;
-use crate::kubernetes::KubeClientCell;
 use crate::kubernetes::objects::{ObjectRef, SyncObjectAction};
+use crate::kubernetes::KubeClientCell;
 use crate::options::Options;
 use crate::{sync_objects, watch_objects};
 use gtmpl_derive::Gtmpl;
@@ -27,6 +27,10 @@ struct TemplateValues {
     configmap_name: String,
     #[builder(setter(into))]
     image_pull_policy: String,
+    #[builder(setter(into))]
+    image_repository: String,
+    #[builder(setter(into))]
+    image_tag: String,
 }
 
 pub fn sync_gateway_deployments(
@@ -83,6 +87,8 @@ fn generate_gateway_deployments(
                                     .image_pull_policy(Into::<&'static str>::into(
                                         instance.image_pull_policy(),
                                     ))
+                                    .image_repository(instance.image_repository().to_string())
+                                    .image_tag(instance.image_tag().to_string())
                                     .build();
 
                                 (
