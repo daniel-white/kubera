@@ -1,10 +1,10 @@
 use bytes::Bytes;
 use http::header::{CONTENT_LENGTH, CONTENT_TYPE};
 use http::{Response, StatusCode};
-use kubera_core::config::gateway::types::GatewayConfiguration;
 use kubera_core::config::gateway::types::net::ErrorResponseKind;
+use kubera_core::config::gateway::types::GatewayConfiguration;
 use kubera_core::continue_on;
-use kubera_core::sync::signal::{Receiver, signal};
+use kubera_core::sync::signal::{signal, Receiver};
 use kubera_core::task::Builder as TaskBuilder;
 use kubera_macros::await_ready;
 use problemdetails::Problem;
@@ -114,7 +114,7 @@ trait ErrorResponseGenerator: PartialEq {
         }
     }
 
-    fn body(&self, code: ErrorResponseCode) -> Option<(&'static str, Cow<'static, str>)> {
+    fn body(&self, _code: ErrorResponseCode) -> Option<(&'static str, Cow<'static, str>)> {
         None
     }
 }
@@ -143,12 +143,12 @@ impl Default for ErrorResponseGenerators {
 }
 
 #[derive(PartialEq, Eq, Clone)]
-struct EmptyErrorResponseGenerator;
+pub(crate) struct EmptyErrorResponseGenerator;
 
 impl ErrorResponseGenerator for EmptyErrorResponseGenerator {}
 
 #[derive(PartialEq, Eq, Clone)]
-struct HtmlErrorResponseGenerator;
+pub(crate) struct HtmlErrorResponseGenerator;
 
 impl ErrorResponseGenerator for HtmlErrorResponseGenerator {
     fn body(&self, code: ErrorResponseCode) -> Option<(&'static str, Cow<'static, str>)> {
@@ -159,7 +159,7 @@ impl ErrorResponseGenerator for HtmlErrorResponseGenerator {
 }
 
 #[derive(PartialEq, Eq, Clone)]
-struct ProblemDetailErrorResponseGenerator {
+pub(crate) struct ProblemDetailErrorResponseGenerator {
     authority: Url,
 }
 

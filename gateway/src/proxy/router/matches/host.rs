@@ -3,6 +3,7 @@ use kubera_core::net::Hostname;
 use tracing::{debug, instrument};
 
 #[derive(Debug, PartialEq, Clone)]
+#[allow(dead_code)]
 pub enum HostValueMatch {
     Exact(Hostname),
     Suffix(Hostname),
@@ -15,6 +16,7 @@ impl HostValueMatch {
         name = "HostValueMatch::matches"
         fields(match = ?self)
     )]
+    #[allow(dead_code)]
     fn matches(&self, host: &Hostname) -> bool {
         match self {
             Self::Exact(expected) => expected == host,
@@ -30,6 +32,7 @@ pub struct HostMatch {
 
 impl HostMatch {
     #[instrument(skip(self, headers), level = "debug", name = "HostMatch::matches")]
+    #[allow(dead_code)]
     fn matches(&self, headers: &HeaderMap) -> bool {
         let is_match = match headers
             .get(http_constant::HOST)

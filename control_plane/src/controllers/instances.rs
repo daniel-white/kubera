@@ -1,15 +1,15 @@
-use crate::kubernetes::KubeClientCell;
 use crate::kubernetes::objects::ObjectRef;
+use crate::kubernetes::KubeClientCell;
 use crate::options::Options;
 use futures::StreamExt;
 use k8s_openapi::api::coordination::v1::Lease;
 use k8s_openapi::api::core::v1::Pod;
-use kube::runtime::Controller;
 use kube::runtime::controller::Action;
 use kube::runtime::watcher::Config;
+use kube::runtime::Controller;
 use kube::{Api, Client};
 use kube_leader_election::{LeaseLock, LeaseLockParams, LeaseLockResult};
-use kubera_core::sync::signal::{Receiver, Sender, signal};
+use kubera_core::sync::signal::{signal, Receiver, Sender};
 use kubera_core::task::Builder as TaskBuilder;
 use kubera_core::{continue_after, continue_on};
 use std::future::ready;
@@ -66,29 +66,28 @@ pub fn watch_leader_instance_ip_addr(
             match (kube_client_rx.get().await.as_deref(), instance_role_rx.get().await.and_then(|r| r.primary_pod_ref().cloned())) {
                 (Some(kube_client), Some(primary_pod_ref)) => {
                     info!("Determining instance IP address for pod as it is the primary: {:?}", primary_pod_ref);
-                    let api = Api::<Pod>::namespaced(
-                        kube_client.clone(),
-                        primary_pod_ref
-                            .namespace()
-                            .as_deref()
-                            .expect("Namespace should be present"),
-                    );
-                    let config = Config::default()
-                        .fields(format!("metadata.name={}", primary_pod_ref.name()).as_str());
-                    let controller = Controller::new(api, config)
-                        .shutdown_on_signal()
-                        .run(reconcile, error_policy, controller_context.clone())
-                        .for_each(|_| ready(()));
-                    select! {
-                        () = controller => {
-                            break;
-                        },
-                        _ = kube_client_rx.changed() => {
-                            continue;
+
+                    if let Some(namespace) = primary_pod_ref.namespace().as_deref() {
+                        let api = Api::<Pod>::namespaced(kube_client.clone(), namespace);
+                        let config = Config::default()
+                            .fields(format!("metadata.name={}", primary_pod_ref.name()).as_str());
+                        let controller = Controller::new(api, config)
+                            .shutdown_on_signal()
+                            .run(reconcile, error_policy, controller_context.clone())
+                            .for_each(|_| ready(()));
+                        select! {
+                            () = controller => {
+                                break;
+                            },
+                            _ = kube_client_rx.changed() => {
+                                continue;
+                            }
+                            _ = instance_role_rx.changed() => {
+                                continue;
+                            }
                         }
-                        _ = instance_role_rx.changed() => {
-                            continue;
-                        }
+                    } else {
+                        warn!("Primary pod reference missing namespace, cannot determine instance IP");
                     }
                 }
                 (None, _) => {
@@ -142,46 +141,51 @@ pub fn determine_instance_role(
     task_builder
         .new_task(stringify!(determine_instance_role))
         .spawn(async move {
-            let kube_client = Client::try_default()
-                .await
-                .expect("Unable to start client to determine role");
-            let lock = LeaseLock::new(
-                kube_client,
-                &namespace,
-                LeaseLockParams {
-                    holder_id: pod_name.to_string(),
-                    lease_name: format!("{instance_name}-primary"),
-                    lease_ttl: options.lease_duration(),
-                },
-            );
+            match Client::try_default().await {
+                Ok(kube_client) => {
+                    let lock = LeaseLock::new(
+                        kube_client,
+                        &namespace,
+                        LeaseLockParams {
+                            holder_id: pod_name.to_string(),
+                            lease_name: format!("{instance_name}-primary"),
+                            lease_ttl: options.lease_duration(),
+                        },
+                    );
 
-            loop {
-                match lock.try_acquire_or_renew().await {
-                    Ok(LeaseLockResult::Acquired(lease)) => {
-                        if let Some(pod_ref) = get_pod_ref(&namespace, &lease) {
-                            debug!("Acquired lease, assuming primary role");
-                            tx.set(InstanceRole::Primary(pod_ref)).await;
-                        } else {
-                            warn!("Lease acquired and pod reference is missing, assuming undetermined role");
-                            tx.set(InstanceRole::Undetermined).await;
+                    loop {
+                        match lock.try_acquire_or_renew().await {
+                            Ok(LeaseLockResult::Acquired(lease)) => {
+                                if let Some(pod_ref) = get_pod_ref(&namespace, &lease) {
+                                    debug!("Acquired lease, assuming primary role");
+                                    tx.set(InstanceRole::Primary(pod_ref)).await;
+                                } else {
+                                    warn!("Lease acquired and pod reference is missing, assuming undetermined role");
+                                    tx.set(InstanceRole::Undetermined).await;
+                                }
+                            }
+                            Ok(LeaseLockResult::NotAcquired(lease)) => {
+                                if let Some(pod_ref) = get_pod_ref(&namespace, &lease) {
+                                    debug!("Lease not acquired, assuming redundant role");
+                                    tx.set(InstanceRole::Redundant(pod_ref)).await;
+                                } else {
+                                    warn!("Lease not acquired and pod reference is missing, assuming undetermined role");
+                                    tx.set(InstanceRole::Undetermined).await;
+                                }
+                            }
+                            Err(err) => {
+                                warn!("Failed to acquire or renew lease: {err}");
+                                tx.set(InstanceRole::Undetermined).await;
+                            },
                         }
+
+                        continue_after!(options.lease_check_interval());
                     }
-                    Ok(LeaseLockResult::NotAcquired(lease)) => {
-                        if let Some(pod_ref) = get_pod_ref(&namespace, &lease) {
-                            debug!("Lease not acquired, assuming redundant role");
-                            tx.set(InstanceRole::Redundant(pod_ref)).await;
-                        } else {
-                            warn!("Lease not acquired and pod reference is missing, assuming undetermined role");
-                            tx.set(InstanceRole::Undetermined).await;
-                        }
-                    }
-                    Err(err) => {
-                        warn!("Failed to acquire or renew lease: {err}");
-                        tx.set(InstanceRole::Undetermined).await;
-                    },
                 }
-
-                continue_after!(options.lease_check_interval());
+                Err(err) => {
+                    warn!("Unable to start Kubernetes client to determine role: {err}");
+                    tx.set(InstanceRole::Undetermined).await;
+                }
             }
         });
 

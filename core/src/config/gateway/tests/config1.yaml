@@ -1,41 +1,152 @@
 version: v1alpha1
 
-# Network listeners
+# IPC configuration for control plane communication
+ipc:
+  endpoint: "127.0.0.1:9090"
+
+# Network listeners - supports multiple protocols and host matching
 listeners:
   - name: "http-listener"
     port: 8080
     protocol: "HTTP"
+    host:
+      type: "Exact"
+      value: "api.example.com"
 
   - name: "https-listener"
     port: 8443
     protocol: "HTTPS"
+    host:
+      type: "Suffix"
+      value: ".example.com"
 
-# HTTP routing rules
+  - name: "admin-listener"
+    port: 9080
+    protocol: "HTTP"
+    host:
+      type: "Exact"
+      value: "admin.example.com"
+
+# HTTP routing rules with advanced matching and multiple backends
 http_routes:
-  - rules:
-      - unique_id: "api-route"
+  - host_headers:
+      - type: "Exact"
+        value: "api.example.com"
+      - type: "Suffix"
+        value: ".api.example.com"
+    rules:
+      - unique_id: "api-v1-route"
         matches:
           - path:
-              type: "Prefix"
-              value: "/api"
-            method: "GET"
+              type: "PathPrefix"
+              value: "/api/v1"
+            method:
+              type: "Exact"
+              value: "GET"
+            headers:
+              - name: "Authorization"
+                type: "RegularExpression"
+                value: "Bearer .*"
+              - name: "Content-Type"
+                type: "Exact"
+                value: "application/json"
+            query_params:
+              - name: "version"
+                type: "Exact"
+                value: "v1"
         backends:
           - name: "api-service"
-            namespace: "default"
+            namespace: "production"
             port: 3000
+            weight: 80
             endpoints:
               - address: "10.0.1.10"
+                node: "worker-1"
+                zone: "us-west-2a"
               - address: "10.0.1.11"
+                node: "worker-2"
+                zone: "us-west-2b"
+          - name: "api-service-canary"
+            namespace: "production"
+            port: 3000
+            weight: 20
+            endpoints:
+              - address: "10.0.2.10"
+                node: "worker-3"
+                zone: "us-west-2c"
 
-      - unique_id: "admin-route"
+      - unique_id: "api-v2-route"
+        matches:
+          - path:
+              type: "PathPrefix"
+              value: "/api/v2"
+            method:
+              type: "Exact"
+              value: "POST"
+            headers:
+              - name: "X-API-Key"
+                type: "Present"
+        backends:
+          - name: "api-v2-service"
+            namespace: "production"
+            port: 4000
+            weight: 100
+            endpoints:
+              - address: "10.0.3.10"
+                node: "worker-4"
+                zone: "us-west-2a"
+              - address: "10.0.3.11"
+                node: "worker-5"
+                zone: "us-west-2b"
+
+  - host_headers:
+      - type: "Exact"
+        value: "admin.example.com"
+    rules:
+      - unique_id: "admin-dashboard"
         matches:
           - path:
               type: "Exact"
-              value: "/admin"
-            method: "POST"
+              value: "/dashboard"
+            method:
+              type: "Exact"
+              value: "GET"
         backends:
           - name: "admin-service"
             namespace: "admin"
             port: 8080
             endpoints:
-              - address: "10.0.2.10"
+              - address: "10.0.4.10"
+                zone: "us-west-2a"
+
+      - unique_id: "admin-api"
+        matches:
+          - path:
+              type: "PathPrefix"
+              value: "/admin/api"
+            query_params:
+              - name: "action"
+                type: "RegularExpression"
+                value: "(create|update|delete)"
+        backends:
+          - name: "admin-api-service"
+            namespace: "admin"
+            port: 8081
+            endpoints:
+              - address: "10.0.4.20"
+                node: "admin-worker-1"
+                zone: "us-west-2b"
+
+# Client address extraction configuration
+client_addrs:
+  source: "Proxies"
+  proxies:
+    trusted_networks:
+      - "10.0.0.0/8"
+      - "172.16.0.0/12"
+      - "192.168.0.0/16"
+
+# Error response configuration
+error_responses:
+  kind: "ProblemDetail"
+

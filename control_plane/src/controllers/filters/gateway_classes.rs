@@ -4,7 +4,7 @@ use itertools::Itertools;
 use kubera_api::constants::GATEWAY_CLASS_CONTROLLER_NAME;
 use kubera_api::v1alpha1::GatewayClassParameters;
 use kubera_core::continue_on;
-use kubera_core::sync::signal::{Receiver, signal};
+use kubera_core::sync::signal::{signal, Receiver};
 use kubera_core::task::Builder as TaskBuilder;
 use kubera_macros::await_ready;
 use std::sync::Arc;
@@ -73,7 +73,7 @@ pub fn filter_gateway_classes(
 pub enum GatewayClassParametersReferenceState {
     #[strum(serialize = "kubera.whitefamily.in/NoRef")]
     NoRef,
-    #[strum(serialize = "kubera.whitefamily.in/NoRef")]
+    #[strum(serialize = "kubera.whitefamily.in/InvalidRef")]
     InvalidRef,
     #[strum(serialize = "kubera.whitefamily.in/NotFound")]
     NotFound,

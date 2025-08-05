@@ -67,12 +67,14 @@ impl HttpRouterBuilder {
         self
     }
 
+    #[allow(dead_code)]
     pub fn add_exact_host(&mut self, host: &Hostname) -> &mut Self {
         let host_value_match = HostValueMatch::Exact(host.clone());
         self.host_value_matches.push(host_value_match);
         self
     }
 
+    #[allow(dead_code)]
     pub fn add_host_suffix(&mut self, host: &Hostname) -> &mut Self {
         let host_value_match = HostValueMatch::Suffix(host.clone());
         self.host_value_matches.push(host_value_match);

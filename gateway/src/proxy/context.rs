@@ -20,6 +20,7 @@ pub enum UpstreamPeerResult {
 struct ContextState {
     route: MatchRouteResult,
     endpoint_resolver: Option<EndpointsResolver>,
+    #[allow(dead_code)]
     client_addr: Option<IpAddr>,
 }
 
@@ -66,6 +67,7 @@ impl Context {
         }
     }
 
+    #[allow(dead_code)]
     pub fn client_addr(&self) -> Option<IpAddr> {
         self.state.get().and_then(|x| x.client_addr)
     }

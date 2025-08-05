@@ -1,6 +1,6 @@
 use crate::CaseInsensitiveString;
 use getset::Getters;
-use schemars::{JsonSchema, Schema, SchemaGenerator, json_schema};
+use schemars::{json_schema, JsonSchema, Schema, SchemaGenerator};
 use serde::{Deserialize, Serialize};
 use serde_valid::Validate;
 use std::borrow::Cow;
@@ -113,6 +113,7 @@ impl JsonSchema for Hostname {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use assertables::assert_ok;
     use proptest::prelude::*;
     use rstest::*;
     use serde_valid::Validate;
@@ -172,17 +173,17 @@ mod tests {
         match (result, expected) {
             (Ok(actual), Ok(expected)) => assert_eq!(actual, expected),
             (Err(()), Err(())) => {} // Both are errors, which is expected
-            _ => panic!("Unexpected result: {result:?} vs {expected:?}"),
+            _ => unreachable!("Unexpected result: {result:?} vs {expected:?}"),
         }
     }
 
     #[test]
     fn test_port_serialization() {
         let port = Port::new(8080);
-        let serialized = serde_json::to_string(&port).unwrap();
+        let serialized = assert_ok!(serde_json::to_string(&port));
         assert_eq!(serialized, "8080");
 
-        let deserialized: Port = serde_json::from_str(&serialized).unwrap();
+        let deserialized: Port = assert_ok!(serde_json::from_str(&serialized));
         assert_eq!(port, deserialized);
     }
 
@@ -229,8 +230,8 @@ mod tests {
             let port = Port::new(port_num);
 
             // JSON serialization roundtrip
-            let json = serde_json::to_string(&port).unwrap();
-            let from_json: Port = serde_json::from_str(&json).unwrap();
+            let json = serde_json::to_string(&port)?;
+            let from_json: Port = serde_json::from_str(&json)?;
             prop_assert_eq!(port, from_json);
         }
     }
@@ -299,10 +300,10 @@ mod tests {
     #[test]
     fn test_hostname_serialization() {
         let hostname = Hostname::new("api.example.com");
-        let serialized = serde_json::to_string(&hostname).unwrap();
+        let serialized = assert_ok!(serde_json::to_string(&hostname));
         assert_eq!(serialized, "\"api.example.com\"");
 
-        let deserialized: Hostname = serde_json::from_str(&serialized).unwrap();
+        let deserialized: Hostname = assert_ok!(serde_json::from_str(&serialized));
         assert_eq!(hostname, deserialized);
     }
 
@@ -350,8 +351,8 @@ mod tests {
             prop_assert_eq!(hostname.clone(), from_string);
 
             // JSON serialization roundtrip
-            let json = serde_json::to_string(&hostname).unwrap();
-            let from_json: Hostname = serde_json::from_str(&json).unwrap();
+            let json = serde_json::to_string(&hostname)?;
+            let from_json: Hostname = serde_json::from_str(&json)?;
             prop_assert_eq!(hostname, from_json);
         }
     }

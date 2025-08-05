@@ -92,6 +92,7 @@ impl ValidatePattern for CaseInsensitiveString {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use assertables::assert_ok;
     use proptest::prelude::*;
     use rstest::{fixture, rstest};
 
@@ -153,10 +154,10 @@ mod tests {
     #[test]
     fn test_serialization() {
         let cis = CaseInsensitiveString::new("Test Value");
-        let serialized = serde_json::to_string(&cis).unwrap();
+        let serialized = assert_ok!(serde_json::to_string(&cis));
         assert_eq!(serialized, "\"Test Value\"");
 
-        let deserialized: CaseInsensitiveString = serde_json::from_str(&serialized).unwrap();
+        let deserialized: CaseInsensitiveString = assert_ok!(serde_json::from_str(&serialized));
         assert_eq!(cis, deserialized);
     }
 

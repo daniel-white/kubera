@@ -2,8 +2,8 @@ use anyhow::Result;
 use atomic_refcell::AtomicRefCell;
 use std::sync::Arc;
 use thiserror::Error;
+use tokio::sync::broadcast::{channel, Receiver as BroadcastReceiver, Sender as BroadcastSender};
 use tokio::sync::RwLock;
-use tokio::sync::broadcast::{Receiver as BroadcastReceiver, Sender as BroadcastSender, channel};
 use tracing::trace;
 
 #[derive(Debug, Error)]
@@ -118,10 +118,11 @@ impl<T: PartialEq + Clone> Receiver<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use assertables::assert_ok;
     use proptest::prelude::*;
-    use std::sync::Arc;
     use std::sync::atomic::{AtomicUsize, Ordering};
-    use tokio::time::{Duration, timeout};
+    use std::sync::Arc;
+    use tokio::time::{timeout, Duration};
     use tokio_test::{assert_pending, assert_ready};
 
     #[tokio::test]
@@ -268,7 +269,7 @@ mod tests {
 
         // Wait for all tasks to complete
         for handle in handles {
-            handle.await.unwrap();
+            assert_ok!(handle.await);
         }
 
         // Should have some value (the last one set)
@@ -287,7 +288,7 @@ mod tests {
     proptest! {
         #[test]
         fn test_signal_properties(values in prop::collection::vec(any::<i32>(), 0..20)) {
-            let runtime = tokio::runtime::Runtime::new().unwrap();
+            let runtime = assert_ok!(tokio::runtime::Runtime::new());
             runtime.block_on(async {
                 let (tx, rx) = signal();
 
