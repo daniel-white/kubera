@@ -15,9 +15,7 @@ use getset::CloneGetters;
 use gtmpl_derive::Gtmpl;
 use k8s_openapi::api::core::v1::{ConfigMap, Service};
 use kube::runtime::watcher::Config;
-use kubera_api::v1alpha1::{
-    ClientAddressesSource, ErrorResponseKind, ProxyIpAddressHeaders,
-};
+use kubera_api::v1alpha1::{ClientAddressesSource, ErrorResponseKind, ProxyIpAddressHeaders};
 use kubera_core::config::gateway::types::http::router::{
     HttpMethodMatch, HttpRouteBuilder, HttpRouteRuleBuilder, HttpRouteRuleMatchesBuilder,
 };
