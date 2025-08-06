@@ -60,3 +60,26 @@ The following CRDs are defined in the `api/` directory:
 
 * `GatewayClassParameters`: Defines parameters for a `GatewayClass`, applies things to all `Gateway`s
 * `GatewayParameters`: Defines parameters for a `Gateway`, applies to a specific `Gateway`
+
+## Features
+
+Kubera supports the following Gateway API features:
+
+### Core Gateway API Resources
+
+- **Gateway**: Defines ingress points and listeners for traffic
+- **HTTPRoute**: Configures HTTP routing rules and traffic management
+- **GatewayClass**: Defines gateway controller configuration
+
+### HTTP Route Filters
+
+- **RequestHeaderModifier**: Modify request headers (set, add, remove)
+- **ResponseHeaderModifier**: Modify response headers (set, add, remove)
+- **RequestRedirect**: Redirect HTTP requests to different URLs with configurable:
+    - Scheme (HTTP/HTTPS)
+    - Hostname
+    - Port
+    - Path rewriting (full path replacement or prefix matching)
+    - Status codes (301, 302)
+
+### Custom Resource Definitions (CRDs)

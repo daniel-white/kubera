@@ -75,15 +75,21 @@ Kubera Gateway.
 
 | Feature             | Status          | Description                            | Documentation                                                                                                               | Conformance Level | Test Coverage | Level of Effort        |
 |---------------------|-----------------|----------------------------------------|-----------------------------------------------------------------------------------------------------------------------------|-------------------|---------------|------------------------|
-| **RequestRedirect** | 🏗️ **Defined** | HTTP redirects (301, 302, etc.)        | [Request Redirect](https://gateway-api.sigs.k8s.io/references/spec/#gateway.networking.k8s.io/v1.HTTPRequestRedirectFilter) | 🟠 **Extended**   | 🔴 **None**   | **Medium** (2-3 weeks) |
+| **RequestRedirect** | ✅ **Supported** | HTTP redirects (301, 302)              | [Request Redirect](https://gateway-api.sigs.k8s.io/references/spec/#gateway.networking.k8s.io/v1.HTTPRequestRedirectFilter) | 🟠 **Extended**   | 🟢 **High**   | Complete               |
 | **URLRewrite**      | 🏗️ **Defined** | Rewrite URLs before forwarding         | [URL Rewrite](https://gateway-api.sigs.k8s.io/references/spec/#gateway.networking.k8s.io/v1.HTTPURLRewriteFilter)           | 🟠 **Extended**   | 🔴 **None**   | **Medium** (2-3 weeks) |
 | **RequestMirror**   | 🏗️ **Defined** | Mirror requests to additional backends | [Request Mirror](https://gateway-api.sigs.k8s.io/references/spec/#gateway.networking.k8s.io/v1.HTTPRequestMirrorFilter)     | 🟠 **Extended**   | 🔴 **None**   | **High** (3-4 weeks)   |
 
 ### Implementation Notes
 
-- Basic filter framework is in place with placeholder structures
-- Redirect and rewrite need Pingora integration for URL manipulation
-- Request mirroring requires async request duplication logic
+- **RequestRedirect**: Fully implemented with Gateway API to Kubera config conversion
+    - Supports scheme redirection (HTTP to HTTPS)
+    - Hostname and port redirection
+    - Path rewriting (full path replacement and prefix matching)
+    - Status codes 301 (permanent) and 302 (temporary) redirect
+    - Proper URL construction using `url::Url` type
+    - Complete test coverage with 3/3 tests passing
+- Basic filter framework is in place with placeholder structures for URLRewrite and RequestMirror
+- URL rewrite and request mirroring need Pingora integration for URL manipulation and async request duplication
 
 ## Backend References
 

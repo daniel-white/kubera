@@ -1,8 +1,10 @@
 use gateway_api::apis::standard::httproutes::{
     HTTPRouteRulesFilters, HTTPRouteRulesFiltersRequestHeaderModifier,
+    HTTPRouteRulesFiltersRequestRedirect, HTTPRouteRulesFiltersRequestRedirectPath,
 };
 use kubera_core::config::gateway::types::http::filters::{
-    RequestHeaderModifier, RequestHeaderModifierBuilder,
+    PathRewrite, PathRewriteType, RequestHeaderModifier, RequestHeaderModifierBuilder,
+    RequestRedirect,
 };
 use thiserror::Error;
 use tracing::debug;
@@ -93,6 +95,55 @@ fn convert_request_header_modifier(
     } else {
         Ok(Some(modifier))
     }
+}
+
+/// Convert Gateway API `RequestRedirect` to Kubera `RequestRedirect`
+#[allow(dead_code)]
+pub fn convert_request_redirect(
+    gw_redirect: &HTTPRouteRulesFiltersRequestRedirect,
+) -> Result<RequestRedirect, FilterConversionError> {
+    let mut redirect = RequestRedirect {
+        scheme: gw_redirect.scheme.as_ref().map(|s| {
+            use gateway_api::httproutes::HTTPRouteRulesFiltersRequestRedirectScheme;
+            match s {
+                HTTPRouteRulesFiltersRequestRedirectScheme::Http => "http".to_string(),
+                HTTPRouteRulesFiltersRequestRedirectScheme::Https => "https".to_string(),
+            }
+        }),
+        hostname: gw_redirect.hostname.clone(),
+        port: gw_redirect.port.map(|p| p as u16),
+        path: None,
+        status_code: gw_redirect.status_code.map(|code| code as u16),
+    };
+
+    // Convert path rewriting if present
+    if let Some(path_config) = &gw_redirect.path {
+        redirect.path = Some(convert_path_rewrite(path_config)?);
+    }
+
+    Ok(redirect)
+}
+
+/// Convert Gateway API path rewrite configuration
+fn convert_path_rewrite(
+    gw_path: &HTTPRouteRulesFiltersRequestRedirectPath,
+) -> Result<PathRewrite, FilterConversionError> {
+    use gateway_api::apis::standard::httproutes::HTTPRouteRulesFiltersRequestRedirectPathType;
+
+    let path_rewrite = match gw_path.r#type {
+        HTTPRouteRulesFiltersRequestRedirectPathType::ReplaceFullPath => PathRewrite {
+            rewrite_type: PathRewriteType::ReplaceFullPath,
+            replace_full_path: gw_path.replace_full_path.clone(),
+            replace_prefix_match: None,
+        },
+        HTTPRouteRulesFiltersRequestRedirectPathType::ReplacePrefixMatch => PathRewrite {
+            rewrite_type: PathRewriteType::ReplacePrefixMatch,
+            replace_full_path: None,
+            replace_prefix_match: gw_path.replace_prefix_match.clone(),
+        },
+    };
+
+    Ok(path_rewrite)
 }
 
 #[cfg(test)]

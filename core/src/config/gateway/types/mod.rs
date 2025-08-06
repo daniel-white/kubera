@@ -56,6 +56,7 @@ pub struct GatewayConfiguration {
     version: GatewayConfigurationVersion,
 
     #[getset(get = "pub")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     ipc: Option<IpcConfiguration>,
 
     #[getset(get = "pub")]
@@ -67,9 +68,11 @@ pub struct GatewayConfiguration {
     http_routes: Vec<HttpRoute>,
 
     #[getset(get = "pub")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     client_addrs: Option<ClientAddrs>,
 
     #[getset(get = "pub")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     error_responses: Option<ErrorResponses>,
 }
 
@@ -189,6 +192,7 @@ impl GatewayConfigurationBuilder {
 #[derive(Validate, Getters, Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct IpcConfiguration {
     #[getset(get = "pub")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     endpoint: Option<SocketAddr>,
 }
 

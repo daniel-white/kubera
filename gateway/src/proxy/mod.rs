@@ -10,6 +10,7 @@ use async_trait::async_trait;
 use context::Context;
 use filters::client_addrs::ClientAddrFilter;
 use filters::request_headers::RequestHeaderFilter;
+use filters::request_redirect::RequestRedirectFilter;
 use filters::response_headers::ResponseHeaderFilter;
 use http::header::SERVER;
 use http::StatusCode;
@@ -83,12 +84,39 @@ impl ProxyHttp for Proxy {
 
         let error_code = match route {
             MatchRouteResult::Found(route, rule) => {
+                // Check for redirect filters before proceeding to upstream
+                for filter in rule.filters() {
+                    if let Some(request_redirect) = &filter.request_redirect {
+                        let redirect_filter = RequestRedirectFilter::new(request_redirect.clone());
+
+                        if let Ok(Some(redirect_response)) =
+                            redirect_filter.apply_to_pingora_request(session.req_header())
+                        {
+                            debug!("Applying redirect filter for route: {:?}", route);
+
+                            // Generate redirect response
+                            let mut redirect_resp =
+                                gen_error_response(redirect_response.status_code.as_u16());
+                            self.set_response_server_header(&mut redirect_resp)?;
+                            redirect_resp.insert_header("Location", &redirect_response.location)?;
+
+                            session.write_response_header_ref(&redirect_resp).await?;
+                            session
+                                .write_response_body(Some(bytes::Bytes::new()), true)
+                                .await?;
+
+                            return Ok(true); // Request handled, don't proceed to upstream
+                        }
+                    }
+                }
+
                 ctx.set(MatchRouteResult::Found(route, rule), client_addr);
                 return Ok(false);
             }
             MatchRouteResult::NotFound => ErrorResponseCode::NoRoute,
             MatchRouteResult::MissingConfiguration => ErrorResponseCode::MissingConfiguration,
         };
+
         let response = ctx.generate_error_response(error_code).await;
 
         let mut error_response = gen_error_response(response.status().into());

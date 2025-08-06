@@ -119,17 +119,22 @@ pub struct RequestMirror {
 
 /// Request Redirect filter - placeholder for future implementation
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
 pub struct RequestRedirect {
     /// Redirect scheme
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub scheme: Option<String>,
     /// Redirect hostname
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub hostname: Option<String>,
     /// Redirect path
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub path: Option<PathRewrite>,
     /// Redirect port
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub port: Option<u16>,
     /// Status code for redirect
-    #[serde(rename = "statusCode")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub status_code: Option<u16>,
 }
 
@@ -137,22 +142,25 @@ pub struct RequestRedirect {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct URLRewrite {
     /// Hostname rewrite
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub hostname: Option<String>,
     /// Path rewrite
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub path: Option<PathRewrite>,
 }
 
 /// Path rewrite configuration
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
 pub struct PathRewrite {
     /// Type of path rewrite
     #[serde(rename = "type")]
     pub rewrite_type: PathRewriteType,
     /// Replacement value
-    #[serde(rename = "replaceFullPath")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub replace_full_path: Option<String>,
     /// Prefix replacement
-    #[serde(rename = "replacePrefixMatch")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub replace_prefix_match: Option<String>,
 }
 
@@ -171,8 +179,10 @@ pub struct BackendRef {
     /// Backend name
     pub name: String,
     /// Backend namespace
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub namespace: Option<String>,
     /// Backend port
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub port: Option<u16>,
 }
 
