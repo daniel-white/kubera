@@ -3,6 +3,7 @@ use gtmpl_value::Value;
 use itertools::Itertools;
 use kube::runtime::reflector::Lookup;
 use kube::{Resource, ResourceExt};
+use std::any::type_name;
 use std::collections::{HashMap, HashSet};
 use std::fmt::{Display, Formatter, Write};
 use std::sync::Arc;
@@ -189,7 +190,8 @@ where
     }
 
     pub fn iter(&self) -> impl Iterator<Item = (ObjectRef, ObjectUniqueId, Arc<K>)> {
-        warn!("Iterating over objects, this may be expensive");
+        let type_name = type_name::<K>();
+        warn!("Iterating over {type_name}, this may be expensive");
         let v = self
             .by_ref
             .iter()
@@ -201,7 +203,7 @@ where
                 Some(uid) => Some((r.clone(), ObjectUniqueId::new(uid), s.clone())),
             })
             .collect_vec();
-        warn!("Iterated over {} objects", v.len());
+        warn!("Iterated over {} {type_name}", v.len());
         v.into_iter()
     }
 }

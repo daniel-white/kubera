@@ -1,16 +1,15 @@
+use crate::config::gateway::types::http::filters::RequestHeaderModifier;
 use crate::net::{Hostname, Port};
 use getset::Getters;
 use ipnet::IpNet;
-use schemars::{JsonSchema, Schema, SchemaGenerator, json_schema};
+use schemars::{json_schema, JsonSchema, Schema, SchemaGenerator};
 use serde::{Deserialize, Serialize};
 use serde_valid::Validate;
 use std::net::IpAddr;
 use thiserror::Error;
 use typed_builder::TypedBuilder;
 
-#[derive(
-    Validate, Getters, Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, Hash,
-)]
+#[derive(Validate, Getters, Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct Backend {
     #[getset(get = "pub")]
     weight: Option<i32>,
@@ -27,6 +26,11 @@ pub struct Backend {
 
     #[getset(get = "pub")]
     endpoints: Vec<Endpoint>,
+
+    /// Request header modifier for this backend
+    #[getset(get = "pub")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    request_header_modifier: Option<RequestHeaderModifier>,
 }
 
 #[derive(Default, Debug)]
@@ -36,6 +40,7 @@ pub struct BackendBuilder {
     name: Option<String>,
     namespace: Option<String>,
     endpoint_builders: Vec<EndpointBuilder>,
+    request_header_modifier: Option<RequestHeaderModifier>,
 }
 
 #[derive(Debug, Error)]
@@ -75,6 +80,12 @@ impl BackendBuilder {
         self
     }
 
+    /// Set request header modifier for this backend
+    pub fn with_request_header_modifier(&mut self, modifier: RequestHeaderModifier) -> &mut Self {
+        self.request_header_modifier = Some(modifier);
+        self
+    }
+
     pub fn build(self) -> Result<Backend, BackendBuilderError> {
         let name = self.name.ok_or(BackendBuilderError::MissingName)?;
         Ok(Backend {
@@ -87,6 +98,7 @@ impl BackendBuilder {
                 .into_iter()
                 .map(EndpointBuilder::build)
                 .collect(),
+            request_header_modifier: self.request_header_modifier,
         })
     }
 }

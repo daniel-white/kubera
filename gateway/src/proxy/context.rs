@@ -72,6 +72,14 @@ impl Context {
         self.state.get().and_then(|x| x.client_addr)
     }
 
+    /// Get the current backend for header modification
+    #[allow(dead_code)]
+    pub fn current_backend(&self) -> Option<&kubera_core::config::gateway::types::net::Backend> {
+        // For now, return None since the router uses different backend types
+        // This will be updated when the router types are unified with core types
+        None
+    }
+
     pub fn set(&self, route: MatchRouteResult, client_addr: Option<IpAddr>) {
         let (route, endpoint_resolver) = match route {
             MatchRouteResult::Found(route, rule) => {

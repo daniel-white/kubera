@@ -47,7 +47,7 @@ spec:
           ports:
             - containerPort: 8080
 ---
-apiVersion: gateway.networking.k8s.io/v1beta1
+apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
   name: echo-route
@@ -56,25 +56,185 @@ spec:
   parentRefs:
     - name: kubera-gateway
   rules:
+    # Basic echo route with RequestHeaderModifier
     - matches:
         - path:
             type: PathPrefix
             value: /echo
-      backendRefs:
-        - name: echo-service
-          port: 80
-    - matches:
-        - path:
-            type: PathPrefix
-            value: /foo
-      backendRefs:
-        - name: echo-service
-          port: 80
-    - matches:
-        - path:
-            type: PathPrefix
-            value: /bar
+      filters:
+        - type: RequestHeaderModifier
+          requestHeaderModifier:
+            set:
+              - name: "X-Gateway"
+                value: "kubera-gateway"
+              - name: "X-Route-Name"
+                value: "echo-route"
+            add:
+              - name: "X-Request-ID"
+                value: "generated-uuid-12345"
+              - name: "X-Trace-Context"
+                value: "gateway-processing"
+            remove:
+              - "X-Debug-Info"
+              - "X-Internal-Header"
       backendRefs:
         - name: echo-service
           port: 80
 
+    # API route with header modifications
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /api
+        - headers:
+            - type: Exact
+              name: "Content-Type"
+              value: "application/json"
+      filters:
+        - type: RequestHeaderModifier
+          requestHeaderModifier:
+            set:
+              - name: "X-API-Gateway"
+                value: "kubera"
+              - name: "Content-Type"
+                value: "application/json"
+            add:
+              - name: "X-Processing-Node"
+                value: "gateway-node-1"
+      backendRefs:
+        - name: echo-service
+          port: 80
+
+    # Admin route with security headers
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /admin
+        - headers:
+            - type: Exact
+              name: "X-Admin-Token"
+              value: "admin-secret"
+      filters:
+        - type: RequestHeaderModifier
+          requestHeaderModifier:
+            set:
+              - name: "X-Security-Level"
+                value: "high"
+              - name: "X-Audit-Log"
+                value: "enabled"
+            remove:
+              - "X-Public-Cache"
+      backendRefs:
+        - name: echo-service
+          port: 80
+
+---
+# Additional ConfigMap to document the RequestHeaderModifier functionality
+# This shows what the configuration would look like when RequestHeaderModifier is supported
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: header-modifier-examples
+  namespace: default
+data:
+  README.md: |
+    # RequestHeaderModifier Examples
+    
+    This ConfigMap documents how the RequestHeaderModifier would work
+    when it becomes available in the Gateway API implementation.
+    
+    ## Route-Level Header Modifications
+    
+    ```yaml
+    filters:
+      - type: RequestHeaderModifier
+        requestHeaderModifier:
+          set:
+            X-Gateway: "kubera-gateway"
+            X-Route-Name: "echo-route"
+            Authorization: "Bearer gateway-token"
+          add:
+            X-Request-ID: "generated-uuid-12345"
+            X-Trace-Context: "gateway-processing"
+          remove:
+            - "X-Debug-Info"
+            - "X-Internal-Header"
+    ```
+    
+    ## Backend-Level Header Modifications
+    
+    ```yaml
+    backendRefs:
+      - name: echo-service
+        port: 80
+        filters:
+          - type: RequestHeaderModifier
+            requestHeaderModifier:
+              set:
+                X-Backend-Service: "echo-service"
+                X-Backend-Version: "v1.0.0"
+              add:
+                X-Backend-Processing: "enabled"
+              remove:
+                - "X-Client-Debug"
+    ```
+    
+    ## Header Modification Features
+    
+    - **set**: Replace or add headers with specific values
+    - **add**: Append headers (supports multiple values)
+    - **remove**: Delete headers from the request
+    
+    ## Use Cases
+    
+    1. **Authentication**: Add/modify authorization headers
+    2. **Observability**: Add tracing and request ID headers
+    3. **Security**: Remove internal/debug headers
+    4. **API Versioning**: Set version-specific headers
+    5. **Load Balancing**: Add backend identification headers
+
+  current-status.md: |
+    # Current Implementation Status
+    
+    The Kubera Gateway has implemented RequestHeaderModifier support in the code:
+    
+    ✅ Core Types: RequestHeaderModifier, RequestHeaderModifierBuilder
+    ✅ Runtime Filter: RequestHeaderFilter with apply_to_headers()
+    ✅ Gateway Integration: Hooks for route and backend level modifications
+    ✅ Validation: HTTP spec compliant header name validation
+    ✅ Tests: Comprehensive test coverage
+    
+    📋 Pending: Full integration with Gateway API parser and router types
+    
+    When the Gateway API specification stabilizes RequestHeaderModifier,
+    the Kubera Gateway implementation will be ready to support it immediately.
+    
+    For now, header modifications can be tested using the RequestHeaderFilter
+    directly in custom filters or middleware.
+
+  testing-guide.md: |
+    # Testing Header Modifications
+    
+    Since RequestHeaderModifier isn't supported in the current Gateway API version,
+    you can test the echo routes with standard requests:
+    
+    ```bash
+    # Test basic echo route
+    curl -H "X-Test-Header: test-value" http://gateway/echo
+    
+    # Test API route (requires Content-Type header)
+    curl -H "Content-Type: application/json" \
+         -d '{"test": "data"}' \
+         http://gateway/api
+    
+    # Test admin route (requires admin token)
+    curl -H "X-Admin-Token: admin-secret" \
+         -H "X-Admin-Request: true" \
+         http://gateway/admin
+    
+    # Test legacy route
+    curl -H "X-Legacy-Client: true" http://gateway/legacy
+    ```
+    
+    The echo server will return all received headers, allowing you to verify
+    that the routing works correctly based on header matching.

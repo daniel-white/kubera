@@ -9,14 +9,15 @@ use crate::proxy::responses::error_responses::{ErrorResponseCode, ErrorResponseG
 use async_trait::async_trait;
 use context::Context;
 use filters::client_addrs::ClientAddrFilter;
-use http::StatusCode;
+use filters::request_headers::RequestHeaderFilter;
 use http::header::SERVER;
+use http::StatusCode;
 use kubera_core::sync::signal::Receiver;
 use pingora::http::ResponseHeader;
 use pingora::prelude::*;
 use pingora::protocols::http::error_resp::gen_error_response;
 use router::HttpRouter;
-use tracing::warn;
+use tracing::{debug, warn};
 use typed_builder::TypedBuilder;
 
 #[derive(TypedBuilder)]
@@ -113,6 +114,37 @@ impl ProxyHttp for Proxy {
         Self::CTX: Send + Sync,
     {
         self.set_response_server_header(_upstream_response)?;
+        Ok(())
+    }
+
+    async fn upstream_request_filter(
+        &self,
+        _session: &mut Session,
+        upstream_request: &mut RequestHeader,
+        ctx: &mut Self::CTX,
+    ) -> Result<()> {
+        // Apply backend-level header modifications from the matched route rule
+        if let Some(context::MatchRouteResult::Found(route, rule)) = ctx.route() {
+            if !rule.filters().is_empty() {
+                for filter in rule.filters() {
+                    if let Some(request_header_modifier) = &filter.request_header_modifier {
+                        let header_filter =
+                            RequestHeaderFilter::new(request_header_modifier.clone());
+                        if let Err(e) = header_filter.apply_to_pingora_headers(upstream_request) {
+                            warn!("Failed to apply upstream request header filter: {}", e);
+                        } else {
+                            debug!(
+                                "Applied upstream request header filter for route: {:?}",
+                                route
+                            );
+                        }
+                    }
+                }
+            }
+        } else {
+            debug!("No matched route found for upstream request header filter");
+        }
+
         Ok(())
     }
 }

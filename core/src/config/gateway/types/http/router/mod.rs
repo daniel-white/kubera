@@ -1,5 +1,6 @@
 mod matches;
 
+use crate::config::gateway::types::http::filters::HTTPRouteFilter;
 use crate::config::gateway::types::net::{Backend, BackendBuilder, BackendBuilderError};
 use getset::Getters;
 use itertools::{Either, Itertools};
@@ -20,9 +21,7 @@ impl HttpRouteRuleUniqueId {
     }
 }
 
-#[derive(
-    Validate, Getters, Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Hash, JsonSchema,
-)]
+#[derive(Validate, Getters, Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct HttpRouteRule {
     #[getset(get = "pub")]
     unique_id: HttpRouteRuleUniqueId,
@@ -34,6 +33,12 @@ pub struct HttpRouteRule {
     #[getset(get = "pub")]
     #[validate(max_items = 16)]
     backends: Vec<Backend>,
+
+    /// Filters array - matches Gateway API structure
+    #[getset(get = "pub")]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[validate(max_items = 16)]
+    filters: Vec<HTTPRouteFilter>,
 }
 
 #[derive(Debug, Error)]
@@ -47,6 +52,7 @@ pub struct HttpRouteRuleBuilder {
     unique_id: HttpRouteRuleUniqueId,
     match_builders: Vec<HttpRouteRuleMatchesBuilder>,
     backend_builders: Vec<BackendBuilder>,
+    filters: Vec<HTTPRouteFilter>,
 }
 
 impl HttpRouteRuleBuilder {
@@ -55,6 +61,7 @@ impl HttpRouteRuleBuilder {
             unique_id: HttpRouteRuleUniqueId::new(unique_id),
             match_builders: Vec::new(),
             backend_builders: Vec::new(),
+            filters: Vec::new(),
         }
     }
 
@@ -81,6 +88,7 @@ impl HttpRouteRuleBuilder {
                 .map(HttpRouteRuleMatchesBuilder::build)
                 .collect(),
             backends,
+            filters: self.filters,
         })
     }
 
@@ -103,11 +111,15 @@ impl HttpRouteRuleBuilder {
         self.backend_builders.push(backend_builder);
         self
     }
+
+    /// Add a filter to the filters array
+    pub fn add_filter(&mut self, filter: HTTPRouteFilter) -> &mut Self {
+        self.filters.push(filter);
+        self
+    }
 }
 
-#[derive(
-    Validate, Getters, Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Hash, JsonSchema,
-)]
+#[derive(Validate, Getters, Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct HttpRoute {
     #[getset(get = "pub")]
     #[validate(max_items = 16)]

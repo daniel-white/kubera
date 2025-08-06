@@ -6,11 +6,11 @@ mod transformers;
 
 use self::filters::{
     filter_gateway_class_parameters, filter_gateway_classes, filter_gateway_parameters,
-    filter_gateways, filter_http_routes,
+    filter_gateways, filter_http_routes, transform_gateway_parameters_to_map,
 };
 use self::sync::{
-    SyncGatewayConfigmapsParams, sync_gateway_class_status, sync_gateway_configmaps,
-    sync_gateway_deployments, sync_gateway_services,
+    sync_gateway_class_status, sync_gateway_configmaps, sync_gateway_deployments,
+    sync_gateway_services, SyncGatewayConfigmapsParams,
 };
 use self::transformers::{
     collect_gateway_instances, collect_http_route_backends, collect_http_routes_by_gateway,
@@ -95,11 +95,13 @@ pub fn spawn_controllers(task_builder: &TaskBuilder, params: SpawnControllersPar
     let gateways_rx = filter_gateways(task_builder, &gateway_class_rx, &gateways_rx);
     let gateway_parameters_rx =
         filter_gateway_parameters(task_builder, &gateways_rx, &gateway_parameters_rx);
+    let gateway_parameters_map_rx =
+        transform_gateway_parameters_to_map(task_builder, &gateway_parameters_rx);
     let gateway_instances_rx = collect_gateway_instances(
         task_builder,
         &gateways_rx,
         &gateway_class_parameters_rx,
-        &gateway_parameters_rx,
+        &gateway_parameters_map_rx,
     );
     let http_routes_rx = filter_http_routes(task_builder, &gateways_rx, &http_routes_rx);
     let http_routes_by_gateway_rx = collect_http_routes_by_gateway(task_builder, &http_routes_rx);

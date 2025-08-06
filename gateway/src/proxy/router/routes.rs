@@ -6,6 +6,7 @@ use crate::proxy::router::topology::TopologyLocation;
 use crate::proxy::router::{HttpBackend, HttpBackendBuilder, HttpRouteRuleMatches};
 use getset::Getters;
 use http::request::Parts;
+use kubera_core::config::gateway::types::http::filters::HTTPRouteFilter;
 use kubera_core::net::Hostname;
 use std::sync::Arc;
 use tracing::{debug, instrument};
@@ -164,6 +165,9 @@ pub struct HttpRouteRule {
 
     #[getset(get = "pub")]
     backends: Vec<HttpBackend>,
+
+    #[getset(get = "pub")]
+    filters: Vec<HTTPRouteFilter>,
 }
 
 pub struct HttpRouteRuleBuilder {
@@ -171,6 +175,7 @@ pub struct HttpRouteRuleBuilder {
     current_location: Arc<TopologyLocation>,
     matches_builders: Vec<HttpRouteRuleMatchesBuilder>,
     backend_builders: Vec<HttpBackendBuilder>,
+    filters: Vec<HTTPRouteFilter>,
 }
 
 impl HttpRouteRuleBuilder {
@@ -180,6 +185,7 @@ impl HttpRouteRuleBuilder {
             current_location: current_location.clone(),
             matches_builders: Vec::new(),
             backend_builders: Vec::new(),
+            filters: Vec::new(),
         }
     }
 
@@ -196,6 +202,7 @@ impl HttpRouteRuleBuilder {
                 .into_iter()
                 .map(|b| b.build())
                 .collect(),
+            filters: self.filters,
         }
     }
 
@@ -216,6 +223,11 @@ impl HttpRouteRuleBuilder {
         let mut backend_builder = HttpBackendBuilder::new(&self.current_location);
         factory(&mut backend_builder);
         self.backend_builders.push(backend_builder);
+        self
+    }
+
+    pub fn add_filter(&mut self, filter: HTTPRouteFilter) -> &mut Self {
+        self.filters.push(filter);
         self
     }
 }

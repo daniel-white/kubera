@@ -9,7 +9,7 @@ spec:
   ipFamilyPolicy: PreferDualStack
   ports:
     - port: 80
-      targetPort: 8000
+      targetPort: 8080
       protocol: TCP
   selector:
     app: {{ include "controlPlane.name" . }}

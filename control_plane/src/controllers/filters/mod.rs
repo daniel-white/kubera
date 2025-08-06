@@ -1,8 +1,13 @@
-mod gateway_classes;
-mod gateways;
+pub mod gateway_api_converter;
+pub mod gateway_classes;
+pub mod gateway_parameters;
+pub mod gateways;
+pub mod http_routes;
 
-mod http_routes;
-
-pub use gateway_classes::*;
-pub use gateways::*;
-pub use http_routes::*;
+// Re-export filter functions
+pub use gateway_classes::{
+    filter_gateway_class_parameters, filter_gateway_classes, GatewayClassParametersReferenceState,
+};
+pub use gateway_parameters::{filter_gateway_parameters, transform_gateway_parameters_to_map};
+pub use gateways::filter_gateways;
+pub use http_routes::filter_http_routes;
