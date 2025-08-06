@@ -1,6 +1,6 @@
 use crate::config::gateway::types::GatewayConfiguration;
-use serde_valid::Validate;
 use serde_valid::validation::{Error, Errors};
+use serde_valid::Validate;
 use std::fmt::Debug;
 use std::io::{Read, Write};
 use thiserror::Error;
@@ -58,6 +58,18 @@ mod tests {
 
     #[test]
     fn test_read_configuration() {
+        let yaml = include_str!("tests/simple.yaml").as_bytes();
+
+        let config = read_configuration(yaml);
+        let version = config.map(|c| c.version());
+        let version: Result<&GatewayConfigurationVersion, &ReadError> = version.as_ref();
+        let expected: Result<&GatewayConfigurationVersion, &ReadError> =
+            Ok(GatewayConfigurationVersion::V1Alpha1).as_ref();
+        assert_ok_eq!(version, expected);
+    }
+
+    #[test]
+    fn test_read_config1() {
         let yaml = include_str!("tests/config1.yaml").as_bytes();
 
         let config = read_configuration(yaml);

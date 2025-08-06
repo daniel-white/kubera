@@ -3,7 +3,6 @@ ipc:
   endpoint: 10.244.0.56:8080
 listeners:
   - name: http
-    host: null
     port: 80
     protocol: HTTP
 http_routes:

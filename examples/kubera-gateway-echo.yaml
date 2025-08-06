@@ -103,42 +103,61 @@ spec:
         - path:
             type: PathPrefix
             value: /api
-        - headers:
-            - type: Exact
-              name: "Content-Type"
-              value: "application/json"
       filters:
-        # Request headers for API processing
         - type: RequestHeaderModifier
           requestHeaderModifier:
             set:
-              - name: "X-API-Gateway"
-                value: "kubera"
-              - name: "Content-Type"
-                value: "application/json"
-            add:
-              - name: "X-Processing-Node"
-                value: "gateway-node-1"
               - name: "X-API-Version"
                 value: "v1"
-        # Response headers for API responses
-        - type: ResponseHeaderModifier
-          responseHeaderModifier:
-            set:
-              - name: "Content-Type"
-                value: "application/json"
-              - name: "X-API-Response"
-                value: "processed"
             add:
-              - name: "X-Rate-Limit-Remaining"
-                value: "99"
-              - name: "X-Response-Time"
-                value: "fast"
-            remove:
-              - "X-Debug-Headers"
+              - name: "X-Request-Source"
+                value: "kubera-gateway"
       backendRefs:
         - name: echo-service
           port: 80
+
+    # Redirect old paths to new locations
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /old-api
+      filters:
+        - type: RequestRedirect
+          requestRedirect:
+            scheme: https
+            hostname: api.example.com
+            path:
+              type: ReplaceFullPath
+              replaceFullPath: /v2/api
+            statusCode: 301
+
+    # Redirect HTTP to HTTPS
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /secure
+      filters:
+        - type: RequestRedirect
+          requestRedirect:
+            scheme: https
+            # Keep same hostname and path, just change scheme
+            statusCode: 302
+
+    # Redirect with custom port and path prefix replacement
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /legacy
+      filters:
+        - type: RequestRedirect
+          requestRedirect:
+            scheme: https
+            hostname: new-service.example.com
+            port: 8443
+            path:
+              type: ReplacePrefixMatch
+              replacePrefixMatch: /v3
+            statusCode: 302
 
     # Secure admin route with security headers
     - matches:

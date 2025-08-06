@@ -12,6 +12,7 @@ use typed_builder::TypedBuilder;
 #[derive(Validate, Getters, Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct Backend {
     #[getset(get = "pub")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     weight: Option<i32>,
 
     #[getset(get = "pub")]
@@ -22,6 +23,7 @@ pub struct Backend {
     name: String,
 
     #[getset(get = "pub")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     namespace: Option<String>,
 
     #[getset(get = "pub")]
