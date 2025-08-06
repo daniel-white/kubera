@@ -10,6 +10,7 @@ use async_trait::async_trait;
 use context::Context;
 use filters::client_addrs::ClientAddrFilter;
 use filters::request_headers::RequestHeaderFilter;
+use filters::response_headers::ResponseHeaderFilter;
 use http::header::SERVER;
 use http::StatusCode;
 use kubera_core::sync::signal::Receiver;
@@ -108,12 +109,32 @@ impl ProxyHttp for Proxy {
         &self,
         _session: &mut Session,
         _upstream_response: &mut ResponseHeader,
-        _ctx: &mut Self::CTX,
+        ctx: &mut Self::CTX,
     ) -> Result<()>
     where
         Self::CTX: Send + Sync,
     {
         self.set_response_server_header(_upstream_response)?;
+
+        // Apply response header modifications from the matched route rule
+        if let Some(context::MatchRouteResult::Found(route, rule)) = ctx.route() {
+            if !rule.filters().is_empty() {
+                for filter in rule.filters() {
+                    if let Some(response_header_modifier) = &filter.response_header_modifier {
+                        let header_filter =
+                            ResponseHeaderFilter::new(response_header_modifier.clone());
+                        if let Err(e) = header_filter.apply_to_pingora_headers(_upstream_response) {
+                            warn!("Failed to apply response header filter: {}", e);
+                        } else {
+                            debug!("Applied response header filter for route: {:?}", route);
+                        }
+                    }
+                }
+            }
+        } else {
+            debug!("No matched route found for response header filter");
+        }
+
         Ok(())
     }
 

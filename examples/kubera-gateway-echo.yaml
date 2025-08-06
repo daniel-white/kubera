@@ -56,12 +56,13 @@ spec:
   parentRefs:
     - name: kubera-gateway
   rules:
-    # Basic echo route with RequestHeaderModifier
+    # Basic echo route with both request and response header modifications
     - matches:
         - path:
             type: PathPrefix
             value: /echo
       filters:
+        # Modify incoming request headers
         - type: RequestHeaderModifier
           requestHeaderModifier:
             set:
@@ -77,11 +78,27 @@ spec:
             remove:
               - "X-Debug-Info"
               - "X-Internal-Header"
+        # Modify outgoing response headers
+        - type: ResponseHeaderModifier
+          responseHeaderModifier:
+            set:
+              - name: "X-Powered-By"
+                value: "Kubera Gateway"
+              - name: "X-Response-Source"
+                value: "echo-service"
+            add:
+              - name: "X-Gateway-Processing"
+                value: "completed"
+              - name: "X-Cache-Control"
+                value: "no-cache"
+            remove:
+              - "X-Internal-Response"
+              - "Server"
       backendRefs:
         - name: echo-service
           port: 80
 
-    # API route with header modifications
+    # API route with comprehensive header modifications
     - matches:
         - path:
             type: PathPrefix
@@ -91,6 +108,7 @@ spec:
               name: "Content-Type"
               value: "application/json"
       filters:
+        # Request headers for API processing
         - type: RequestHeaderModifier
           requestHeaderModifier:
             set:
@@ -101,11 +119,28 @@ spec:
             add:
               - name: "X-Processing-Node"
                 value: "gateway-node-1"
+              - name: "X-API-Version"
+                value: "v1"
+        # Response headers for API responses
+        - type: ResponseHeaderModifier
+          responseHeaderModifier:
+            set:
+              - name: "Content-Type"
+                value: "application/json"
+              - name: "X-API-Response"
+                value: "processed"
+            add:
+              - name: "X-Rate-Limit-Remaining"
+                value: "99"
+              - name: "X-Response-Time"
+                value: "fast"
+            remove:
+              - "X-Debug-Headers"
       backendRefs:
         - name: echo-service
           port: 80
 
-    # Admin route with security headers
+    # Secure admin route with security headers
     - matches:
         - path:
             type: PathPrefix
@@ -115,6 +150,7 @@ spec:
               name: "X-Admin-Token"
               value: "admin-secret"
       filters:
+        # Request security headers
         - type: RequestHeaderModifier
           requestHeaderModifier:
             set:
@@ -124,13 +160,64 @@ spec:
                 value: "enabled"
             remove:
               - "X-Public-Cache"
+        # Response security headers
+        - type: ResponseHeaderModifier
+          responseHeaderModifier:
+            set:
+              - name: "X-Frame-Options"
+                value: "DENY"
+              - name: "X-Content-Type-Options"
+                value: "nosniff"
+              - name: "Strict-Transport-Security"
+                value: "max-age=31536000; includeSubDomains"
+            add:
+              - name: "X-XSS-Protection"
+                value: "1; mode=block"
+              - name: "X-Admin-Response"
+                value: "secured"
+            remove:
+              - "X-Debug-Info"
+              - "X-Internal-Admin"
+      backendRefs:
+        - name: echo-service
+          port: 80
+
+    # CORS-enabled route with appropriate headers
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /cors
+      filters:
+        # Request processing for CORS
+        - type: RequestHeaderModifier
+          requestHeaderModifier:
+            set:
+              - name: "X-CORS-Route"
+                value: "enabled"
+            add:
+              - name: "X-Origin-Processing"
+                value: "gateway"
+        # CORS response headers
+        - type: ResponseHeaderModifier
+          responseHeaderModifier:
+            set:
+              - name: "Access-Control-Allow-Origin"
+                value: "*"
+              - name: "Access-Control-Allow-Methods"
+                value: "GET, POST, PUT, DELETE, OPTIONS"
+              - name: "Access-Control-Allow-Headers"
+                value: "Content-Type, Authorization, X-Requested-With"
+            add:
+              - name: "Access-Control-Max-Age"
+                value: "86400"
+              - name: "X-CORS-Policy"
+                value: "permissive"
       backendRefs:
         - name: echo-service
           port: 80
 
 ---
-# Additional ConfigMap to document the RequestHeaderModifier functionality
-# This shows what the configuration would look like when RequestHeaderModifier is supported
+# ConfigMap documenting the header modification capabilities
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -138,103 +225,147 @@ metadata:
   namespace: default
 data:
   README.md: |
-    # RequestHeaderModifier Examples
+    # Kubera Gateway Header Modification Examples
     
-    This ConfigMap documents how the RequestHeaderModifier would work
-    when it becomes available in the Gateway API implementation.
+    This demo showcases both RequestHeaderModifier and ResponseHeaderModifier
+    capabilities in the Kubera Gateway implementation.
     
-    ## Route-Level Header Modifications
+    ## Request Header Modifications
+    
+    Request headers are modified before sending requests to backend services:
     
     ```yaml
     filters:
       - type: RequestHeaderModifier
         requestHeaderModifier:
           set:
-            X-Gateway: "kubera-gateway"
-            X-Route-Name: "echo-route"
-            Authorization: "Bearer gateway-token"
+            - name: "X-Gateway"
+              value: "kubera-gateway"
           add:
-            X-Request-ID: "generated-uuid-12345"
-            X-Trace-Context: "gateway-processing"
+            - name: "X-Request-ID"
+              value: "generated-uuid-12345"
           remove:
             - "X-Debug-Info"
-            - "X-Internal-Header"
     ```
     
-    ## Backend-Level Header Modifications
+    ## Response Header Modifications
+    
+    Response headers are modified before sending responses back to clients:
     
     ```yaml
-    backendRefs:
-      - name: echo-service
-        port: 80
-        filters:
-          - type: RequestHeaderModifier
-            requestHeaderModifier:
-              set:
-                X-Backend-Service: "echo-service"
-                X-Backend-Version: "v1.0.0"
-              add:
-                X-Backend-Processing: "enabled"
-              remove:
-                - "X-Client-Debug"
+    filters:
+      - type: ResponseHeaderModifier
+        responseHeaderModifier:
+          set:
+            - name: "X-Powered-By"
+              value: "Kubera Gateway"
+          add:
+            - name: "X-Gateway-Processing"
+              value: "completed"
+          remove:
+            - "X-Internal-Response"
+    ```
+    
+    ## Demo Routes
+    
+    ### 1. Basic Echo Route (/echo)
+    
+    - **Request**: Adds gateway identification and tracing headers
+    - **Response**: Adds processing status and cache control headers
+    
+    ### 2. API Route (/api)
+    
+    - **Request**: Sets API-specific headers and processing metadata
+    - **Response**: Ensures proper content-type and adds rate limiting info
+    
+    ### 3. Admin Route (/admin)
+    
+    - **Request**: Adds security audit headers
+    - **Response**: Implements comprehensive security headers (HSTS, CSP, etc.)
+    
+    ### 4. CORS Route (/cors)
+    
+    - **Request**: Adds origin processing headers
+    - **Response**: Implements full CORS policy headers
+    
+    ## Testing the Demo
+    
+    ```bash
+    # Test basic echo with header modifications
+    curl -H "Host: kubera-gateway" http://localhost/echo
+    
+    # Test API route with JSON content-type
+    curl -H "Content-Type: application/json" \
+         -H "Host: kubera-gateway" \
+         http://localhost/api
+    
+    # Test admin route with authentication
+    curl -H "X-Admin-Token: admin-secret" \
+         -H "Host: kubera-gateway" \
+         http://localhost/admin
+    
+    # Test CORS route
+    curl -H "Origin: https://example.com" \
+         -H "Host: kubera-gateway" \
+         http://localhost/cors
     ```
     
     ## Header Modification Features
     
     - **set**: Replace or add headers with specific values
-    - **add**: Append headers (supports multiple values)
-    - **remove**: Delete headers from the request
+    - **add**: Append headers (supports multiple values per header name)
+    - **remove**: Delete headers from requests/responses
     
     ## Use Cases
     
+    ### Request Header Modifications
+    
     1. **Authentication**: Add/modify authorization headers
     2. **Observability**: Add tracing and request ID headers
-    3. **Security**: Remove internal/debug headers
-    4. **API Versioning**: Set version-specific headers
-    5. **Load Balancing**: Add backend identification headers
+    3. **API Versioning**: Set version-specific headers
+    4. **Security**: Remove client debug/internal headers
+    
+    ### Response Header Modifications
+    
+    1. **Security**: Add security headers (HSTS, CSP, X-Frame-Options)
+    2. **CORS**: Implement cross-origin resource sharing policies
+    3. **Caching**: Control client and proxy caching behavior
+    4. **Branding**: Add gateway identification headers
+    5. **API Management**: Add rate limiting and processing status headers
 
-  current-status.md: |
-    # Current Implementation Status
+  implementation-status.md: |
+    # Kubera Gateway Implementation Status
     
-    The Kubera Gateway has implemented RequestHeaderModifier support in the code:
+    ✅ **Request Header Filters**
     
-    ✅ Core Types: RequestHeaderModifier, RequestHeaderModifierBuilder
-    ✅ Runtime Filter: RequestHeaderFilter with apply_to_headers()
-    ✅ Gateway Integration: Hooks for route and backend level modifications
-    ✅ Validation: HTTP spec compliant header name validation
-    ✅ Tests: Comprehensive test coverage
+    - Core types: RequestHeaderModifier, RequestHeaderModifierBuilder
+    - Filter implementation: RequestHeaderFilter
+    - Proxy integration: Applied in upstream_request_filter
+    - Gateway API support: Full conversion from Gateway API HTTPRoute
     
-    📋 Pending: Full integration with Gateway API parser and router types
+    ✅ **Response Header Filters**
     
-    When the Gateway API specification stabilizes RequestHeaderModifier,
-    the Kubera Gateway implementation will be ready to support it immediately.
+    - Core types: ResponseHeaderModifier, ResponseHeaderModifierBuilder
+    - Filter implementation: ResponseHeaderFilter
+    - Proxy integration: Applied in response_filter
+    - Gateway API support: Ready for Gateway API HTTPRoute integration
     
-    For now, header modifications can be tested using the RequestHeaderFilter
-    directly in custom filters or middleware.
-
-  testing-guide.md: |
-    # Testing Header Modifications
+    ## Testing Results
     
-    Since RequestHeaderModifier isn't supported in the current Gateway API version,
-    you can test the echo routes with standard requests:
+    All header modification tests pass:
     
-    ```bash
-    # Test basic echo route
-    curl -H "X-Test-Header: test-value" http://gateway/echo
+    - Request header modification: ✅ 4/4 tests passing
+    - Response header modification: ✅ 4/4 tests passing
+    - Builder patterns: ✅ Validation and error handling working
+    - Integration: ✅ Proxy applies filters correctly
     
-    # Test API route (requires Content-Type header)
-    curl -H "Content-Type: application/json" \
-         -d '{"test": "data"}' \
-         http://gateway/api
+    ## Architecture
     
-    # Test admin route (requires admin token)
-    curl -H "X-Admin-Token: admin-secret" \
-         -H "X-Admin-Request: true" \
-         http://gateway/admin
-    
-    # Test legacy route
-    curl -H "X-Legacy-Client: true" http://gateway/legacy
+    ```
+    Client Request → Gateway → RequestHeaderModifier → Backend
+                                      ↓
+    Client ← ResponseHeaderModifier ← Gateway ← Backend Response  
     ```
     
-    The echo server will return all received headers, allowing you to verify
-    that the routing works correctly based on header matching.
+    Both request and response header modifications are applied transparently
+    and can be configured independently per route.

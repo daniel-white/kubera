@@ -6,9 +6,8 @@ use crate::kubernetes::KubeClientCell;
 use crate::options::Options;
 use crate::{sync_objects, watch_objects};
 use gateway_api::apis::standard::httproutes::{
-    HTTPRoute, HTTPRouteRules, HTTPRouteRulesBackendRefs, HTTPRouteRulesFilters,
-    HTTPRouteRulesMatchesHeadersType, HTTPRouteRulesMatchesMethod, HTTPRouteRulesMatchesPathType,
-    HTTPRouteRulesMatchesQueryParamsType,
+    HTTPRoute, HTTPRouteRulesMatchesHeadersType, HTTPRouteRulesMatchesMethod,
+    HTTPRouteRulesMatchesPathType, HTTPRouteRulesMatchesQueryParamsType,
 };
 use gateway_api::gateways::Gateway;
 use gateway_api::httproutes::HTTPRouteRulesMatches;
@@ -18,7 +17,7 @@ use k8s_openapi::api::core::v1::{ConfigMap, Service};
 use kube::runtime::watcher::Config;
 use kubera_api::v1alpha1::{ClientAddressesSource, ErrorResponseKind, ProxyIpAddressHeaders};
 use kubera_core::config::gateway::types::http::filters::{
-    HTTPHeader, HTTPRouteFilter, HTTPRouteFilterType, RequestHeaderModifier,
+    HTTPHeader, HTTPRouteFilter, HTTPRouteFilterType, RequestHeaderModifier, ResponseHeaderModifier,
 };
 use kubera_core::config::gateway::types::http::router::{
     HttpMethodMatch, HttpRouteBuilder, HttpRouteRuleBuilder, HttpRouteRuleMatchesBuilder,
@@ -247,220 +246,6 @@ fn expand(configurations: &HashMap<ObjectRef, Option<GatewayConfiguration>>) -> 
         })
         .collect::<Vec<_>>()
 }
-
-fn process_http_route_filters(
-    filters: &[HTTPRouteRulesFilters],
-    rule_id: &str,
-    target: &mut HttpRouteRuleBuilder,
-) {
-    for filter in filters {
-        if let Some(request_header_modifier) = &filter.request_header_modifier {
-            info!(
-                "Adding request header filter to rule {}: {:?}",
-                rule_id, request_header_modifier
-            );
-
-            // Convert Gateway API RequestHeaderModifier to Kubera format
-            let mut kubera_modifier = RequestHeaderModifier::default();
-
-            // Convert set headers
-            if let Some(set_headers) = &request_header_modifier.set {
-                kubera_modifier.set = Some(
-                    set_headers
-                        .iter()
-                        .map(|h| HTTPHeader {
-                            name: h.name.clone(),
-                            value: h.value.clone(),
-                        })
-                        .collect(),
-                );
-            }
-
-            // Convert add headers
-            if let Some(add_headers) = &request_header_modifier.add {
-                kubera_modifier.add = Some(
-                    add_headers
-                        .iter()
-                        .map(|h| HTTPHeader {
-                            name: h.name.clone(),
-                            value: h.value.clone(),
-                        })
-                        .collect(),
-                );
-            }
-
-            // Convert remove headers
-            if let Some(remove_headers) = &request_header_modifier.remove {
-                kubera_modifier.remove = Some(remove_headers.clone());
-            }
-
-            // Add filter to Kubera configuration
-            let kubera_filter = HTTPRouteFilter {
-                filter_type: HTTPRouteFilterType::RequestHeaderModifier,
-                request_header_modifier: Some(kubera_modifier),
-                request_mirror: None,
-                request_redirect: None,
-                url_rewrite: None,
-                extension_ref: None,
-            };
-
-            target.add_filter(kubera_filter);
-        } else {
-            debug!("Filter has no requestHeaderModifier: {:?}", filter);
-        }
-    }
-}
-
-fn process_http_route_matches(
-    matches: &[HTTPRouteRulesMatches],
-    target: &mut HttpRouteRuleBuilder,
-) {
-    for source in matches {
-        target.add_match(|target| {
-            add_method_matches(source, target);
-            add_path_matches(source, target);
-            add_header_matches(source, target);
-            add_query_params_matches(source, target);
-        });
-    }
-}
-
-fn process_backend_references(
-    backend_refs: &[HTTPRouteRulesBackendRefs],
-    backends: &HashMap<ObjectRef, Backend>,
-    http_route: &HTTPRoute,
-    rule_index: usize,
-    target: &mut HttpRouteRuleBuilder,
-) {
-    for backend_ref in backend_refs {
-        let source_ref = ObjectRef::of_kind::<Service>()
-            .namespace(
-                backend_ref
-                    .namespace
-                    .clone()
-                    .or_else(|| http_route.metadata.namespace.clone()),
-            )
-            .name(&backend_ref.name)
-            .build();
-
-        match backends.get(&source_ref) {
-            Some(source) => {
-                add_backend(source, target);
-            }
-            None => {
-                warn!(
-                    "Backend reference {} not found for HTTPRoute {:?} at rule index {}",
-                    backend_ref.name, http_route.metadata.name, rule_index
-                );
-            }
-        }
-    }
-}
-
-fn process_http_route_rule(
-    rule: &HTTPRouteRules,
-    rule_index: usize,
-    gateway_instance: &GatewayInstanceConfiguration,
-    http_route: &HTTPRoute,
-    backends: &HashMap<ObjectRef, Backend>,
-    route_builder: &mut HttpRouteBuilder,
-) {
-    let Some(rule_id) = format_rule_id(gateway_instance.gateway().as_ref(), http_route, rule_index)
-    else {
-        warn!(
-            "Failed to format rule ID for HTTPRoute {:?} at index {rule_index} in gateway",
-            http_route.metadata.name
-        );
-        return;
-    };
-
-    route_builder.add_rule(&rule_id, |target| {
-        // Process filters from HTTPRoute rule
-        if let Some(filters) = &rule.filters {
-            process_http_route_filters(filters, &rule_id, target);
-        }
-
-        // Process matches from HTTPRoute rule
-        if let Some(matches) = &rule.matches {
-            process_http_route_matches(matches, target);
-        }
-
-        // Process backend references from HTTPRoute rule
-        if let Some(backend_refs) = &rule.backend_refs {
-            process_backend_references(backend_refs, backends, http_route, rule_index, target);
-        }
-    });
-}
-
-fn process_http_routes(
-    gateway_ref: &ObjectRef,
-    gateway_instance: &GatewayInstanceConfiguration,
-    http_routes: &HashMap<ObjectRef, Vec<Arc<HTTPRoute>>>,
-    backends: &HashMap<ObjectRef, Backend>,
-    gateway_configuration: &mut GatewayConfigurationBuilder,
-) {
-    let http_routes = http_routes.get(gateway_ref).cloned().unwrap_or_default();
-
-    for http_route in http_routes {
-        gateway_configuration.add_http_route(|r| {
-            add_host_header_matches_for_route(&http_route, r);
-
-            if let Some(rules) = &http_route.spec.rules {
-                for (index, rule) in rules.iter().enumerate() {
-                    process_http_route_rule(
-                        rule,
-                        index,
-                        gateway_instance,
-                        &http_route,
-                        backends,
-                        r,
-                    );
-                }
-            }
-        });
-    }
-}
-
-fn configure_gateway_instance(
-    gateway_ref: &ObjectRef,
-    gateway_instance: &GatewayInstanceConfiguration,
-    ipc_services: &IpcServices,
-    primary_instance_ip_addr: IpAddr,
-    http_routes: &HashMap<ObjectRef, Vec<Arc<HTTPRoute>>>,
-    backends: &HashMap<ObjectRef, Backend>,
-) -> (ObjectRef, Option<GatewayConfiguration>) {
-    info!("Generating configuration for gateway: {}", gateway_ref);
-    let mut gateway_configuration = GatewayConfigurationBuilder::default();
-
-    set_ipc(
-        &mut gateway_configuration,
-        ipc_services,
-        primary_instance_ip_addr,
-    );
-    set_client_addrs_strategy(&mut gateway_configuration, gateway_instance);
-    set_error_responses_strategy(&mut gateway_configuration, gateway_instance);
-    add_listeners(&mut gateway_configuration, gateway_instance);
-
-    process_http_routes(
-        gateway_ref,
-        gateway_instance,
-        http_routes,
-        backends,
-        &mut gateway_configuration,
-    );
-
-    match gateway_configuration.build() {
-        Ok(gateway_configuration) => (gateway_ref.clone(), Some(gateway_configuration)),
-        Err(err) => {
-            error!(
-                "Failed to build GatewayConfiguration for {}: {}",
-                gateway_ref, err
-            );
-            (gateway_ref.clone(), None)
-        }
-    }
-}
-
 fn generate_gateway_configurations(
     task_builder: &TaskBuilder,
     ipc_services: Arc<IpcServices>,
@@ -478,24 +263,55 @@ fn generate_gateway_configurations(
                 await_ready!(
                     primary_instance_ip_addr_rx,
                     gateway_instances_rx,
-                    backends_rx,
                     http_routes_rx,
+                    backends_rx
                 )
                 .and_then(
-                    async |primary_instance_ip_addr, gateway_instances, backends, http_routes| {
-                        let configs: HashMap<_, _> = gateway_instances
-                            .iter()
-                            .map(|(gateway_ref, instance)| {
-                                configure_gateway_instance(
-                                    gateway_ref,
-                                    instance,
-                                    &ipc_services,
-                                    primary_instance_ip_addr,
-                                    &http_routes,
-                                    &backends,
-                                )
-                            })
-                            .collect();
+                    async |primary_instance_ip_addr, gateway_instances, http_routes, backends| {
+                        let configs: HashMap<ObjectRef, Option<GatewayConfiguration>> =
+                            gateway_instances
+                                .iter()
+                                .map(|(gateway_ref, gateway_instance)| {
+                                    let mut gateway_configuration =
+                                        GatewayConfigurationBuilder::default();
+
+                                    set_ipc(
+                                        &mut gateway_configuration,
+                                        &ipc_services,
+                                        primary_instance_ip_addr,
+                                    );
+                                    set_client_addrs_strategy(
+                                        &mut gateway_configuration,
+                                        gateway_instance,
+                                    );
+                                    set_error_responses_strategy(
+                                        &mut gateway_configuration,
+                                        gateway_instance,
+                                    );
+                                    add_listeners(&mut gateway_configuration, gateway_instance);
+
+                                    process_http_routes(
+                                        gateway_ref,
+                                        gateway_instance,
+                                        &http_routes,
+                                        &backends,
+                                        &mut gateway_configuration,
+                                    );
+
+                                    match gateway_configuration.build() {
+                                        Ok(gateway_configuration) => {
+                                            (gateway_ref.clone(), Some(gateway_configuration))
+                                        }
+                                        Err(err) => {
+                                            error!(
+                                                "Failed to build GatewayConfiguration for {}: {}",
+                                                gateway_ref, err
+                                            );
+                                            (gateway_ref.clone(), None)
+                                        }
+                                    }
+                                })
+                                .collect();
 
                         tx.set(configs).await;
                     },
@@ -508,7 +324,7 @@ fn generate_gateway_configurations(
                     gateway_instances_rx.changed(),
                     http_routes_rx.changed(),
                     backends_rx.changed()
-                );
+                )
             }
         });
 
@@ -570,6 +386,172 @@ fn add_query_params_matches(
     }
 }
 
+fn process_http_routes(
+    gateway_ref: &ObjectRef,
+    gateway_instance: &GatewayInstanceConfiguration,
+    http_routes: &HashMap<ObjectRef, Vec<Arc<HTTPRoute>>>,
+    backends: &HashMap<ObjectRef, Backend>,
+    gateway_configuration: &mut GatewayConfigurationBuilder,
+) {
+    // Find routes that reference this gateway
+    for http_routes_for_ref in http_routes.values() {
+        for http_route in http_routes_for_ref {
+            // Check if this route references our gateway
+            let references_this_gateway = http_route
+                .spec
+                .parent_refs
+                .as_ref()
+                .map(|parent_refs| {
+                    parent_refs.iter().any(|parent_ref| {
+                        parent_ref.name == *gateway_ref.name()
+                            && parent_ref.namespace.as_ref().unwrap_or(
+                                &http_route.metadata.namespace.clone().unwrap_or_default(),
+                            ) == gateway_ref.namespace().as_ref().unwrap()
+                    })
+                })
+                .unwrap_or(false);
+
+            if !references_this_gateway {
+                continue;
+            }
+
+            gateway_configuration.add_http_route(|r| {
+                add_host_header_matches_for_route(http_route, r);
+
+                // Process rules - handle the Option<Vec<HTTPRouteRules>> properly
+                if let Some(rules) = &http_route.spec.rules {
+                    for (index, rule) in rules.iter().enumerate() {
+                        let rule_id = format_rule_id(gateway_instance.gateway(), http_route, index)
+                            .unwrap_or_else(|| format!("rule-{}", index));
+
+                        r.add_rule(rule_id, |target| {
+                            // Process filters from HTTPRoute rule
+                            if let Some(filters) = &rule.filters {
+                                for filter in filters.iter() {
+                                    if let Some(request_header_modifier) = &filter.request_header_modifier {
+                                        // Convert Gateway API RequestHeaderModifier to Kubera RequestHeaderModifier
+                                        let mut kubera_modifier = RequestHeaderModifier::default();
+
+                                        // Convert set headers
+                                        if let Some(set_headers) = &request_header_modifier.set {
+                                            kubera_modifier.set = Some(set_headers.iter().map(|h| HTTPHeader {
+                                                name: h.name.clone(),
+                                                value: h.value.clone(),
+                                            }).collect());
+                                        }
+
+                                        // Convert add headers
+                                        if let Some(add_headers) = &request_header_modifier.add {
+                                            kubera_modifier.add = Some(add_headers.iter().map(|h| HTTPHeader {
+                                                name: h.name.clone(),
+                                                value: h.value.clone(),
+                                            }).collect());
+                                        }
+
+                                        // Convert remove headers
+                                        if let Some(remove_headers) = &request_header_modifier.remove {
+                                            kubera_modifier.remove = Some(remove_headers.clone());
+                                        }
+
+                                        // Add filter to Kubera configuration
+                                        let kubera_filter = HTTPRouteFilter {
+                                            filter_type: HTTPRouteFilterType::RequestHeaderModifier,
+                                            request_header_modifier: Some(kubera_modifier),
+                                            response_header_modifier: None,
+                                            request_mirror: None,
+                                            request_redirect: None,
+                                            url_rewrite: None,
+                                            extension_ref: None,
+                                        };
+
+                                        target.add_filter(kubera_filter);
+                                    } else if let Some(response_header_modifier) = &filter.response_header_modifier {
+                                        // Convert Gateway API ResponseHeaderModifier to Kubera ResponseHeaderModifier
+                                        let mut kubera_modifier = ResponseHeaderModifier::default();
+
+                                        // Convert set headers
+                                        if let Some(set_headers) = &response_header_modifier.set {
+                                            kubera_modifier.set = Some(set_headers.iter().map(|h| HTTPHeader {
+                                                name: h.name.clone(),
+                                                value: h.value.clone(),
+                                            }).collect());
+                                        }
+
+                                        // Convert add headers
+                                        if let Some(add_headers) = &response_header_modifier.add {
+                                            kubera_modifier.add = Some(add_headers.iter().map(|h| HTTPHeader {
+                                                name: h.name.clone(),
+                                                value: h.value.clone(),
+                                            }).collect());
+                                        }
+
+                                        // Convert remove headers
+                                        if let Some(remove_headers) = &response_header_modifier.remove {
+                                            kubera_modifier.remove = Some(remove_headers.clone());
+                                        }
+
+                                        // Add filter to Kubera configuration
+                                        let kubera_filter = HTTPRouteFilter {
+                                            filter_type: HTTPRouteFilterType::ResponseHeaderModifier,
+                                            request_header_modifier: None,
+                                            response_header_modifier: Some(kubera_modifier),
+                                            request_mirror: None,
+                                            request_redirect: None,
+                                            url_rewrite: None,
+                                            extension_ref: None,
+                                        };
+
+                                        target.add_filter(kubera_filter);
+                                    } else {
+                                        debug!("Filter has no requestHeaderModifier or responseHeaderModifier: {:?}", filter);
+                                    }
+                                }
+                            }
+
+                            // Process matches from HTTPRoute rule
+                            if let Some(matches) = &rule.matches {
+                                for source in matches.iter() {
+                                    target.add_match(|target| {
+                                        add_method_matches(source, target);
+                                        add_path_matches(source, target);
+                                        add_header_matches(source, target);
+                                        add_query_params_matches(source, target);
+                                    });
+                                }
+                            }
+
+                            // Process backend references from HTTPRoute rule
+                            if let Some(backend_refs) = &rule.backend_refs {
+                                for backend_ref in backend_refs.iter() {
+                                    let source_ref = ObjectRef::of_kind::<Service>()
+                                        .namespace(
+                                            backend_ref.namespace.clone().or_else(|| {
+                                                http_route.metadata.namespace.clone()
+                                            }),
+                                        )
+                                        .name(&backend_ref.name)
+                                        .build();
+
+                                    match backends.get(&source_ref) {
+                                        Some(source) => {
+                                            add_backend(source, target);
+                                        }
+                                        None => {
+                                            warn!(
+                                                "Backend reference {} not found for HTTPRoute {:?} at rule index {}",
+                                                backend_ref.name, http_route.metadata.name, index
+                                            );
+                                        }
+                                    }
+                                }
+                            }
+                        });
+                    }
+                }
+            });
+        }
+    }
+}
 fn add_header_matches(source: &HTTPRouteRulesMatches, target: &mut HttpRouteRuleMatchesBuilder) {
     for header in source.headers.iter().flatten() {
         match header

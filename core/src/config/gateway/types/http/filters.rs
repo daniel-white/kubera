@@ -18,6 +18,10 @@ pub struct HTTPRouteFilter {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub request_header_modifier: Option<RequestHeaderModifier>,
 
+    /// `ResponseHeaderModifier` defines a schema for a filter that modifies response headers
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub response_header_modifier: Option<ResponseHeaderModifier>,
+
     /// `RequestMirror` defines a schema for a filter that mirrors requests
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub request_mirror: Option<RequestMirror>,
@@ -57,6 +61,28 @@ pub enum HTTPRouteFilterType {
     Validate, Getters, Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, Default,
 )]
 pub struct RequestHeaderModifier {
+    /// Headers to set - will replace existing headers or add new ones
+    #[getset(get = "pub")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub set: Option<Vec<HTTPHeader>>,
+
+    /// Headers to add - will append to existing headers
+    #[getset(get = "pub")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub add: Option<Vec<HTTPHeader>>,
+
+    /// Header names to remove
+    #[getset(get = "pub")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[validate(max_items = 16)]
+    pub remove: Option<Vec<String>>,
+}
+
+/// Response header modification filter - matches Gateway API `ResponseHeaderModifier` structure
+#[derive(
+    Validate, Getters, Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, Default,
+)]
+pub struct ResponseHeaderModifier {
     /// Headers to set - will replace existing headers or add new ones
     #[getset(get = "pub")]
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -280,6 +306,125 @@ impl RequestHeaderModifierBuilder {
 impl RequestHeaderModifier {
     pub fn builder() -> RequestHeaderModifierBuilder {
         RequestHeaderModifierBuilder::new()
+    }
+
+    /// Check if this modifier has any operations
+    pub fn is_empty(&self) -> bool {
+        self.set.as_ref().is_none_or(Vec::is_empty)
+            && self.add.as_ref().is_none_or(Vec::is_empty)
+            && self.remove.as_ref().is_none_or(Vec::is_empty)
+    }
+}
+
+#[derive(Debug, Default)]
+pub struct ResponseHeaderModifierBuilder {
+    set: Vec<HTTPHeader>,
+    add: Vec<HTTPHeader>,
+    remove: Vec<String>,
+}
+
+impl ResponseHeaderModifierBuilder {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Set a header (replaces existing)
+    pub fn set_header<K: AsRef<str>, V: AsRef<str>>(
+        &mut self,
+        name: K,
+        value: V,
+    ) -> Result<&mut Self, HTTPRouteFilterBuilderError> {
+        let name = name.as_ref();
+        let value = value.as_ref();
+
+        if name.is_empty() {
+            return Err(HTTPRouteFilterBuilderError::EmptyHeaderName);
+        }
+        if value.is_empty() {
+            return Err(HTTPRouteFilterBuilderError::EmptyHeaderValue);
+        }
+
+        // Use http crate for proper header name validation
+        HeaderName::from_str(name)
+            .map_err(|_| HTTPRouteFilterBuilderError::InvalidHeaderName(name.to_string()))?;
+
+        self.set.push(HTTPHeader {
+            name: name.to_string(),
+            value: value.to_string(),
+        });
+        Ok(self)
+    }
+
+    /// Add a header (appends to existing)
+    pub fn add_header<K: AsRef<str>, V: AsRef<str>>(
+        &mut self,
+        name: K,
+        value: V,
+    ) -> Result<&mut Self, HTTPRouteFilterBuilderError> {
+        let name = name.as_ref();
+        let value = value.as_ref();
+
+        if name.is_empty() {
+            return Err(HTTPRouteFilterBuilderError::EmptyHeaderName);
+        }
+        if value.is_empty() {
+            return Err(HTTPRouteFilterBuilderError::EmptyHeaderValue);
+        }
+
+        // Use http crate for proper header name validation
+        HeaderName::from_str(name)
+            .map_err(|_| HTTPRouteFilterBuilderError::InvalidHeaderName(name.to_string()))?;
+
+        self.add.push(HTTPHeader {
+            name: name.to_string(),
+            value: value.to_string(),
+        });
+        Ok(self)
+    }
+
+    /// Remove a header
+    pub fn remove_header<K: AsRef<str>>(
+        &mut self,
+        name: K,
+    ) -> Result<&mut Self, HTTPRouteFilterBuilderError> {
+        let name = name.as_ref();
+
+        if name.is_empty() {
+            return Err(HTTPRouteFilterBuilderError::EmptyHeaderName);
+        }
+
+        // Use http crate for proper header name validation
+        HeaderName::from_str(name)
+            .map_err(|_| HTTPRouteFilterBuilderError::InvalidHeaderName(name.to_string()))?;
+
+        self.remove.push(name.to_string());
+        Ok(self)
+    }
+
+    pub fn build(self) -> ResponseHeaderModifier {
+        ResponseHeaderModifier {
+            set: if self.set.is_empty() {
+                None
+            } else {
+                Some(self.set)
+            },
+            add: if self.add.is_empty() {
+                None
+            } else {
+                Some(self.add)
+            },
+            remove: if self.remove.is_empty() {
+                None
+            } else {
+                Some(self.remove)
+            },
+        }
+    }
+}
+
+impl ResponseHeaderModifier {
+    pub fn builder() -> ResponseHeaderModifierBuilder {
+        ResponseHeaderModifierBuilder::new()
     }
 
     /// Check if this modifier has any operations
