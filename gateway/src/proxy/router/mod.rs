@@ -4,7 +4,7 @@ mod routes;
 pub mod topology;
 
 use crate::proxy::router::matches::{HostMatch, HostValueMatch};
-use crate::proxy::router::routes::{HttpRouteBuilder, HttpRouteMatchResult};
+use crate::proxy::router::routes::HttpRouteBuilder;
 use crate::proxy::router::topology::{TopologyLocation, TopologyLocationMatch};
 use enumflags2::BitFlags;
 use getset::{CopyGetters, Getters};
@@ -24,6 +24,62 @@ use typed_builder::TypedBuilder;
 pub struct HttpRouter {
     host_matches: HostMatch,
     routes: Vec<Arc<HttpRoute>>,
+}
+
+/// Enhanced router match result that includes matched prefix context
+#[derive(Debug, Clone)]
+pub enum HttpRouterMatchResult {
+    Matched {
+        route: Arc<HttpRoute>,
+        rule: Arc<HttpRouteRule>,
+        matched_prefix: Option<String>,
+    },
+    #[allow(dead_code)]
+    NotMatched,
+}
+
+impl HttpRouterMatchResult {
+    pub fn new(
+        route: Arc<HttpRoute>,
+        rule: Arc<HttpRouteRule>,
+        matched_prefix: Option<String>,
+    ) -> Self {
+        Self::Matched {
+            route,
+            rule,
+            matched_prefix,
+        }
+    }
+
+    /// Check if the result represents a match
+    #[allow(dead_code)]
+    pub fn is_matched(&self) -> bool {
+        matches!(self, Self::Matched { .. })
+    }
+
+    /// Get the route if matched
+    pub fn route(&self) -> Option<&Arc<HttpRoute>> {
+        match self {
+            Self::Matched { route, .. } => Some(route),
+            Self::NotMatched => None,
+        }
+    }
+
+    /// Get the rule if matched
+    pub fn rule(&self) -> Option<&Arc<HttpRouteRule>> {
+        match self {
+            Self::Matched { rule, .. } => Some(rule),
+            Self::NotMatched => None,
+        }
+    }
+
+    /// Get the matched prefix if available
+    pub fn matched_prefix(&self) -> Option<&String> {
+        match self {
+            Self::Matched { matched_prefix, .. } => matched_prefix.as_ref(),
+            Self::NotMatched => None,
+        }
+    }
 }
 
 pub struct HttpRouterBuilder {
@@ -83,21 +139,27 @@ impl HttpRouterBuilder {
 }
 
 impl HttpRouter {
-    pub fn match_route(&self, parts: &Parts) -> Option<(Arc<HttpRoute>, Arc<HttpRouteRule>)> {
+    pub fn match_route(&self, parts: &Parts) -> Option<HttpRouterMatchResult> {
         self.routes
             .iter()
             .enumerate()
-            .filter_map(|(i, route)| match route.matches(parts) {
-                HttpRouteMatchResult::Matched(rule, score) => Some((i, route, rule, score)),
-                HttpRouteMatchResult::NotMatched => {
+            .filter_map(|(i, route)| {
+                let match_result = route.matches(parts);
+                if match_result.is_matched() {
+                    Some((i, route, match_result))
+                } else {
                     debug!("Route at index {} did not match", i);
                     None
                 }
             })
-            .min_by(|(_, _, _, lhs), (_, _, _, rhs)| lhs.cmp(rhs))
-            .map(|(i, route, rule, _)| {
+            .min_by(|(_, _, lhs), (_, _, rhs)| lhs.score().unwrap().cmp(rhs.score().unwrap()))
+            .map(|(i, route, match_result)| {
                 debug!("Returning matched route at index {}", i);
-                (route.clone(), rule.clone())
+                HttpRouterMatchResult::new(
+                    route.clone(),
+                    match_result.rule().unwrap().clone(),
+                    match_result.matched_prefix().cloned(),
+                )
             })
     }
 }

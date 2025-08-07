@@ -101,7 +101,7 @@ fn convert_request_header_modifier(
 #[allow(dead_code)]
 pub fn convert_request_redirect(
     gw_redirect: &HTTPRouteRulesFiltersRequestRedirect,
-) -> Result<RequestRedirect, FilterConversionError> {
+) -> RequestRedirect {
     let mut redirect = RequestRedirect {
         scheme: gw_redirect.scheme.as_ref().map(|s| {
             use gateway_api::httproutes::HTTPRouteRulesFiltersRequestRedirectScheme;
@@ -111,26 +111,26 @@ pub fn convert_request_redirect(
             }
         }),
         hostname: gw_redirect.hostname.clone(),
-        port: gw_redirect.port.map(|p| p as u16),
+        port: gw_redirect.port.map(|p| u16::try_from(p).unwrap_or(80)),
         path: None,
-        status_code: gw_redirect.status_code.map(|code| code as u16),
+        status_code: gw_redirect
+            .status_code
+            .map(|code| u16::try_from(code).unwrap_or(302)),
     };
 
     // Convert path rewriting if present
     if let Some(path_config) = &gw_redirect.path {
-        redirect.path = Some(convert_path_rewrite(path_config)?);
+        redirect.path = Some(convert_path_rewrite(path_config));
     }
 
-    Ok(redirect)
+    redirect
 }
 
 /// Convert Gateway API path rewrite configuration
-fn convert_path_rewrite(
-    gw_path: &HTTPRouteRulesFiltersRequestRedirectPath,
-) -> Result<PathRewrite, FilterConversionError> {
+fn convert_path_rewrite(gw_path: &HTTPRouteRulesFiltersRequestRedirectPath) -> PathRewrite {
     use gateway_api::apis::standard::httproutes::HTTPRouteRulesFiltersRequestRedirectPathType;
 
-    let path_rewrite = match gw_path.r#type {
+    match gw_path.r#type {
         HTTPRouteRulesFiltersRequestRedirectPathType::ReplaceFullPath => PathRewrite {
             rewrite_type: PathRewriteType::ReplaceFullPath,
             replace_full_path: gw_path.replace_full_path.clone(),
@@ -141,9 +141,7 @@ fn convert_path_rewrite(
             replace_full_path: None,
             replace_prefix_match: gw_path.replace_prefix_match.clone(),
         },
-    };
-
-    Ok(path_rewrite)
+    }
 }
 
 #[cfg(test)]

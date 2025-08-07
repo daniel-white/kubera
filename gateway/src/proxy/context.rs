@@ -38,7 +38,7 @@ unsafe impl Sync for Context {}
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum MatchRouteResult {
-    Found(Arc<HttpRoute>, Arc<HttpRouteRule>),
+    Found(Arc<HttpRoute>, Arc<HttpRouteRule>, Option<String>), // Added matched_prefix
     NotFound,
     MissingConfiguration,
 }
@@ -63,7 +63,7 @@ impl Context {
             Some(MatchRouteResult::MissingConfiguration) | None => {
                 UpstreamPeerResult::MissingConfiguration
             }
-            Some(MatchRouteResult::Found(_, _)) => UpstreamPeerResult::ServiceUnavailable,
+            Some(MatchRouteResult::Found(_, _, _)) => UpstreamPeerResult::ServiceUnavailable,
         }
     }
 
@@ -82,7 +82,7 @@ impl Context {
 
     pub fn set(&self, route: MatchRouteResult, client_addr: Option<IpAddr>) {
         let (route, endpoint_resolver) = match route {
-            MatchRouteResult::Found(route, rule) => {
+            MatchRouteResult::Found(route, rule, matched_prefix) => {
                 let mut resolver_builder = EndpointsResolver::builder(client_addr);
                 resolver_builder.unique_id(rule.unique_id());
                 for backend in rule.backends() {
@@ -94,7 +94,7 @@ impl Context {
                 }
                 let endpoint_resolver = resolver_builder.build();
                 (
-                    MatchRouteResult::Found(route, rule),
+                    MatchRouteResult::Found(route, rule, matched_prefix),
                     Some(endpoint_resolver),
                 )
             }

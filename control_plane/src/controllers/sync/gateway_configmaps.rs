@@ -266,58 +266,58 @@ fn generate_gateway_configurations(
                     http_routes_rx,
                     backends_rx
                 )
-                    .and_then(
-                        async |primary_instance_ip_addr, gateway_instances, http_routes, backends| {
-                            let configs: HashMap<ObjectRef, Option<GatewayConfiguration>> =
-                                gateway_instances
-                                    .iter()
-                                    .map(|(gateway_ref, gateway_instance)| {
-                                        let mut gateway_configuration =
-                                            GatewayConfigurationBuilder::default();
+                .and_then(
+                    async |primary_instance_ip_addr, gateway_instances, http_routes, backends| {
+                        let configs: HashMap<ObjectRef, Option<GatewayConfiguration>> =
+                            gateway_instances
+                                .iter()
+                                .map(|(gateway_ref, gateway_instance)| {
+                                    let mut gateway_configuration =
+                                        GatewayConfigurationBuilder::default();
 
-                                        set_ipc(
-                                            &mut gateway_configuration,
-                                            &ipc_services,
-                                            primary_instance_ip_addr,
-                                        );
-                                        set_client_addrs_strategy(
-                                            &mut gateway_configuration,
-                                            gateway_instance,
-                                        );
-                                        set_error_responses_strategy(
-                                            &mut gateway_configuration,
-                                            gateway_instance,
-                                        );
-                                        add_listeners(&mut gateway_configuration, gateway_instance);
+                                    set_ipc(
+                                        &mut gateway_configuration,
+                                        &ipc_services,
+                                        primary_instance_ip_addr,
+                                    );
+                                    set_client_addrs_strategy(
+                                        &mut gateway_configuration,
+                                        gateway_instance,
+                                    );
+                                    set_error_responses_strategy(
+                                        &mut gateway_configuration,
+                                        gateway_instance,
+                                    );
+                                    add_listeners(&mut gateway_configuration, gateway_instance);
 
-                                        process_http_routes(
-                                            gateway_ref,
-                                            gateway_instance,
-                                            &http_routes,
-                                            &backends,
-                                            &mut gateway_configuration,
-                                        );
+                                    process_http_routes(
+                                        gateway_ref,
+                                        gateway_instance,
+                                        &http_routes,
+                                        &backends,
+                                        &mut gateway_configuration,
+                                    );
 
-                                        match gateway_configuration.build() {
-                                            Ok(gateway_configuration) => {
-                                                (gateway_ref.clone(), Some(gateway_configuration))
-                                            }
-                                            Err(err) => {
-                                                error!(
+                                    match gateway_configuration.build() {
+                                        Ok(gateway_configuration) => {
+                                            (gateway_ref.clone(), Some(gateway_configuration))
+                                        }
+                                        Err(err) => {
+                                            error!(
                                                 "Failed to build GatewayConfiguration for {}: {}",
                                                 gateway_ref, err
                                             );
-                                                (gateway_ref.clone(), None)
-                                            }
+                                            (gateway_ref.clone(), None)
                                         }
-                                    })
-                                    .collect();
+                                    }
+                                })
+                                .collect();
 
-                            tx.set(configs).await;
-                        },
-                    )
-                    .run()
-                    .await;
+                        tx.set(configs).await;
+                    },
+                )
+                .run()
+                .await;
 
                 continue_on!(
                     primary_instance_ip_addr_rx.changed(),
@@ -386,6 +386,7 @@ fn add_query_params_matches(
     }
 }
 
+#[allow(clippy::too_many_lines)]
 fn process_http_routes(
     gateway_ref: &ObjectRef,
     gateway_instance: &GatewayInstanceConfiguration,
@@ -397,19 +398,19 @@ fn process_http_routes(
     for http_routes_for_ref in http_routes.values() {
         for http_route in http_routes_for_ref {
             // Check if this route references our gateway
-            let references_this_gateway = http_route
-                .spec
-                .parent_refs
-                .as_ref()
-                .map(|parent_refs| {
-                    parent_refs.iter().any(|parent_ref| {
-                        parent_ref.name == *gateway_ref.name()
-                            && parent_ref.namespace.as_ref().unwrap_or(
-                            &http_route.metadata.namespace.clone().unwrap_or_default(),
-                        ) == gateway_ref.namespace().as_ref().unwrap()
-                    })
-                })
-                .unwrap_or(false);
+            let references_this_gateway =
+                http_route
+                    .spec
+                    .parent_refs
+                    .as_ref()
+                    .is_some_and(|parent_refs| {
+                        parent_refs.iter().any(|parent_ref| {
+                            parent_ref.name == *gateway_ref.name()
+                                && parent_ref.namespace.as_ref().unwrap_or(
+                                    &http_route.metadata.namespace.clone().unwrap_or_default(),
+                                ) == gateway_ref.namespace().as_ref().unwrap_or(&String::new())
+                        })
+                    });
 
             if !references_this_gateway {
                 continue;
@@ -422,12 +423,12 @@ fn process_http_routes(
                 if let Some(rules) = &http_route.spec.rules {
                     for (index, rule) in rules.iter().enumerate() {
                         let rule_id = format_rule_id(gateway_instance.gateway(), http_route, index)
-                            .unwrap_or_else(|| format!("rule-{}", index));
+                            .unwrap_or_else(|| format!("rule-{index}"));
 
                         r.add_rule(rule_id, |target| {
                             // Process filters from HTTPRoute rule
                             if let Some(filters) = &rule.filters {
-                                for filter in filters.iter() {
+                                for filter in filters {
                                     if let Some(request_header_modifier) = &filter.request_header_modifier {
                                         // Convert Gateway API RequestHeaderModifier to Kubera RequestHeaderModifier
                                         let mut kubera_modifier = RequestHeaderModifier::default();
@@ -506,26 +507,17 @@ fn process_http_routes(
                                         // Convert Gateway API RequestRedirect to Kubera RequestRedirect
                                         use crate::controllers::filters::gateway_api_converter::convert_request_redirect;
 
-                                        match convert_request_redirect(request_redirect) {
-                                            Ok(kubera_redirect) => {
-                                                let kubera_filter = HTTPRouteFilter {
-                                                    filter_type: HTTPRouteFilterType::RequestRedirect,
-                                                    request_header_modifier: None,
-                                                    response_header_modifier: None,
-                                                    request_mirror: None,
-                                                    request_redirect: Some(kubera_redirect),
-                                                    url_rewrite: None,
-                                                    extension_ref: None,
-                                                };
-                                                target.add_filter(kubera_filter);
-                                            }
-                                            Err(err) => {
-                                                warn!(
-                                                    "Failed to convert RequestRedirect filter for HTTPRoute {:?}: {}",
-                                                    http_route.metadata.name, err
-                                                );
-                                            }
-                                        }
+                                        let kubera_redirect = convert_request_redirect(request_redirect);
+                                        let kubera_filter = HTTPRouteFilter {
+                                            filter_type: HTTPRouteFilterType::RequestRedirect,
+                                            request_header_modifier: None,
+                                            response_header_modifier: None,
+                                            request_mirror: None,
+                                            request_redirect: Some(kubera_redirect),
+                                            url_rewrite: None,
+                                            extension_ref: None,
+                                        };
+                                        target.add_filter(kubera_filter);
                                     } else {
                                         debug!("Filter has no requestHeaderModifier, responseHeaderModifier, or requestRedirect: {:?}", filter);
                                     }
@@ -534,7 +526,7 @@ fn process_http_routes(
 
                             // Process matches from HTTPRoute rule
                             if let Some(matches) = &rule.matches {
-                                for source in matches.iter() {
+                                for source in matches {
                                     target.add_match(|target| {
                                         add_method_matches(source, target);
                                         add_path_matches(source, target);
@@ -546,7 +538,7 @@ fn process_http_routes(
 
                             // Process backend references
                             if let Some(backend_refs) = &rule.backend_refs {
-                                for backend_ref in backend_refs.iter() {
+                                for backend_ref in backend_refs {
                                     let source_ref = ObjectRef::of_kind::<Service>()
                                         .namespace(
                                             backend_ref.namespace.clone().or_else(|| {

@@ -75,7 +75,11 @@ impl ProxyHttp for Proxy {
         let route = if let Some(router) = router {
             let req_parts = session.req_header();
             match router.match_route(req_parts) {
-                Some((route, rule)) => MatchRouteResult::Found(route, rule),
+                Some(match_result) => MatchRouteResult::Found(
+                    match_result.route().unwrap().clone(),
+                    match_result.rule().unwrap().clone(),
+                    match_result.matched_prefix().cloned(),
+                ),
                 None => MatchRouteResult::NotFound,
             }
         } else {
@@ -83,16 +87,28 @@ impl ProxyHttp for Proxy {
         };
 
         let error_code = match route {
-            MatchRouteResult::Found(route, rule) => {
+            MatchRouteResult::Found(route, rule, matched_prefix) => {
                 // Check for redirect filters before proceeding to upstream
                 for filter in rule.filters() {
                     if let Some(request_redirect) = &filter.request_redirect {
                         let redirect_filter = RequestRedirectFilter::new(request_redirect.clone());
 
-                        if let Ok(Some(redirect_response)) =
-                            redirect_filter.apply_to_pingora_request(session.req_header())
+                        // Create route match context with the matched prefix
+                        let route_context =
+                            crate::proxy::filters::request_redirect::RouteMatchContext {
+                                matched_prefix: matched_prefix.clone(),
+                            };
+
+                        if let Ok(Some(redirect_response)) = redirect_filter
+                            .apply_to_pingora_request_with_context(
+                                session.req_header(),
+                                &route_context,
+                            )
                         {
-                            debug!("Applying redirect filter for route: {:?}", route);
+                            debug!(
+                                "Applying redirect filter for route: {:?} with prefix: {:?}",
+                                route, matched_prefix
+                            );
 
                             // Generate redirect response
                             let mut redirect_resp =
@@ -110,7 +126,10 @@ impl ProxyHttp for Proxy {
                     }
                 }
 
-                ctx.set(MatchRouteResult::Found(route, rule), client_addr);
+                ctx.set(
+                    MatchRouteResult::Found(route, rule, matched_prefix),
+                    client_addr,
+                );
                 return Ok(false);
             }
             MatchRouteResult::NotFound => ErrorResponseCode::NoRoute,
@@ -145,7 +164,7 @@ impl ProxyHttp for Proxy {
         self.set_response_server_header(_upstream_response)?;
 
         // Apply response header modifications from the matched route rule
-        if let Some(context::MatchRouteResult::Found(route, rule)) = ctx.route() {
+        if let Some(context::MatchRouteResult::Found(route, rule, _)) = ctx.route() {
             if !rule.filters().is_empty() {
                 for filter in rule.filters() {
                     if let Some(response_header_modifier) = &filter.response_header_modifier {
@@ -173,7 +192,7 @@ impl ProxyHttp for Proxy {
         ctx: &mut Self::CTX,
     ) -> Result<()> {
         // Apply backend-level header modifications from the matched route rule
-        if let Some(context::MatchRouteResult::Found(route, rule)) = ctx.route() {
+        if let Some(context::MatchRouteResult::Found(route, rule, _)) = ctx.route() {
             if !rule.filters().is_empty() {
                 for filter in rule.filters() {
                     if let Some(request_header_modifier) = &filter.request_header_modifier {
