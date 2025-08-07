@@ -21,7 +21,6 @@ impl ResponseHeaderFilter {
     }
 
     /// Apply header modifications to the given header map
-    #[allow(dead_code)]
     pub fn apply_to_headers(&self, headers: &mut HeaderMap) {
         // Remove headers first
         if let Some(remove_headers) = self.modifier.remove() {
@@ -131,14 +130,12 @@ impl ResponseHeaderFilter {
     }
 
     /// Get the underlying modifier
-    #[allow(dead_code)]
     pub fn modifier(&self) -> &ResponseHeaderModifier {
         &self.modifier
     }
 }
 
 /// Create a reactive filter that responds to ResponseHeaderModifier configuration changes
-#[allow(dead_code)]
 pub fn response_header_filter(
     task_builder: &TaskBuilder,
     modifier_rx: &Receiver<Option<ResponseHeaderModifier>>,

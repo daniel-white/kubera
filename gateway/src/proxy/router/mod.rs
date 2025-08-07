@@ -34,7 +34,6 @@ pub enum HttpRouterMatchResult {
         rule: Arc<HttpRouteRule>,
         matched_prefix: Option<String>,
     },
-    #[allow(dead_code)]
     NotMatched,
 }
 
@@ -52,7 +51,6 @@ impl HttpRouterMatchResult {
     }
 
     /// Check if the result represents a match
-    #[allow(dead_code)]
     pub fn is_matched(&self) -> bool {
         matches!(self, Self::Matched { .. })
     }
@@ -123,14 +121,12 @@ impl HttpRouterBuilder {
         self
     }
 
-    #[allow(dead_code)]
     pub fn add_exact_host(&mut self, host: &Hostname) -> &mut Self {
         let host_value_match = HostValueMatch::Exact(host.clone());
         self.host_value_matches.push(host_value_match);
         self
     }
 
-    #[allow(dead_code)]
     pub fn add_host_suffix(&mut self, host: &Hostname) -> &mut Self {
         let host_value_match = HostValueMatch::Suffix(host.clone());
         self.host_value_matches.push(host_value_match);

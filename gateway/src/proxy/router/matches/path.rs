@@ -50,7 +50,7 @@ impl Default for PathMatch {
 ///     matched_prefix: Some("/api/v1".to_string()),
 /// }
 ///
-/// // For an Exact("/health") matching path "/health"  
+/// // For an Exact("/health") matching path "/health"
 /// PathMatchResult {
 ///     matched: true,
 ///     matched_prefix: None, // Exact matches don't provide prefix info

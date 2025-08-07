@@ -128,7 +128,6 @@ impl HttpRouteRuleMatches {
     }
 
     /// Get the path matcher for this rule (used for extracting prefix information)
-    #[allow(dead_code)] // Utility method for future extensibility
     pub fn path_matcher(&self) -> Option<&PathMatch> {
         self.path.as_ref()
     }

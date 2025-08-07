@@ -121,7 +121,6 @@ impl RequestRedirectFilter {
     ///
     /// Some(RedirectResponse) if a redirect should be performed, None otherwise.
     /// Currently always returns Some since this filter always redirects when configured.
-    #[allow(dead_code)] // Used by tests and may be used by future integrations
     pub fn should_redirect(&self, request_uri: &Uri) -> Option<RedirectResponse> {
         self.should_redirect_with_context(
             request_uri,
@@ -313,7 +312,6 @@ impl RequestRedirectFilter {
     }
 
     /// Apply redirect logic to Pingora's request context
-    #[allow(dead_code)] // Legacy compatibility method
     pub fn apply_to_pingora_request(
         &self,
         request_header: &pingora::http::RequestHeader,
@@ -364,7 +362,6 @@ pub struct RedirectResponse {
     pub status_code: StatusCode,
 }
 
-#[allow(dead_code)]
 pub fn create_request_redirect_filter_receiver(
     task_builder: &TaskBuilder,
     initial_redirect: Option<RequestRedirect>,

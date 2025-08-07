@@ -13,13 +13,11 @@ use tracing::debug;
 pub enum FilterConversionError {
     #[error("Invalid header name: {0}")]
     InvalidHeaderName(String),
-    #[allow(dead_code)]
     #[error("Invalid header value: {0}")]
     InvalidHeaderValue(String),
 }
 
 /// Convert Gateway API `HTTPRouteRulesFilters` to Kubera `RequestHeaderModifier`
-#[allow(dead_code)]
 pub fn convert_gateway_api_filter(
     filter: &HTTPRouteRulesFilters,
 ) -> Result<Option<RequestHeaderModifier>, FilterConversionError> {

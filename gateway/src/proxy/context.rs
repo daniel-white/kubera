@@ -20,7 +20,6 @@ pub enum UpstreamPeerResult {
 struct ContextState {
     route: MatchRouteResult,
     endpoint_resolver: Option<EndpointsResolver>,
-    #[allow(dead_code)]
     client_addr: Option<IpAddr>,
 }
 
@@ -67,13 +66,11 @@ impl Context {
         }
     }
 
-    #[allow(dead_code)]
     pub fn client_addr(&self) -> Option<IpAddr> {
         self.state.get().and_then(|x| x.client_addr)
     }
 
     /// Get the current backend for header modification
-    #[allow(dead_code)]
     pub fn current_backend(&self) -> Option<&kubera_core::config::gateway::types::net::Backend> {
         // For now, return None since the router uses different backend types
         // This will be updated when the router types are unified with core types
