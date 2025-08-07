@@ -8,6 +8,6 @@ pub mod http_routes;
 pub use gateway_classes::{
     filter_gateway_class_parameters, filter_gateway_classes, GatewayClassParametersReferenceState,
 };
-pub use gateway_parameters::{filter_gateway_parameters, transform_gateway_parameters_to_map};
+pub use gateway_parameters::filter_gateway_parameters;
 pub use gateways::filter_gateways;
 pub use http_routes::filter_http_routes;

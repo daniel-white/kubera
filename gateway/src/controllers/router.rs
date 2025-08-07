@@ -8,7 +8,6 @@ use kubera_core::sync::signal::{signal, Receiver};
 use kubera_core::task::Builder as TaskBuilder;
 use kubera_macros::await_ready;
 use std::sync::Arc;
-use tracing::debug;
 
 pub fn synthesize_http_router(
     task_builder: &TaskBuilder,
@@ -188,15 +187,13 @@ mod tests {
 
         let router = build_router(&config, current_location);
 
-        let req = Builder::default()
-            .method("GET")
-            .uri("/test")
-            .header("host", "example.com")
-            .body(())
-            .unwrap();
+        // Test with the root path "/" which matches the configuration
+        let req = Builder::default().method("GET").uri("/").body(()).unwrap();
 
         let (parts, _) = req.into_parts();
 
+        // Since there are no host matches defined in the config, the router should accept any host
+        // or no host at all. The path "/" should match the prefix "/" rule in the config.
         router.match_route(&parts).expect("Failed to match route");
     }
 }

@@ -1,11 +1,10 @@
-use http::{HeaderMap, HeaderName, HeaderValue};
 use kubera_core::config::gateway::types::http::filters::RequestHeaderModifier;
 use kubera_core::continue_on;
 use kubera_core::sync::signal::{signal, Receiver};
 use kubera_core::task::Builder as TaskBuilder;
-use std::str::FromStr;
 use std::sync::Arc;
-use tracing::{debug, warn};
+
+use super::headers::{apply_header_modifications, HeaderOperations};
 
 /// Filter for modifying request headers based on RequestHeaderModifier configuration
 #[derive(Debug, Clone, PartialEq)]
@@ -20,114 +19,15 @@ impl RequestHeaderFilter {
         }
     }
 
-    /// Apply header modifications to the given header map
-    #[allow(dead_code)] // Public API for direct header manipulation
-    pub fn apply_to_headers(&self, headers: &mut HeaderMap) {
-        // Remove headers first
-        if let Some(remove_headers) = self.modifier.remove() {
-            for header_name in remove_headers {
-                if let Ok(name) = HeaderName::from_str(header_name) {
-                    headers.remove(&name);
-                    debug!("Removed header: {}", header_name);
-                } else {
-                    warn!("Invalid header name for removal: {}", header_name);
-                }
-            }
-        }
-
-        // Set headers (replace existing)
-        if let Some(set_headers) = self.modifier.set() {
-            for header in set_headers {
-                match (
-                    HeaderName::from_str(&header.name),
-                    HeaderValue::from_str(&header.value),
-                ) {
-                    (Ok(name), Ok(value)) => {
-                        headers.insert(name, value);
-                        debug!("Set header: {} = {}", header.name, header.value);
-                    }
-                    (Err(e), _) => {
-                        warn!("Invalid header name '{}': {}", header.name, e);
-                    }
-                    (_, Err(e)) => {
-                        warn!("Invalid header value for '{}': {}", header.name, e);
-                    }
-                }
-            }
-        }
-
-        // Add headers (append to existing)
-        if let Some(add_headers) = self.modifier.add() {
-            for header in add_headers {
-                match (
-                    HeaderName::from_str(&header.name),
-                    HeaderValue::from_str(&header.value),
-                ) {
-                    (Ok(name), Ok(value)) => {
-                        headers.append(name, value);
-                        debug!("Added header: {} = {}", header.name, header.value);
-                    }
-                    (Err(e), _) => {
-                        warn!("Invalid header name '{}': {}", header.name, e);
-                    }
-                    (_, Err(e)) => {
-                        warn!("Invalid header value for '{}': {}", header.name, e);
-                    }
-                }
-            }
-        }
-    }
-
-    /// Apply header modifications to Pingora's RequestHeader
-    pub fn apply_to_pingora_headers(
-        &self,
-        headers: &mut pingora::http::RequestHeader,
-    ) -> Result<(), Box<dyn std::error::Error>> {
-        // Remove headers first
-        if let Some(remove_headers) = self.modifier.remove() {
-            for header_name in remove_headers {
-                headers.remove_header(header_name);
-                debug!("Removed header: {}", header_name);
-            }
-        }
-
-        // Set headers (replace existing)
-        if let Some(set_headers) = self.modifier.set() {
-            for header in set_headers {
-                match HeaderValue::from_str(&header.value) {
-                    Ok(value) => {
-                        if let Err(e) = headers.insert_header(header.name.clone(), value) {
-                            warn!("Failed to set header '{}': {}", header.name, e);
-                        } else {
-                            debug!("Set header: {} = {}", header.name, header.value);
-                        }
-                    }
-                    Err(e) => {
-                        warn!("Invalid header value for '{}': {}", header.name, e);
-                    }
-                }
-            }
-        }
-
-        // Add headers (append to existing)
-        if let Some(add_headers) = self.modifier.add() {
-            for header in add_headers {
-                match HeaderValue::from_str(&header.value) {
-                    Ok(value) => {
-                        if let Err(e) = headers.append_header(header.name.clone(), value) {
-                            warn!("Failed to add header '{}': {}", header.name, e);
-                        } else {
-                            debug!("Added header: {} = {}", header.name, header.value);
-                        }
-                    }
-                    Err(e) => {
-                        warn!("Invalid header value for '{}': {}", header.name, e);
-                    }
-                }
-            }
-        }
-
-        Ok(())
+    /// Apply header modifications to any header type that implements HeaderOperations
+    pub fn apply_to_headers<H: HeaderOperations>(&self, headers: &mut H) -> Result<(), H::Error> {
+        apply_header_modifications(
+            headers,
+            self.modifier.remove().as_ref(),
+            self.modifier.set().as_ref(),
+            self.modifier.add().as_ref(),
+            "request",
+        )
     }
 
     /// Get the underlying header modifier configuration
@@ -167,6 +67,7 @@ pub fn request_header_filter(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use http::{HeaderMap, HeaderValue};
     use kubera_core::config::gateway::types::http::filters::RequestHeaderModifierBuilder;
 
     #[test]
@@ -191,7 +92,7 @@ mod tests {
         headers.insert("X-Additional", HeaderValue::from_static("original-value"));
 
         // Apply the filter
-        filter.apply_to_headers(&mut headers);
+        filter.apply_to_headers(&mut headers).unwrap();
 
         // Verify results
         assert_eq!(headers.get("X-Custom-Header").unwrap(), "custom-value");
@@ -211,7 +112,7 @@ mod tests {
         let mut headers = HeaderMap::new();
         headers.insert("X-Existing", HeaderValue::from_static("existing-value"));
 
-        filter.apply_to_headers(&mut headers);
+        filter.apply_to_headers(&mut headers).unwrap();
 
         // Headers should remain unchanged
         assert_eq!(headers.get("X-Existing").unwrap(), "existing-value");

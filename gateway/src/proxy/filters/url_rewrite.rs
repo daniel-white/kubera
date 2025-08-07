@@ -337,7 +337,6 @@ pub fn create_url_rewrite_filter_receiver(
             if let Some(rewrite) = &initial_rewrite {
                 let filter = Some(URLRewriteFilter::new(rewrite.clone()));
                 sender.set(filter).await;
-                debug!("URLRewriteFilter configuration updated");
             } else {
                 sender.set(None).await;
             }

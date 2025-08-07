@@ -201,7 +201,7 @@ impl ProxyHttp for Proxy {
                     if let Some(response_header_modifier) = &filter.response_header_modifier {
                         let header_filter =
                             ResponseHeaderFilter::new(response_header_modifier.clone());
-                        if let Err(e) = header_filter.apply_to_pingora_headers(_upstream_response) {
+                        if let Err(e) = header_filter.apply_to_headers(_upstream_response) {
                             warn!("Failed to apply response header filter: {}", e);
                         } else {
                             debug!("Applied response header filter for route: {:?}", route);
@@ -229,7 +229,7 @@ impl ProxyHttp for Proxy {
                     if let Some(request_header_modifier) = &filter.request_header_modifier {
                         let header_filter =
                             RequestHeaderFilter::new(request_header_modifier.clone());
-                        if let Err(e) = header_filter.apply_to_pingora_headers(upstream_request) {
+                        if let Err(e) = header_filter.apply_to_headers(upstream_request) {
                             warn!("Failed to apply upstream request header filter: {}", e);
                         } else {
                             debug!(

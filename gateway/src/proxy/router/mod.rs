@@ -140,15 +140,19 @@ impl HttpRouterBuilder {
 
 impl HttpRouter {
     pub fn match_route(&self, parts: &Parts) -> Option<HttpRouterMatchResult> {
+        if !self.host_matches.matches(&parts.headers) {
+            return None;
+        }
+
         self.routes
             .iter()
             .enumerate()
             .filter_map(|(i, route)| {
                 let match_result = route.matches(parts);
                 if match_result.is_matched() {
+                    debug!("Route {} matched with rule", i);
                     Some((i, route, match_result))
                 } else {
-                    debug!("Route at index {} did not match", i);
                     None
                 }
             })

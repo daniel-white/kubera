@@ -67,7 +67,7 @@ pub fn collect_gateway_instances(
     task_builder: &TaskBuilder,
     gateways_rx: &Receiver<Objects<Gateway>>,
     gateway_class_parameters_rx: &Receiver<GatewayClassParametersReferenceState>,
-    gateway_parameters_rx: &Receiver<HashMap<ObjectRef, Arc<GatewayParameters>>>,
+    gateway_parameters_rx: &Receiver<Objects<GatewayParameters>>,
 ) -> Receiver<HashMap<ObjectRef, GatewayInstanceConfiguration>> {
     let (tx, rx) = signal();
 
@@ -96,7 +96,7 @@ pub fn collect_gateway_instances(
                             .map(|(gateway_ref, _, gateway)| {
                                 info!("Processing gateway instance: {}", gateway_ref);
                                 let gateway_parameters =
-                                    gateway_parameters.get(&gateway_ref).cloned();
+                                    gateway_parameters.get_by_ref(&gateway_ref);
                                 let gateway_parameters = gateway_parameters.as_deref();
                                 let (
                                     deployment_overrides,

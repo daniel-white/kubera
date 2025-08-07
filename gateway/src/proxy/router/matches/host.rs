@@ -1,4 +1,4 @@
-use http::HeaderMap;
+use http::{header::HOST, HeaderMap};
 use kubera_core::net::Hostname;
 use tracing::{debug, instrument};
 
@@ -32,10 +32,15 @@ pub struct HostMatch {
 
 impl HostMatch {
     #[instrument(skip(self, headers), level = "debug", name = "HostMatch::matches")]
-    #[allow(dead_code)]
-    fn matches(&self, headers: &HeaderMap) -> bool {
+    pub fn matches(&self, headers: &HeaderMap) -> bool {
+        // If no host matches are defined, accept all requests
+        if self.host_value_matches.is_empty() {
+            debug!("No host matches defined, accepting all requests");
+            return true;
+        }
+
         let is_match = match headers
-            .get(http_constant::HOST)
+            .get(HOST)
             .and_then(|v| v.to_str().ok().map(Hostname::from))
         {
             Some(hostname) => self.host_value_matches.iter().any(|m| m.matches(&hostname)),
