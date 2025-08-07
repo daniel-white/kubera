@@ -466,7 +466,8 @@ fn process_http_routes(
                                         };
 
                                         target.add_filter(kubera_filter);
-                                    } else if let Some(response_header_modifier) = &filter.response_header_modifier {
+                                    }
+                                    if let Some(response_header_modifier) = &filter.response_header_modifier {
                                         // Convert Gateway API ResponseHeaderModifier to Kubera ResponseHeaderModifier
                                         let mut kubera_modifier = ResponseHeaderModifier::default();
 
@@ -503,7 +504,8 @@ fn process_http_routes(
                                         };
 
                                         target.add_filter(kubera_filter);
-                                    } else if let Some(request_redirect) = &filter.request_redirect {
+                                    }
+                                    if let Some(request_redirect) = &filter.request_redirect {
                                         // Convert Gateway API RequestRedirect to Kubera RequestRedirect
                                         use crate::controllers::filters::gateway_api_converter::convert_request_redirect;
 
@@ -518,8 +520,48 @@ fn process_http_routes(
                                             extension_ref: None,
                                         };
                                         target.add_filter(kubera_filter);
-                                    } else {
-                                        debug!("Filter has no requestHeaderModifier, responseHeaderModifier, or requestRedirect: {:?}", filter);
+                                    }
+                                    if let Some(url_rewrite_filter) = &filter.url_rewrite {
+                                        // Convert Gateway API URLRewrite to Kubera URLRewrite
+                                        let mut kubera_url_rewrite = kubera_core::config::gateway::types::http::filters::URLRewrite {
+                                            hostname: url_rewrite_filter.hostname.clone(),
+                                            path: None,
+                                        };
+
+                                        // Convert path rewrite if present
+                                        if let Some(path_config) = &url_rewrite_filter.path {
+                                            use kubera_core::config::gateway::types::http::filters::{PathRewrite, PathRewriteType};
+
+                                            let kubera_path_rewrite = match &path_config.r#type {
+                                                gateway_api::apis::standard::httproutes::HTTPRouteRulesFiltersUrlRewritePathType::ReplaceFullPath => {
+                                                    PathRewrite {
+                                                        rewrite_type: PathRewriteType::ReplaceFullPath,
+                                                        replace_full_path: path_config.replace_full_path.clone(),
+                                                        replace_prefix_match: None,
+                                                    }
+                                                },
+                                                gateway_api::apis::standard::httproutes::HTTPRouteRulesFiltersUrlRewritePathType::ReplacePrefixMatch => {
+                                                    PathRewrite {
+                                                        rewrite_type: PathRewriteType::ReplacePrefixMatch,
+                                                        replace_full_path: None,
+                                                        replace_prefix_match: path_config.replace_prefix_match.clone(),
+                                                    }
+                                                }
+                                            };
+                                            kubera_url_rewrite.path = Some(kubera_path_rewrite);
+                                        }
+
+                                        // Add URLRewrite filter to Kubera configuration
+                                        let kubera_filter = HTTPRouteFilter {
+                                            filter_type: HTTPRouteFilterType::URLRewrite,
+                                            request_header_modifier: None,
+                                            response_header_modifier: None,
+                                            request_mirror: None,
+                                            request_redirect: None,
+                                            url_rewrite: Some(kubera_url_rewrite),
+                                            extension_ref: None,
+                                        };
+                                        target.add_filter(kubera_filter);
                                     }
                                 }
                             }

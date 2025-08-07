@@ -48,6 +48,7 @@ pub fn filter_gateways(
     rx
 }
 
+#[allow(dead_code)] // Public API for future gateway parameter filtering
 pub fn filter_gateway_parameters(
     task_builder: &TaskBuilder,
     gateways_rx: &Receiver<Objects<Gateway>>,

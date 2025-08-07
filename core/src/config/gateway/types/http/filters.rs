@@ -156,11 +156,9 @@ pub struct PathRewrite {
     /// Type of path rewrite
     #[serde(rename = "type")]
     pub rewrite_type: PathRewriteType,
-    /// Replacement value
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    /// Replacement value for full path replacement
     pub replace_full_path: Option<String>,
-    /// Prefix replacement
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    /// Prefix replacement for prefix match replacement
     pub replace_prefix_match: Option<String>,
 }
 

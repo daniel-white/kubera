@@ -73,11 +73,11 @@ Kubera Gateway.
 
 ### Traffic Management
 
-| Feature             | Status          | Description                            | Documentation                                                                                                               | Conformance Level | Test Coverage | Level of Effort        |
-|---------------------|-----------------|----------------------------------------|-----------------------------------------------------------------------------------------------------------------------------|-------------------|---------------|------------------------|
-| **RequestRedirect** | ✅ **Supported** | HTTP redirects (301, 302)              | [Request Redirect](https://gateway-api.sigs.k8s.io/references/spec/#gateway.networking.k8s.io/v1.HTTPRequestRedirectFilter) | 🟠 **Extended**   | 🟢 **High**   | Complete               |
-| **URLRewrite**      | 🏗️ **Defined** | Rewrite URLs before forwarding         | [URL Rewrite](https://gateway-api.sigs.k8s.io/references/spec/#gateway.networking.k8s.io/v1.HTTPURLRewriteFilter)           | 🟠 **Extended**   | 🔴 **None**   | **Medium** (2-3 weeks) |
-| **RequestMirror**   | 🏗️ **Defined** | Mirror requests to additional backends | [Request Mirror](https://gateway-api.sigs.k8s.io/references/spec/#gateway.networking.k8s.io/v1.HTTPRequestMirrorFilter)     | 🟠 **Extended**   | 🔴 **None**   | **High** (3-4 weeks)   |
+| Feature             | Status          | Description                            | Documentation                                                                                                               | Conformance Level | Test Coverage | Level of Effort      |
+|---------------------|-----------------|----------------------------------------|-----------------------------------------------------------------------------------------------------------------------------|-------------------|---------------|----------------------|
+| **RequestRedirect** | ✅ **Supported** | HTTP redirects (301, 302)              | [Request Redirect](https://gateway-api.sigs.k8s.io/references/spec/#gateway.networking.k8s.io/v1.HTTPRequestRedirectFilter) | 🟠 **Extended**   | 🟢 **High**   | Complete             |
+| **URLRewrite**      | ✅ **Supported** | Rewrite URLs before forwarding         | [URL Rewrite](https://gateway-api.sigs.k8s.io/references/spec/#gateway.networking.k8s.io/v1.HTTPURLRewriteFilter)           | 🟠 **Extended**   | 🟢 **High**   | Complete             |
+| **RequestMirror**   | 🏗️ **Defined** | Mirror requests to additional backends | [Request Mirror](https://gateway-api.sigs.k8s.io/references/spec/#gateway.networking.k8s.io/v1.HTTPRequestMirrorFilter)     | 🟠 **Extended**   | 🔴 **None**   | **High** (3-4 weeks) |
 
 ### Implementation Notes
 
@@ -87,9 +87,17 @@ Kubera Gateway.
     - Path rewriting (full path replacement and prefix matching)
     - Status codes 301 (permanent) and 302 (temporary) redirect
     - Proper URL construction using `url::Url` type
-    - Complete test coverage with 3/3 tests passing
-- Basic filter framework is in place with placeholder structures for URLRewrite and RequestMirror
-- URL rewrite and request mirroring need Pingora integration for URL manipulation and async request duplication
+    - Complete test coverage with 6/6 tests passing
+- **URLRewrite**: Fully implemented with Gateway API to Kubera config conversion
+    - Supports hostname rewriting for internal service routing
+    - Path rewriting (full path replacement and prefix matching)
+    - Query parameter preservation during rewrites
+    - Reuses RouteMatchContext from redirect implementation for consistency
+    - Proper Pingora integration with request header modifications
+    - Complete test coverage with 9/9 tests passing
+    - Applied after redirect checks but before upstream forwarding
+- **RequestMirror**: Basic filter framework is in place with placeholder structures
+- Request mirroring needs Pingora integration for async request duplication
 
 ## Backend References
 
@@ -206,17 +214,16 @@ Kubera Gateway.
 
 ### Medium Priority (Advanced Routing)
 
-1. RequestRedirect filter implementation
-2. URLRewrite filter implementation
-3. Cross-namespace backend references
+1. Cross-namespace backend references
+2. Multiple backend refs with traffic splitting
+3. HTTPS/TLS support
 
 ### Low Priority (Advanced Features)
 
 1. RequestMirror filter
-2. HTTPS/TLS support
-3. HTTP/2 support
-4. GRPCRoute support
-5. Extension points
+2. HTTP/2 support
+3. GRPCRoute support
+4. Extension points
 
 ## Development Notes
 

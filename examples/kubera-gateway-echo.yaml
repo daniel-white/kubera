@@ -116,6 +116,51 @@ spec:
         - name: echo-service
           port: 80
 
+    # URL Rewrite example - rewrite internal API calls
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /v1
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            hostname: "internal-api-service"
+            path:
+              type: ReplacePrefixMatch
+              replacePrefixMatch: "/api/v2"
+        - type: RequestHeaderModifier
+          requestHeaderModifier:
+            set:
+              - name: "X-Rewritten-By"
+                value: "kubera-gateway"
+            add:
+              - name: "X-Original-Path"
+                value: "/v1"
+      backendRefs:
+        - name: echo-service
+          port: 80
+
+    # URL Rewrite with full path replacement
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /legacy-service
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            hostname: "new-backend.internal"
+            path:
+              type: ReplaceFullPath
+              replaceFullPath: "/modern/api/endpoint"
+        - type: RequestHeaderModifier
+          requestHeaderModifier:
+            set:
+              - name: "X-Legacy-Migration"
+                value: "active"
+      backendRefs:
+        - name: echo-service
+          port: 80
+
     # Redirect old paths to new locations
     - matches:
         - path:

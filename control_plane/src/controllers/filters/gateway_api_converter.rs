@@ -14,10 +14,12 @@ pub enum FilterConversionError {
     #[error("Invalid header name: {0}")]
     InvalidHeaderName(String),
     #[error("Invalid header value: {0}")]
+    #[allow(dead_code)] // Future use for header validation
     InvalidHeaderValue(String),
 }
 
 /// Convert Gateway API `HTTPRouteRulesFilters` to Kubera `RequestHeaderModifier`
+#[allow(dead_code)] // Public API for future Gateway API integration
 pub fn convert_gateway_api_filter(
     filter: &HTTPRouteRulesFilters,
 ) -> Result<Option<RequestHeaderModifier>, FilterConversionError> {
@@ -172,39 +174,38 @@ mod tests {
         };
 
         // Convert to Kubera RequestHeaderModifier
-        let result =
-            convert_request_header_modifier(&gw_modifier).expect("conversion should succeed");
-        assert!(result.is_some());
+        let result = convert_request_header_modifier(&gw_modifier);
+        assert!(result.is_ok(), "conversion should succeed");
 
-        let modifier = result.expect("modifier should be present");
+        if let Ok(Some(modifier)) = result {
+            // Check set headers
+            assert!(modifier.set().is_some());
+            if let Some(set) = modifier.set().as_ref() {
+                assert_eq!(set.len(), 1);
+                assert_eq!(set[0].name, "X-Gateway");
+                assert_eq!(set[0].value, "kubera");
+            }
 
-        // Check set headers
-        assert!(modifier.set().is_some());
-        let set = modifier
-            .set()
-            .as_ref()
-            .expect("set headers should be present");
-        assert_eq!(set.len(), 1);
-        assert_eq!(set[0].name, "X-Gateway");
-        assert_eq!(set[0].value, "kubera");
+            // Check add headers
+            assert!(modifier.add().is_some());
+            if let Some(add) = modifier.add().as_ref() {
+                assert_eq!(add.len(), 1);
+                assert_eq!(add[0].name, "X-Request-ID");
+                assert_eq!(add[0].value, "123");
+            }
 
-        // Check add headers
-        assert!(modifier.add().is_some());
-        let add = modifier
-            .add()
-            .as_ref()
-            .expect("add headers should be present");
-        assert_eq!(add.len(), 1);
-        assert_eq!(add[0].name, "X-Request-ID");
-        assert_eq!(add[0].value, "123");
-
-        // Check remove headers
-        assert!(modifier.remove().is_some());
-        let remove = modifier
-            .remove()
-            .as_ref()
-            .expect("remove headers should be present");
-        assert_eq!(remove.len(), 1);
-        assert_eq!(remove[0], "X-Debug");
+            // Check remove headers
+            assert!(modifier.remove().is_some());
+            if let Some(remove) = modifier.remove().as_ref() {
+                assert_eq!(remove.len(), 1);
+                assert_eq!(remove[0], "X-Debug");
+            }
+        } else {
+            // Test failure: conversion should have returned Ok(Some(modifier))
+            assert!(result.is_ok());
+            if let Ok(opt) = result {
+                assert!(opt.is_some(), "Expected modifier to be Some, got None");
+            }
+        }
     }
 }

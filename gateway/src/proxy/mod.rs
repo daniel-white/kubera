@@ -12,6 +12,7 @@ use filters::client_addrs::ClientAddrFilter;
 use filters::request_headers::RequestHeaderFilter;
 use filters::request_redirect::RequestRedirectFilter;
 use filters::response_headers::ResponseHeaderFilter;
+use filters::url_rewrite::URLRewriteFilter;
 use http::header::SERVER;
 use http::StatusCode;
 use kubera_core::sync::signal::Receiver;
@@ -122,6 +123,36 @@ impl ProxyHttp for Proxy {
                                 .await?;
 
                             return Ok(true); // Request handled, don't proceed to upstream
+                        }
+                    }
+                }
+
+                // Apply URL rewrite filters after redirect checks
+                for filter in rule.filters() {
+                    if let Some(url_rewrite) = &filter.url_rewrite {
+                        let rewrite_filter = URLRewriteFilter::new(url_rewrite.clone());
+
+                        // Create route match context with the matched prefix (reuse from redirect)
+                        let route_context =
+                            crate::proxy::filters::request_redirect::RouteMatchContext {
+                                matched_prefix: matched_prefix.clone(),
+                            };
+
+                        // Apply URL rewrite to the request headers
+                        if let Ok(was_rewritten) = rewrite_filter
+                            .apply_to_pingora_request_with_context(
+                                session.req_header_mut(),
+                                &route_context,
+                            )
+                        {
+                            if was_rewritten {
+                                debug!(
+                                    "Applied URL rewrite filter for route: {:?} with prefix: {:?}",
+                                    route, matched_prefix
+                                );
+                            }
+                        } else {
+                            warn!("Failed to apply URL rewrite filter for route: {:?}", route);
                         }
                     }
                 }

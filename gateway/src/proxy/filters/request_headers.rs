@@ -21,6 +21,7 @@ impl RequestHeaderFilter {
     }
 
     /// Apply header modifications to the given header map
+    #[allow(dead_code)] // Public API for direct header manipulation
     pub fn apply_to_headers(&self, headers: &mut HeaderMap) {
         // Remove headers first
         if let Some(remove_headers) = self.modifier.remove() {
@@ -129,13 +130,15 @@ impl RequestHeaderFilter {
         Ok(())
     }
 
-    /// Get the underlying modifier
+    /// Get the underlying header modifier configuration
+    #[allow(dead_code)] // Public API for configuration access
     pub fn modifier(&self) -> &RequestHeaderModifier {
         &self.modifier
     }
 }
 
 /// Create a reactive filter that responds to RequestHeaderModifier configuration changes
+#[allow(dead_code)] // Public API for future configuration watching
 pub fn request_header_filter(
     task_builder: &TaskBuilder,
     modifier_rx: &Receiver<Option<RequestHeaderModifier>>,

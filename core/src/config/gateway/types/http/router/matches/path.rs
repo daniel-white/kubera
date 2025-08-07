@@ -19,11 +19,7 @@ use typed_builder::TypedBuilder;
 )]
 pub struct HttpPathMatch {
     #[getset(get = "pub")]
-    #[serde(
-        default,
-        rename = "type",
-        skip_serializing_if = "HttpPathMatchType::is_default"
-    )]
+    #[serde(default, rename = "type")]
     #[builder(setter(into))]
     match_type: HttpPathMatchType,
 
