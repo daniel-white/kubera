@@ -2,7 +2,7 @@ use crate::kubernetes::objects::Objects;
 use gateway_api::apis::standard::gateways::Gateway;
 use kubera_api::v1alpha1::GatewayParameters;
 use kubera_core::continue_on;
-use kubera_core::sync::signal::{signal, Receiver};
+use kubera_core::sync::signal::{Receiver, signal};
 use kubera_core::task::Builder as TaskBuilder;
 use kubera_macros::await_ready;
 use tracing::debug;

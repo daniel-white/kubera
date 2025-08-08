@@ -1,10 +1,10 @@
 use kubera_core::config::gateway::types::http::filters::ResponseHeaderModifier;
 use kubera_core::continue_on;
-use kubera_core::sync::signal::{signal, Receiver};
+use kubera_core::sync::signal::{Receiver, signal};
 use kubera_core::task::Builder as TaskBuilder;
 use std::sync::Arc;
 
-use super::headers::{apply_header_modifications, HeaderOperations};
+use super::headers::{HeaderOperations, apply_header_modifications};
 
 /// Filter for modifying response headers based on ResponseHeaderModifier configuration
 #[derive(Debug, Clone, PartialEq)]

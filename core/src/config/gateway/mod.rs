@@ -4,8 +4,8 @@ pub mod types;
 #[cfg(test)]
 mod filter_deserialization_tests {
     use crate::config::gateway::types::{
-        http::filters::{HTTPRouteFilter, HTTPRouteFilterType},
         GatewayConfiguration,
+        http::filters::{HttpRouteFilter, HttpRouteFilterType},
     };
     use serde_yaml;
 
@@ -79,7 +79,7 @@ error_responses:
                     let filter = &rule.filters()[0];
                     assert_eq!(
                         filter.filter_type,
-                        HTTPRouteFilterType::RequestHeaderModifier
+                        HttpRouteFilterType::RequestHeaderModifier
                     );
                     assert!(filter.request_header_modifier.is_some());
                     println!("Filter deserialization test passed!");
@@ -108,13 +108,13 @@ request_header_modifier:
     - "X-Debug-Info"
 "#;
 
-        let filter_result: Result<HTTPRouteFilter, _> = serde_yaml::from_str(filter_yaml);
+        let filter_result: Result<HttpRouteFilter, _> = serde_yaml::from_str(filter_yaml);
         match filter_result {
             Ok(filter) => {
                 println!("Successfully deserialized filter: {filter:#?}");
                 assert_eq!(
                     filter.filter_type,
-                    HTTPRouteFilterType::RequestHeaderModifier
+                    HttpRouteFilterType::RequestHeaderModifier
                 );
                 assert!(filter.request_header_modifier.is_some());
             }

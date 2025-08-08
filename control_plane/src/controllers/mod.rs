@@ -9,12 +9,12 @@ use self::filters::{
     filter_gateways, filter_http_routes,
 };
 use self::sync::{
-    sync_gateway_class_status, sync_gateway_configmaps, sync_gateway_deployments,
-    sync_gateway_services, SyncGatewayConfigmapsParams,
+    SyncGatewayConfigmapsParams, sync_gateway_class_status, sync_gateway_configmaps,
+    sync_gateway_deployments, sync_gateway_services,
 };
 use self::transformers::{
-    collect_gateway_instances, collect_http_route_backends, collect_http_routes_by_gateway,
-    collect_service_backends,
+    bind_static_responses_cache, collect_extension_filters_by_gateway, collect_gateway_instances,
+    collect_http_route_backends, collect_http_routes_by_gateway, collect_service_backends,
 };
 use crate::controllers::instances::{determine_instance_role, watch_leader_instance_ip_addr};
 use crate::ipc::IpcServices;
@@ -25,16 +25,17 @@ use anyhow::Result;
 use gateway_api::apis::standard::gatewayclasses::GatewayClass;
 use gateway_api::apis::standard::gateways::Gateway;
 use gateway_api::apis::standard::httproutes::HTTPRoute;
-use getset::Getters;
+use getset::{CloneGetters, Getters};
 use k8s_openapi::api::discovery::v1::EndpointSlice;
-use kubera_api::v1alpha1::{GatewayClassParameters, GatewayParameters};
+use kubera_api::v1alpha1::{GatewayClassParameters, GatewayParameters, StaticResponseFilter};
 use kubera_core::sync::signal::Receiver;
 use kubera_core::task::Builder as TaskBuilder;
 use std::sync::Arc;
 use thiserror::Error;
+pub use transformers::StaticResponsesCache;
 use typed_builder::TypedBuilder;
 
-#[derive(Getters, TypedBuilder)]
+#[derive(Getters, CloneGetters, TypedBuilder)]
 pub struct SpawnControllersParams {
     options: Arc<Options>,
     kube_client_rx: Receiver<KubeClientCell>,
@@ -45,6 +46,8 @@ pub struct SpawnControllersParams {
     pod_name: String,
     #[builder(setter(into))]
     instance_name: String,
+    #[getset(get = "pub")]
+    static_responses_cache: StaticResponsesCache,
 }
 
 pub fn spawn_controllers(task_builder: &TaskBuilder, params: SpawnControllersParams) {
@@ -77,6 +80,8 @@ pub fn spawn_controllers(task_builder: &TaskBuilder, params: SpawnControllersPar
     );
     let gateway_parameters_rx =
         watch_objects!(options, task_builder, GatewayParameters, kube_client_rx);
+    let static_response_filters_rx =
+        watch_objects!(options, task_builder, StaticResponseFilter, kube_client_rx);
 
     let gateway_class_rx = filter_gateway_classes(task_builder, &gateway_classes_rx);
     let gateway_class_parameters_rx = filter_gateway_class_parameters(
@@ -84,6 +89,7 @@ pub fn spawn_controllers(task_builder: &TaskBuilder, params: SpawnControllersPar
         &gateway_class_rx,
         &gateway_class_parameters_rx,
     );
+
     sync_gateway_class_status(
         task_builder,
         &kube_client_rx,
@@ -106,6 +112,17 @@ pub fn spawn_controllers(task_builder: &TaskBuilder, params: SpawnControllersPar
     let service_backends_rx = collect_http_route_backends(task_builder, &http_routes_rx);
     let backends_rx =
         collect_service_backends(task_builder, &service_backends_rx, &endpoint_slices_rx);
+    let extension_filters_rx = collect_extension_filters_by_gateway(
+        task_builder,
+        &http_routes_by_gateway_rx,
+        &static_response_filters_rx,
+    );
+
+    bind_static_responses_cache(
+        task_builder,
+        &static_response_filters_rx,
+        params.static_responses_cache,
+    );
 
     {
         let params = SyncGatewayConfigmapsParams::builder()
@@ -117,6 +134,7 @@ pub fn spawn_controllers(task_builder: &TaskBuilder, params: SpawnControllersPar
             .gateway_instances_rx(gateway_instances_rx.clone())
             .http_routes_rx(http_routes_by_gateway_rx.clone())
             .backends_rx(backends_rx)
+            .extension_filters_rx(extension_filters_rx)
             .build();
 
         sync_gateway_configmaps(task_builder, params);

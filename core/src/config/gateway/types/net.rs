@@ -483,3 +483,42 @@ pub struct ProblemDetailErrorResponse {
     #[builder(setter(into))]
     authority: Option<String>,
 }
+
+#[derive(
+    Deserialize, Serialize, Clone, Debug, JsonSchema, PartialEq, Getters, Default, TypedBuilder,
+)]
+pub struct StaticResponses {
+    #[getset(get = "pub")]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[builder(default)]
+    responses: Vec<StaticResponse>,
+}
+
+#[derive(Deserialize, Serialize, Clone, Debug, JsonSchema, PartialEq, Getters, TypedBuilder)]
+pub struct StaticResponse {
+    #[getset(get = "pub")]
+    key: String,
+
+    #[getset(get = "pub")]
+    status_code: u16,
+
+    #[getset(get = "pub")]
+    #[builder(setter(into))]
+    version_key: String,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[getset(get = "pub")]
+    #[builder(default, setter(strip_option))]
+    body: Option<StaticResponseBody>,
+}
+
+#[derive(Deserialize, Serialize, Clone, Debug, JsonSchema, PartialEq, Getters, TypedBuilder)]
+pub struct StaticResponseBody {
+    #[getset(get = "pub")]
+    #[builder(setter(into))]
+    content_type: String,
+
+    #[getset(get = "pub")]
+    #[builder(setter(into))]
+    identifier: String,
+}

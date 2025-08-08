@@ -1,4 +1,4 @@
-use http::{header::HOST, HeaderMap};
+use http::{HeaderMap, header::HOST};
 use kubera_core::net::Hostname;
 use tracing::{debug, instrument};
 

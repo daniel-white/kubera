@@ -23,7 +23,7 @@ pub mod ipc;
 pub mod kubernetes;
 mod options;
 
-use crate::controllers::{SpawnControllersParams, spawn_controllers};
+use crate::controllers::{SpawnControllersParams, StaticResponsesCache, spawn_controllers};
 use crate::ipc::{SpawnIpcError, SpawnIpcParameters, spawn_ipc};
 use crate::kubernetes::start_kubernetes_client;
 use crate::options::Options;
@@ -58,6 +58,7 @@ async fn main() -> Result<(), MainError> {
     let task_builder = TaskBuilder::default();
 
     let kube_client_rx = start_kubernetes_client(&task_builder);
+    let static_responses_cache = StaticResponsesCache::default();
 
     // IPC is half 1 - it is what the gateway use to ensure that they have the latest configuration
     let ipc_services = {
@@ -65,6 +66,7 @@ async fn main() -> Result<(), MainError> {
             .options(options.clone())
             .port(args.port())
             .kube_client_rx(kube_client_rx.clone())
+            .static_responses_cache(static_responses_cache.clone())
             .build();
 
         spawn_ipc(&task_builder, params)
@@ -82,6 +84,7 @@ async fn main() -> Result<(), MainError> {
             .pod_namespace(args.pod_namespace())
             .pod_name(args.pod_name())
             .instance_name(args.instance_name())
+            .static_responses_cache(static_responses_cache)
             .build();
 
         spawn_controllers(&task_builder, params);

@@ -6,7 +6,7 @@ pub mod http_routes;
 
 // Re-export filter functions
 pub use gateway_classes::{
-    filter_gateway_class_parameters, filter_gateway_classes, GatewayClassParametersReferenceState,
+    GatewayClassParametersReferenceState, filter_gateway_class_parameters, filter_gateway_classes,
 };
 pub use gateway_parameters::filter_gateway_parameters;
 pub use gateways::filter_gateways;

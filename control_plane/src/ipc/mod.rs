@@ -2,6 +2,7 @@ pub mod endpoints;
 pub mod events;
 mod gateways;
 
+use crate::controllers::StaticResponsesCache;
 use crate::ipc::endpoints::{
     SpawnIpcEndpointError, SpawnIpcEndpointParameters, spawn_ipc_endpoint,
 };
@@ -107,6 +108,7 @@ pub struct SpawnIpcParameters {
     port: Port,
     kube_client_rx: Receiver<KubeClientCell>,
     options: Arc<Options>,
+    static_responses_cache: StaticResponsesCache,
 }
 
 #[derive(Debug, Error)]
@@ -132,6 +134,7 @@ pub async fn spawn_ipc(
         .events(events_factory)
         .gateways(reader)
         .kube_client_rx(params.kube_client_rx)
+        .static_responses_cache(params.static_responses_cache)
         .build();
 
     spawn_ipc_endpoint(task_builder, ipc_endpoint_params).await?;

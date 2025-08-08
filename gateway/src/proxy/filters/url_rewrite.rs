@@ -1,6 +1,6 @@
 use http::Uri;
 use kubera_core::config::gateway::types::http::filters::URLRewrite;
-use kubera_core::sync::signal::{signal, Receiver};
+use kubera_core::sync::signal::{Receiver, signal};
 use kubera_core::task::Builder as TaskBuilder;
 use std::str::FromStr;
 use std::sync::Arc;

@@ -5,7 +5,7 @@ use crate::proxy::router::topology::TopologyLocation;
 use crate::proxy::router::{HttpBackend, HttpBackendBuilder, HttpRouteRuleMatches};
 use getset::Getters;
 use http::request::Parts;
-use kubera_core::config::gateway::types::http::filters::HTTPRouteFilter;
+use kubera_core::config::gateway::types::http::filters::HttpRouteFilter;
 use kubera_core::net::Hostname;
 use std::sync::Arc;
 use tracing::{debug, instrument};
@@ -308,7 +308,7 @@ pub struct HttpRouteRule {
     backends: Vec<HttpBackend>,
 
     #[getset(get = "pub")]
-    filters: Vec<HTTPRouteFilter>,
+    filters: Vec<HttpRouteFilter>,
 }
 
 pub struct HttpRouteRuleBuilder {
@@ -316,7 +316,7 @@ pub struct HttpRouteRuleBuilder {
     current_location: Arc<TopologyLocation>,
     matches_builders: Vec<HttpRouteRuleMatchesBuilder>,
     backend_builders: Vec<HttpBackendBuilder>,
-    filters: Vec<HTTPRouteFilter>,
+    filters: Vec<HttpRouteFilter>,
 }
 
 impl HttpRouteRuleBuilder {
@@ -367,7 +367,7 @@ impl HttpRouteRuleBuilder {
         self
     }
 
-    pub fn add_filter(&mut self, filter: HTTPRouteFilter) -> &mut Self {
+    pub fn add_filter(&mut self, filter: HttpRouteFilter) -> &mut Self {
         self.filters.push(filter);
         self
     }

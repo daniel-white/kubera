@@ -6,7 +6,7 @@ use crate::config::gateway::types::http::router::{
 };
 use crate::config::gateway::types::net::{
     ClientAddrs, ClientAddrsBuilder, ErrorResponses, Listener, ListenerBuilder,
-    ListenerBuilderError,
+    ListenerBuilderError, StaticResponse, StaticResponses,
 };
 use crate::net::Port;
 use getset::{CloneGetters, CopyGetters, Getters};
@@ -74,6 +74,10 @@ pub struct GatewayConfiguration {
     #[getset(get = "pub")]
     #[serde(default, skip_serializing_if = "Option::is_none")]
     error_responses: Option<ErrorResponses>,
+
+    #[getset(get = "pub")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    static_responses: Option<StaticResponses>,
 }
 
 #[derive(Debug, Default)]
@@ -84,6 +88,7 @@ pub struct GatewayConfigurationBuilder {
     http_route_builders: Vec<HttpRouteBuilder>,
     client_addrs_builder: Option<ClientAddrsBuilder>,
     error_responses: Option<ErrorResponses>,
+    static_responses: Option<StaticResponses>,
 }
 
 #[derive(Debug, Error)]
@@ -135,6 +140,7 @@ impl GatewayConfigurationBuilder {
             http_routes,
             client_addrs: self.client_addrs_builder.map(ClientAddrsBuilder::build),
             error_responses: self.error_responses,
+            static_responses: self.static_responses,
         })
     }
 
@@ -185,6 +191,18 @@ impl GatewayConfigurationBuilder {
 
     pub fn with_error_responses(&mut self, error_responses: ErrorResponses) -> &mut Self {
         self.error_responses = Some(error_responses);
+        self
+    }
+
+    pub fn with_static_responses(&mut self, static_responses: Vec<StaticResponse>) -> &mut Self {
+        self.static_responses = if static_responses.is_empty() {
+            None
+        } else {
+            let static_responses = StaticResponses::builder()
+                .responses(static_responses)
+                .build();
+            Some(static_responses)
+        };
         self
     }
 }

@@ -73,11 +73,12 @@ Kubera Gateway.
 
 ### Traffic Management
 
-| Feature             | Status          | Description                            | Documentation                                                                                                               | Conformance Level | Test Coverage | Level of Effort      |
-|---------------------|-----------------|----------------------------------------|-----------------------------------------------------------------------------------------------------------------------------|-------------------|---------------|----------------------|
-| **RequestRedirect** | ✅ **Supported** | HTTP redirects (301, 302)              | [Request Redirect](https://gateway-api.sigs.k8s.io/references/spec/#gateway.networking.k8s.io/v1.HTTPRequestRedirectFilter) | 🟠 **Extended**   | 🟢 **High**   | Complete             |
-| **URLRewrite**      | ✅ **Supported** | Rewrite URLs before forwarding         | [URL Rewrite](https://gateway-api.sigs.k8s.io/references/spec/#gateway.networking.k8s.io/v1.HTTPURLRewriteFilter)           | 🟠 **Extended**   | 🟢 **High**   | Complete             |
-| **RequestMirror**   | 🏗️ **Defined** | Mirror requests to additional backends | [Request Mirror](https://gateway-api.sigs.k8s.io/references/spec/#gateway.networking.k8s.io/v1.HTTPRequestMirrorFilter)     | 🟠 **Extended**   | 🔴 **None**   | **High** (3-4 weeks) |
+| Feature             | Status          | Description                              | Documentation                                                                                                               | Conformance Level              | Test Coverage | Level of Effort      |
+|---------------------|-----------------|------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------|--------------------------------|---------------|----------------------|
+| **RequestRedirect** | ✅ **Supported** | HTTP redirects (301, 302)                | [Request Redirect](https://gateway-api.sigs.k8s.io/references/spec/#gateway.networking.k8s.io/v1.HTTPRequestRedirectFilter) | 🟠 **Extended**                | 🟢 **High**   | Complete             |
+| **URLRewrite**      | ✅ **Supported** | Rewrite URLs before forwarding           | [URL Rewrite](https://gateway-api.sigs.k8s.io/references/spec/#gateway.networking.k8s.io/v1.HTTPURLRewriteFilter)           | 🟠 **Extended**                | 🟢 **High**   | Complete             |
+| **StaticResponse**  | ✅ **Supported** | Return static responses without upstream | Custom Kubera extension for maintenance pages, error responses, and testing                                                 | 🔧 **Implementation Specific** | 🟡 **Medium** | Complete             |
+| **RequestMirror**   | 🏗️ **Defined** | Mirror requests to additional backends   | [Request Mirror](https://gateway-api.sigs.k8s.io/references/spec/#gateway.networking.k8s.io/v1.HTTPRequestMirrorFilter)     | 🟠 **Extended**                | 🔴 **None**   | **High** (3-4 weeks) |
 
 ### Implementation Notes
 
@@ -96,6 +97,15 @@ Kubera Gateway.
     - Proper Pingora integration with request header modifications
     - Complete test coverage with 9/9 tests passing
     - Applied after redirect checks but before upstream forwarding
+- **StaticResponse**: Fully implemented as a custom Kubera extension for maintenance pages and error responses
+    - Supports configurable HTTP status codes (200, 404, 503, etc.)
+    - Custom response bodies with configurable Content-Type headers
+    - Key-based lookup system for response configuration management
+    - Integrated with Gateway API filter chain with highest precedence
+    - Proper Pingora session integration with direct response writing
+    - Uses identifier field as response body content (extensible for file loading)
+    - Comprehensive logging and error handling with debug/warn levels
+    - Applied before redirect and rewrite filters in the processing pipeline
 - **RequestMirror**: Basic filter framework is in place with placeholder structures
 - Request mirroring needs Pingora integration for async request duplication
 

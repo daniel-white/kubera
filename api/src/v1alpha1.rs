@@ -244,3 +244,36 @@ pub fn cidr_array_schema(_: &mut SchemaGenerator) -> Schema {
 
     Schema::Object(schema)
 }
+
+#[derive(Default, CustomResource, Deserialize, Serialize, Clone, Debug, JsonSchema, PartialEq)]
+#[kube(
+    kind = "StaticResponseFilter",
+    group = "kubera.whitefamily.in",
+    version = "v1alpha1",
+    namespaced,
+    singular = "staticresponsefilter",
+    plural = "staticresponsefilters"
+)]
+#[kube(derive = "Default")]
+#[kube(derive = "PartialEq")]
+pub struct StaticResponseFilterSpec {
+    pub status_code: u16,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub body: Option<StaticResponseFilterBody>,
+}
+
+#[derive(Deserialize, Serialize, Clone, Debug, JsonSchema, PartialEq)]
+pub enum StaticResponseFilterBodyFormat {
+    Text,
+    Binary,
+}
+
+#[derive(Deserialize, Serialize, Clone, Debug, JsonSchema, PartialEq)]
+pub struct StaticResponseFilterBody {
+    pub format: StaticResponseFilterBodyFormat,
+    pub content_type: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub text: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub binary: Option<String>,
+}

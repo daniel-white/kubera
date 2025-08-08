@@ -1,5 +1,7 @@
 use crate::controllers::instances::InstanceRole;
-use crate::controllers::transformers::{Backend, GatewayInstanceConfiguration};
+use crate::controllers::transformers::{
+    Backend, ExtensionFilterKind, ExtensionFilters, GatewayInstanceConfiguration,
+};
 use crate::ipc::IpcServices;
 use crate::kubernetes::objects::{ObjectRef, SyncObjectAction};
 use crate::kubernetes::KubeClientCell;
@@ -15,16 +17,20 @@ use getset::CloneGetters;
 use gtmpl_derive::Gtmpl;
 use k8s_openapi::api::core::v1::{ConfigMap, Service};
 use kube::runtime::watcher::Config;
-use kubera_api::v1alpha1::{ClientAddressesSource, ErrorResponseKind, ProxyIpAddressHeaders};
+use kube::ResourceExt;
+use kubera_api::v1alpha1::{
+    ClientAddressesSource, ErrorResponseKind, ProxyIpAddressHeaders, StaticResponseFilter,
+};
 use kubera_core::config::gateway::types::http::filters::{
-    HTTPHeader, HTTPRouteFilter, HTTPRouteFilterType, RequestHeaderModifier, ResponseHeaderModifier,
+    ExtStaticResponseRef, HTTPHeader, HttpRouteFilter, HttpRouteFilterType, RequestHeaderModifier,
+    ResponseHeaderModifier,
 };
 use kubera_core::config::gateway::types::http::router::{
     HttpMethodMatch, HttpRouteBuilder, HttpRouteRuleBuilder, HttpRouteRuleMatchesBuilder,
 };
 use kubera_core::config::gateway::types::net::{
     ErrorResponseKind as ConfigErrorResponseKind, ErrorResponses as ConfigErrorResponses,
-    ProblemDetailErrorResponse, ProxyHeaders,
+    ProblemDetailErrorResponse, ProxyHeaders, StaticResponse, StaticResponseBody,
 };
 use kubera_core::config::gateway::types::{GatewayConfiguration, GatewayConfigurationBuilder};
 use kubera_core::net::{Hostname, Port};
@@ -68,6 +74,8 @@ pub struct SyncGatewayConfigmapsParams {
     http_routes_rx: Receiver<HashMap<ObjectRef, Vec<Arc<HTTPRoute>>>>,
     #[getset(get_clone = "pub")]
     backends_rx: Receiver<HashMap<ObjectRef, Backend>>,
+    #[getset(get_clone = "pub")]
+    extension_filters_rx: Receiver<HashMap<ObjectRef, ExtensionFilters>>,
 }
 
 pub fn sync_gateway_configmaps(task_builder: &TaskBuilder, params: SyncGatewayConfigmapsParams) {
@@ -94,6 +102,7 @@ pub fn sync_gateway_configmaps(task_builder: &TaskBuilder, params: SyncGatewayCo
         .gateway_instances_rx(params.gateway_instances_rx())
         .http_routes_rx(params.http_routes_rx())
         .backends_rx(params.backends_rx())
+        .extension_filters_rx(params.extension_filters_rx())
         .build();
 
     generate_gateway_configmaps(task_builder, params);
@@ -117,6 +126,8 @@ struct GenerateGatewayConfigmapsParams {
     http_routes_rx: Receiver<HashMap<ObjectRef, Vec<Arc<HTTPRoute>>>>,
     #[getset(get_clone = "pub")]
     backends_rx: Receiver<HashMap<ObjectRef, Backend>>,
+    #[getset(get_clone = "pub")]
+    extension_filters_rx: Receiver<HashMap<ObjectRef, ExtensionFilters>>,
 }
 
 fn generate_gateway_configmaps(
@@ -130,6 +141,7 @@ fn generate_gateway_configmaps(
         params.gateway_instances_rx(),
         params.http_routes_rx(),
         params.backends_rx(),
+        params.extension_filters_rx(),
     );
 
     task_builder
@@ -253,6 +265,7 @@ fn generate_gateway_configurations(
     gateway_instances_rx: Receiver<HashMap<ObjectRef, GatewayInstanceConfiguration>>,
     http_routes_rx: Receiver<HashMap<ObjectRef, Vec<Arc<HTTPRoute>>>>,
     backends_rx: Receiver<HashMap<ObjectRef, Backend>>,
+    extension_filters_rx: Receiver<HashMap<ObjectRef, ExtensionFilters>>,
 ) -> Receiver<HashMap<ObjectRef, Option<GatewayConfiguration>>> {
     let (tx, rx) = signal();
 
@@ -264,16 +277,22 @@ fn generate_gateway_configurations(
                     primary_instance_ip_addr_rx,
                     gateway_instances_rx,
                     http_routes_rx,
-                    backends_rx
+                    backends_rx,
+                    extension_filters_rx
                 )
                 .and_then(
-                    async |primary_instance_ip_addr, gateway_instances, http_routes, backends| {
+                    async |primary_instance_ip_addr,
+                           gateway_instances,
+                           http_routes,
+                           backends,
+                           extension_filters| {
                         let configs: HashMap<ObjectRef, Option<GatewayConfiguration>> =
                             gateway_instances
                                 .iter()
                                 .map(|(gateway_ref, gateway_instance)| {
                                     let mut gateway_configuration =
                                         GatewayConfigurationBuilder::default();
+                                    let extension_filters = extension_filters.get(gateway_ref);
 
                                     set_ipc(
                                         &mut gateway_configuration,
@@ -288,6 +307,13 @@ fn generate_gateway_configurations(
                                         &mut gateway_configuration,
                                         gateway_instance,
                                     );
+                                    if let Some(extension_filters) = extension_filters {
+                                        set_static_responses(
+                                            &mut gateway_configuration,
+                                            extension_filters,
+                                        );
+                                    }
+
                                     add_listeners(&mut gateway_configuration, gateway_instance);
 
                                     process_http_routes(
@@ -329,6 +355,35 @@ fn generate_gateway_configurations(
         });
 
     rx
+}
+
+fn set_static_responses(
+    builder: &mut GatewayConfigurationBuilder,
+    extension_filters: &ExtensionFilters,
+) {
+    let static_responses = extension_filters
+        .static_responses()
+        .iter()
+        .map(|(ref_, _, filter)| {
+            let spec = &filter.spec;
+            let builder = StaticResponse::builder()
+                .key(ref_.to_string())
+                .version_key(filter.metadata.resource_version.as_ref().unwrap())
+                .status_code(spec.status_code);
+
+            if let Some(body) = &spec.body {
+                let body = StaticResponseBody::builder()
+                    .content_type(body.content_type.clone())
+                    .identifier(filter.uid().unwrap())
+                    .build();
+
+                builder.body(body).build()
+            } else {
+                builder.build()
+            }
+        })
+        .collect();
+    builder.with_static_responses(static_responses);
 }
 
 fn format_rule_id(gateway: &Gateway, route: &HTTPRoute, idx: usize) -> Option<String> {
@@ -455,14 +510,14 @@ fn process_http_routes(
                                         }
 
                                         // Add filter to Kubera configuration
-                                        let kubera_filter = HTTPRouteFilter {
-                                            filter_type: HTTPRouteFilterType::RequestHeaderModifier,
+                                        let kubera_filter = HttpRouteFilter {
+                                            filter_type: HttpRouteFilterType::RequestHeaderModifier,
                                             request_header_modifier: Some(kubera_modifier),
                                             response_header_modifier: None,
                                             request_mirror: None,
                                             request_redirect: None,
                                             url_rewrite: None,
-                                            extension_ref: None,
+                                            ext_static_response: None,
                                         };
 
                                         target.add_filter(kubera_filter);
@@ -493,14 +548,14 @@ fn process_http_routes(
                                         }
 
                                         // Add filter to Kubera configuration
-                                        let kubera_filter = HTTPRouteFilter {
-                                            filter_type: HTTPRouteFilterType::ResponseHeaderModifier,
+                                        let kubera_filter = HttpRouteFilter {
+                                            filter_type: HttpRouteFilterType::ResponseHeaderModifier,
                                             request_header_modifier: None,
                                             response_header_modifier: Some(kubera_modifier),
                                             request_mirror: None,
                                             request_redirect: None,
                                             url_rewrite: None,
-                                            extension_ref: None,
+                                            ext_static_response: None,
                                         };
 
                                         target.add_filter(kubera_filter);
@@ -510,14 +565,14 @@ fn process_http_routes(
                                         use crate::controllers::filters::gateway_api_converter::convert_request_redirect;
 
                                         let kubera_redirect = convert_request_redirect(request_redirect);
-                                        let kubera_filter = HTTPRouteFilter {
-                                            filter_type: HTTPRouteFilterType::RequestRedirect,
+                                        let kubera_filter = HttpRouteFilter {
+                                            filter_type: HttpRouteFilterType::RequestRedirect,
                                             request_header_modifier: None,
                                             response_header_modifier: None,
                                             request_mirror: None,
                                             request_redirect: Some(kubera_redirect),
                                             url_rewrite: None,
-                                            extension_ref: None,
+                                            ext_static_response: None,
                                         };
                                         target.add_filter(kubera_filter);
                                     }
@@ -539,7 +594,7 @@ fn process_http_routes(
                                                         replace_full_path: path_config.replace_full_path.clone(),
                                                         replace_prefix_match: None,
                                                     }
-                                                },
+                                                }
                                                 gateway_api::apis::standard::httproutes::HTTPRouteRulesFiltersUrlRewritePathType::ReplacePrefixMatch => {
                                                     PathRewrite {
                                                         rewrite_type: PathRewriteType::ReplacePrefixMatch,
@@ -552,16 +607,57 @@ fn process_http_routes(
                                         }
 
                                         // Add URLRewrite filter to Kubera configuration
-                                        let kubera_filter = HTTPRouteFilter {
-                                            filter_type: HTTPRouteFilterType::URLRewrite,
+                                        let kubera_filter = HttpRouteFilter {
+                                            filter_type: HttpRouteFilterType::URLRewrite,
                                             request_header_modifier: None,
                                             response_header_modifier: None,
                                             request_mirror: None,
                                             request_redirect: None,
                                             url_rewrite: Some(kubera_url_rewrite),
-                                            extension_ref: None,
+                                            ext_static_response: None,
                                         };
                                         target.add_filter(kubera_filter);
+                                    }
+
+                                    if let Some(extension_ref) = &filter.extension_ref {
+                                        // Handle extension filters
+                                        if extension_ref.group == "kubera.whitefamily.in" {
+                                            match ExtensionFilterKind::try_from(extension_ref.kind.as_str()) {
+                                                Ok(ExtensionFilterKind::StaticResponseFilter) => {
+                                                    let filter_ref = ObjectRef::of_kind::<StaticResponseFilter>()
+                                                        .namespace(http_route.metadata.namespace.clone())
+                                                        .name(&extension_ref.name)
+                                                        .build();
+
+                                                    let static_response = ExtStaticResponseRef::builder()
+                                                        .key(filter_ref.to_string())
+                                                        .build();
+
+                                                    let kubera_filter = HttpRouteFilter {
+                                                        filter_type: HttpRouteFilterType::ExtStaticResponse,
+                                                        request_header_modifier: None,
+                                                        response_header_modifier: None,
+                                                        request_mirror: None,
+                                                        request_redirect: None,
+                                                        url_rewrite: None,
+                                                        ext_static_response: Some(static_response),
+                                                    };
+
+                                                    target.add_filter(kubera_filter);
+                                                }
+                                                Err(err) => {
+                                                    warn!(
+                                                        "Unsupported extension filter kind {}: {}",
+                                                        extension_ref.kind, err
+                                                    );
+                                                }
+                                            }
+                                        } else {
+                                            warn!(
+                                                "Unsupported extension filter group {} for HTTPRoute {:?} at rule index {}",
+                                                extension_ref.group, http_route.metadata.name, index
+                                            );
+                                        }
                                     }
                                 }
                             }

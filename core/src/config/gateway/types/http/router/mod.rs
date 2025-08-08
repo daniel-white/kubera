@@ -1,6 +1,6 @@
 mod matches;
 
-use crate::config::gateway::types::http::filters::HTTPRouteFilter;
+use crate::config::gateway::types::http::filters::HttpRouteFilter;
 use crate::config::gateway::types::net::{Backend, BackendBuilder, BackendBuilderError};
 use getset::Getters;
 use itertools::{Either, Itertools};
@@ -38,7 +38,7 @@ pub struct HttpRouteRule {
     #[getset(get = "pub")]
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     #[validate(max_items = 16)]
-    filters: Vec<HTTPRouteFilter>,
+    filters: Vec<HttpRouteFilter>,
 }
 
 #[derive(Debug, Error)]
@@ -52,7 +52,7 @@ pub struct HttpRouteRuleBuilder {
     unique_id: HttpRouteRuleUniqueId,
     match_builders: Vec<HttpRouteRuleMatchesBuilder>,
     backend_builders: Vec<BackendBuilder>,
-    filters: Vec<HTTPRouteFilter>,
+    filters: Vec<HttpRouteFilter>,
 }
 
 impl HttpRouteRuleBuilder {
@@ -113,7 +113,7 @@ impl HttpRouteRuleBuilder {
     }
 
     /// Add a filter to the filters array
-    pub fn add_filter(&mut self, filter: HTTPRouteFilter) -> &mut Self {
+    pub fn add_filter(&mut self, filter: HttpRouteFilter) -> &mut Self {
         self.filters.push(filter);
         self
     }

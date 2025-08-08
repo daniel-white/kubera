@@ -1,10 +1,13 @@
 mod get_gateway_configuration;
 mod get_gateway_events;
+mod get_static_response;
 mod liveness_check;
 
 use self::get_gateway_configuration::get_gateway_configuration;
 use self::get_gateway_events::get_gateway_events;
+use crate::controllers::StaticResponsesCache;
 use crate::health::KubernetesApiHealthIndicator;
+use crate::ipc::endpoints::get_static_response::get_static_response;
 use crate::ipc::endpoints::liveness_check::liveness_check;
 use crate::ipc::events::EventStreamFactory;
 use crate::ipc::gateways::GatewayConfigurationReader;
@@ -38,6 +41,9 @@ pub struct IpcEndpointState {
 
     #[getset(get = "pub")]
     gateways: GatewayConfigurationReader,
+
+    #[getset(get_clone = "pub")]
+    static_responses_cache: StaticResponsesCache,
 }
 
 #[derive(TypedBuilder, CloneGetters, CopyGetters)]
@@ -56,6 +62,9 @@ pub struct SpawnIpcEndpointParameters {
 
     #[getset(get_clone = "")]
     kube_client_rx: Receiver<KubeClientCell>,
+
+    #[getset(get_clone = "")]
+    static_responses_cache: StaticResponsesCache,
 }
 
 impl SpawnIpcEndpointParameters {
@@ -81,6 +90,7 @@ pub async fn spawn_ipc_endpoint(
         .options(params.options())
         .gateways(params.gateways())
         .events(params.events())
+        .static_responses_cache(params.static_responses_cache())
         .build();
 
     let kube_health = KubernetesApiHealthIndicator::new(&params.kube_client_rx);
@@ -112,6 +122,10 @@ fn router(state: IpcEndpointState, health: Health) -> Router {
         .route(
             "/ipc/namespaces/{gateway_namespace}/gateways/{gateway_name}/events",
             get(get_gateway_events),
+        )
+        .route(
+            "/ipc/namespaces/{gateway_namespace}/gateways/{gateway_name}/static_responses/{static_response_filter_id}",
+            get(get_static_response),
         )
         .fallback(not_found)
         .method_not_allowed_fallback(method_not_allowed)

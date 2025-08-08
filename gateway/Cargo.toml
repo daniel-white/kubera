@@ -6,9 +6,10 @@ edition = "2024"
 [dependencies]
 anyhow = { workspace = true }
 async-trait = { workspace = true }
-bytes = "1"
+bytes = { workspace = true }
 enumflags2 = { workspace = true }
 clap = { workspace = true }
+dashmap = { workspace = true }
 eventsource-client = { version = "0.15" }
 futures = { workspace = true }
 getset = { workspace = true }

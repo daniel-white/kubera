@@ -12,6 +12,7 @@ use crate::controllers::config::selector::{SelectorParams, select_configuration}
 use crate::controllers::ipc_events::{PollGatewayEventsParams, poll_gateway_events};
 use crate::controllers::router::synthesize_http_router;
 use crate::proxy::Proxy;
+use crate::proxy::filters::static_responses::static_responses;
 use crate::proxy::responses::error_responses::error_responses;
 use clap::Parser;
 use kubera_core::crypto::init_crypto;
@@ -23,6 +24,7 @@ use pingora::server::Server;
 use pingora::services::listening::Service;
 use proxy::filters::client_addrs::client_addr_filter;
 use proxy::router::topology::TopologyLocation;
+use crate::controllers::static_response_bodies_cache::static_response_bodies_cache;
 
 #[tokio::main]
 async fn main() {
@@ -55,7 +57,7 @@ async fn main() {
 
     let ipc_configuration_source_rx = {
         let params = FetchConfigurationParams::builder()
-            .ipc_endpoint_rx(ipc_endpoint_rx)
+            .ipc_endpoint_rx(ipc_endpoint_rx.clone())
             .gateway_events_rx(gateway_events_tx.subscribe())
             .pod_name(args.pod_name())
             .gateway_namespace(args.pod_namespace())
@@ -88,6 +90,15 @@ async fn main() {
         synthesize_http_router(&task_builder, &gateway_configuration_rx, current_location);
     let client_addr_filter_rx = client_addr_filter(&task_builder, &gateway_configuration_rx);
     let error_responses_rx = error_responses(&task_builder, &gateway_configuration_rx);
+    let static_responses_rx = static_responses(&task_builder, &gateway_configuration_rx);
+    let static_response_bodies_cache = static_response_bodies_cache(
+        &task_builder,
+        &static_responses_rx,
+        &ipc_endpoint_rx,
+        args.pod_name(),
+        args.pod_namespace(),
+        args.gateway_name(),
+    );
 
     task_builder.new_task("server").spawn_blocking(move || {
         let mut server = Server::new(None).unwrap();
@@ -96,6 +107,8 @@ async fn main() {
             .client_addr_filter_rx(client_addr_filter_rx)
             .error_responses_rx(error_responses_rx)
             .router_rx(router_rx)
+            .static_responses_rx(static_responses_rx)
+            .static_response_bodies_cache(static_response_bodies_cache)
             .build();
         let mut service = http_proxy_service(&server.configuration, proxy);
         service.add_tcp("0.0.0.0:8080");

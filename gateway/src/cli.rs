@@ -40,7 +40,7 @@ pub struct Cli {
     #[arg(env = "POD_NAME", long = "pod-name")]
     pod_name: String,
 
-    #[getset(get = "pub")]
+    #[getset(get_clone = "pub")]
     #[arg(env = "GATEWAY_NAME", long = "gateway-name")]
     gateway_name: String,
 }

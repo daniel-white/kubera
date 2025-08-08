@@ -433,3 +433,56 @@ data:
     
     Both request and response header modifications are applied transparently
     and can be configured independently per route.
+---
+apiVersion: kubera.whitefamily.in/v1alpha1
+kind: StaticResponseFilter
+metadata:
+  name: no-content-204
+  namespace: default
+spec:
+  status_code: 204
+  # No body specified for 204 No Content response
+---
+apiVersion: kubera.whitefamily.in/v1alpha1
+kind: StaticResponseFilter
+metadata:
+  name: hello-world
+  namespace: default
+spec:
+  status_code: 200
+  body:
+    format: Text
+    content_type: "text/plain"
+    text: "Hello, World!"
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: static-response-routes
+  namespace: default
+spec:
+  parentRefs:
+    - name: kubera-gateway
+  rules:
+    # New 204 No Content route
+    - matches:
+        - path:
+            type: PathPrefix
+            value: "/static"
+      filters:
+        - type: ExtensionRef
+          extensionRef:
+            group: kubera.whitefamily.in
+            kind: StaticResponseFilter
+            name: no-content-204
+    # Hello World route for demonstration
+    - matches:
+        - path:
+            type: PathPrefix
+            value: "/static/hello"
+      filters:
+        - type: ExtensionRef
+          extensionRef:
+            group: kubera.whitefamily.in
+            kind: StaticResponseFilter
+            name: hello-world

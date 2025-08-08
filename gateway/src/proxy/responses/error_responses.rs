@@ -72,6 +72,7 @@ pub enum ErrorResponseCode {
     NoRoute,
     MissingConfiguration,
     UpstreamUnavailable,
+    InvalidConfiguration,
 }
 
 impl From<ErrorResponseCode> for StatusCode {
@@ -80,6 +81,7 @@ impl From<ErrorResponseCode> for StatusCode {
             ErrorResponseCode::NoRoute => StatusCode::NOT_FOUND,
             ErrorResponseCode::MissingConfiguration => StatusCode::INTERNAL_SERVER_ERROR,
             ErrorResponseCode::UpstreamUnavailable => StatusCode::SERVICE_UNAVAILABLE,
+            ErrorResponseCode::InvalidConfiguration => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
 }
@@ -90,6 +92,7 @@ impl From<ErrorResponseCode> for Cow<'static, str> {
             ErrorResponseCode::NoRoute => "No matching route found".into(),
             ErrorResponseCode::MissingConfiguration => "Missing configuration".into(),
             ErrorResponseCode::UpstreamUnavailable => "Upstream unavailable".into(),
+            ErrorResponseCode::InvalidConfiguration => "Invalid configuration".into(),
         }
     }
 }

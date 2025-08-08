@@ -5,14 +5,15 @@ use serde::{Deserialize, Serialize};
 use serde_valid::Validate;
 use std::str::FromStr;
 use thiserror::Error;
+use typed_builder::TypedBuilder;
 
 /// HTTP Route Filter - matches Gateway API structure
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub struct HTTPRouteFilter {
+pub struct HttpRouteFilter {
     /// Filter type - matches Gateway API filter types
     #[serde(rename = "type")]
-    pub filter_type: HTTPRouteFilterType,
+    pub filter_type: HttpRouteFilterType,
 
     /// `RequestHeaderModifier` defines a schema for a filter that modifies request headers
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -34,14 +35,13 @@ pub struct HTTPRouteFilter {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub url_rewrite: Option<URLRewrite>,
 
-    /// `ExtensionRef` is an optional, implementation-specific extension to the filter behavior
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub extension_ref: Option<ExtensionRef>,
+    pub ext_static_response: Option<ExtStaticResponseRef>,
 }
 
 /// HTTP Route Filter Types - matches Gateway API filter types
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-pub enum HTTPRouteFilterType {
+pub enum HttpRouteFilterType {
     #[serde(rename = "RequestHeaderModifier")]
     RequestHeaderModifier,
     #[serde(rename = "ResponseHeaderModifier")]
@@ -52,8 +52,8 @@ pub enum HTTPRouteFilterType {
     RequestRedirect,
     #[serde(rename = "URLRewrite")]
     URLRewrite,
-    #[serde(rename = "ExtensionRef")]
-    ExtensionRef,
+    #[serde(rename = "StaticResponse")]
+    ExtStaticResponse,
 }
 
 /// Request header modification filter - matches Gateway API `RequestHeaderModifier` structure
@@ -184,15 +184,9 @@ pub struct BackendRef {
     pub port: Option<u16>,
 }
 
-/// Extension reference for custom filters
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-pub struct ExtensionRef {
-    /// Group of the extension
-    pub group: String,
-    /// Kind of the extension
-    pub kind: String,
-    /// Name of the extension
-    pub name: String,
+pub struct StaticResponseRef {
+    pub key: String,
 }
 
 #[derive(Debug, Error)]
@@ -441,4 +435,12 @@ impl ResponseHeaderModifier {
             && self.add.as_ref().is_none_or(Vec::is_empty)
             && self.remove.as_ref().is_none_or(Vec::is_empty)
     }
+}
+
+#[derive(
+    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, Getters, TypedBuilder,
+)]
+pub struct ExtStaticResponseRef {
+    #[getset(get = "pub")]
+    key: String,
 }

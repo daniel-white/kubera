@@ -1,10 +1,10 @@
 use crate::proxy::router::topology::TopologyLocation;
 use crate::proxy::router::{HttpRouter, HttpRouterBuilder};
 use http::HeaderValue;
-use kubera_core::config::gateway::types::http::router::*;
 use kubera_core::config::gateway::types::GatewayConfiguration;
+use kubera_core::config::gateway::types::http::router::*;
 use kubera_core::continue_on;
-use kubera_core::sync::signal::{signal, Receiver};
+use kubera_core::sync::signal::{Receiver, signal};
 use kubera_core::task::Builder as TaskBuilder;
 use kubera_macros::await_ready;
 use std::sync::Arc;

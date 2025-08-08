@@ -41,11 +41,15 @@ fn write_crds(out_dir: &Path) {
     let dest_path = out_dir.join("crds.yaml");
     let file = File::create(dest_path).unwrap();
 
-    [GatewayClassParameters::crd(), GatewayParameters::crd()]
-        .iter()
-        .fold(file, |mut output, crd| {
-            writeln!(output, "---").unwrap();
-            writeln!(output, "{}", serde_yaml::to_string(crd).unwrap().as_str()).unwrap();
-            output
-        });
+    [
+        GatewayClassParameters::crd(),
+        GatewayParameters::crd(),
+        StaticResponseFilter::crd(),
+    ]
+    .iter()
+    .fold(file, |mut output, crd| {
+        writeln!(output, "---").unwrap();
+        writeln!(output, "{}", serde_yaml::to_string(crd).unwrap().as_str()).unwrap();
+        output
+    });
 }

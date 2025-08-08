@@ -4,7 +4,9 @@ pub mod filters;
 pub mod responses;
 pub mod router;
 
+use crate::controllers::static_response_bodies_cache::StaticResponseBodiesCache;
 use crate::proxy::context::{MatchRouteResult, UpstreamPeerResult};
+use crate::proxy::filters::static_responses::StaticResponseFilter;
 use crate::proxy::responses::error_responses::{ErrorResponseCode, ErrorResponseGenerators};
 use async_trait::async_trait;
 use context::Context;
@@ -15,11 +17,14 @@ use filters::response_headers::ResponseHeaderFilter;
 use filters::url_rewrite::URLRewriteFilter;
 use http::header::SERVER;
 use http::StatusCode;
+use kubera_core::config::gateway::types::net::StaticResponse;
 use kubera_core::sync::signal::Receiver;
 use pingora::http::ResponseHeader;
 use pingora::prelude::*;
 use pingora::protocols::http::error_resp::gen_error_response;
 use router::HttpRouter;
+use std::collections::HashMap;
+use std::sync::Arc;
 use tracing::{debug, warn};
 use typed_builder::TypedBuilder;
 
@@ -28,6 +33,8 @@ pub struct Proxy {
     router_rx: Receiver<HttpRouter>,
     client_addr_filter_rx: Receiver<ClientAddrFilter>,
     error_responses_rx: Receiver<ErrorResponseGenerators>,
+    static_responses_rx: Receiver<Arc<HashMap<String, StaticResponse>>>,
+    static_response_bodies_cache: StaticResponseBodiesCache,
 }
 
 #[async_trait]
@@ -89,6 +96,47 @@ impl ProxyHttp for Proxy {
 
         let error_code = match route {
             MatchRouteResult::Found(route, rule, matched_prefix) => {
+                // Check for static response filters first - they should take precedence
+                for filter in rule.filters() {
+                    if let Some(ext_static_response) = &filter.ext_static_response {
+                        if let Some(static_responses) = self.static_responses_rx.get().await {
+                            let static_filter = StaticResponseFilter::builder()
+                                .responses(static_responses)
+                                .static_response_bodies(self.static_response_bodies_cache.clone())
+                                .build();
+
+                            match static_filter
+                                .apply_to_session(session, ext_static_response.key())
+                                .await
+                            {
+                                Ok(true) => {
+                                    debug!(
+                                        "Applied static response filter for route: {:?} with key: {}",
+                                        route,
+                                        ext_static_response.key()
+                                    );
+                                    return Ok(true); // Request handled, don't proceed to upstream
+                                }
+                                Ok(false) => {
+                                    debug!(
+                                        "Static response key '{}' not found in configuration",
+                                        ext_static_response.key()
+                                    );
+                                }
+                                Err(e) => {
+                                    warn!(
+                                        "Failed to apply static response filter for key '{}': {}",
+                                        ext_static_response.key(),
+                                        e
+                                    );
+                                }
+                            }
+                        } else {
+                            warn!("No static responses configuration available");
+                        }
+                    }
+                }
+
                 // Check for redirect filters before proceeding to upstream
                 for filter in rule.filters() {
                     if let Some(request_redirect) = &filter.request_redirect {
@@ -183,6 +231,37 @@ impl ProxyHttp for Proxy {
         Ok(true)
     }
 
+    async fn upstream_request_filter(
+        &self,
+        _session: &mut Session,
+        upstream_request: &mut RequestHeader,
+        ctx: &mut Self::CTX,
+    ) -> Result<()> {
+        // Apply backend-level header modifications from the matched route rule
+        if let Some(context::MatchRouteResult::Found(route, rule, _)) = ctx.route() {
+            if !rule.filters().is_empty() {
+                for filter in rule.filters() {
+                    if let Some(request_header_modifier) = &filter.request_header_modifier {
+                        let header_filter =
+                            RequestHeaderFilter::new(request_header_modifier.clone());
+                        if let Err(e) = header_filter.apply_to_headers(upstream_request) {
+                            warn!("Failed to apply upstream request header filter: {}", e);
+                        } else {
+                            debug!(
+                                "Applied upstream request header filter for route: {:?}",
+                                route
+                            );
+                        }
+                    }
+                }
+            }
+        } else {
+            debug!("No matched route found for upstream request header filter");
+        }
+
+        Ok(())
+    }
+
     async fn response_filter(
         &self,
         _session: &mut Session,
@@ -211,37 +290,6 @@ impl ProxyHttp for Proxy {
             }
         } else {
             debug!("No matched route found for response header filter");
-        }
-
-        Ok(())
-    }
-
-    async fn upstream_request_filter(
-        &self,
-        _session: &mut Session,
-        upstream_request: &mut RequestHeader,
-        ctx: &mut Self::CTX,
-    ) -> Result<()> {
-        // Apply backend-level header modifications from the matched route rule
-        if let Some(context::MatchRouteResult::Found(route, rule, _)) = ctx.route() {
-            if !rule.filters().is_empty() {
-                for filter in rule.filters() {
-                    if let Some(request_header_modifier) = &filter.request_header_modifier {
-                        let header_filter =
-                            RequestHeaderFilter::new(request_header_modifier.clone());
-                        if let Err(e) = header_filter.apply_to_headers(upstream_request) {
-                            warn!("Failed to apply upstream request header filter: {}", e);
-                        } else {
-                            debug!(
-                                "Applied upstream request header filter for route: {:?}",
-                                route
-                            );
-                        }
-                    }
-                }
-            }
-        } else {
-            debug!("No matched route found for upstream request header filter");
         }
 
         Ok(())
