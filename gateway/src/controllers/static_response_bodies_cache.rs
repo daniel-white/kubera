@@ -2,24 +2,23 @@ use bytes::Bytes;
 use dashmap::DashMap;
 use dashmap::Entry::*;
 use http::StatusCode;
-use kubera_core::config::gateway::types::net::StaticResponse;
-use kubera_core::continue_on;
-use kubera_core::sync::signal::Receiver;
-use kubera_core::task::Builder as TaskBuilder;
-use kubera_macros::await_ready;
-use reqwest::Client;
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use tracing::{debug, info, warn};
 use url::Url;
+use vg_core::config::gateway::types::net::StaticResponse;
+use vg_core::continue_on;
+use vg_core::sync::signal::Receiver;
+use vg_core::task::Builder as TaskBuilder;
+use vg_macros::await_ready;
 
 #[derive(Debug)]
 struct StaticResponseBodiesCacheState {
     cache: DashMap<String, (String, Arc<Bytes>)>,
     responses: HashMap<String, StaticResponse>,
-    client: Client,
+    client: reqwest::Client,
     ipc_endpoint: SocketAddr,
     pod_name: String,
     gateway_namespace: String,
@@ -110,7 +109,7 @@ pub fn static_response_bodies_cache(
                         state.replace(StaticResponseBodiesCacheState {
                             cache: DashMap::new(),
                             responses: static_responses.as_ref().clone(),
-                            client: Client::new(),
+                            client: reqwest::Client::new(),
                             ipc_endpoint,
                             pod_name: pod_name.clone(),
                             gateway_namespace: gateway_namespace.clone(),

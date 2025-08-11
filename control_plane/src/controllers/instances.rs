@@ -9,9 +9,9 @@ use kube::runtime::controller::Action;
 use kube::runtime::watcher::Config;
 use kube::{Api, Client};
 use kube_leader_election::{LeaseLock, LeaseLockParams, LeaseLockResult};
-use kubera_core::sync::signal::{Receiver, Sender, signal};
-use kubera_core::task::Builder as TaskBuilder;
-use kubera_core::{continue_after, continue_on};
+use vg_core::sync::signal::{Receiver, Sender, signal};
+use vg_core::task::Builder as TaskBuilder;
+use vg_core::{continue_after, continue_on};
 use std::future::ready;
 use std::net::IpAddr;
 use std::str::FromStr;
@@ -61,21 +61,21 @@ pub fn watch_leader_instance_ip_addr(
     task_builder
         .new_task(stringify!(watch_leader_instance_ip_addr))
         .spawn(async move {
-        let controller_context = Arc::new(ControllerContext { options, tx });
-        loop {
-            match (kube_client_rx.get().await.as_deref(), instance_role_rx.get().await.and_then(|r| r.primary_pod_ref().cloned())) {
-                (Some(kube_client), Some(primary_pod_ref)) => {
-                    info!("Determining instance IP address for pod as it is the primary: {:?}", primary_pod_ref);
+            let controller_context = Arc::new(ControllerContext { options, tx });
+            loop {
+                match (kube_client_rx.get().await.as_deref(), instance_role_rx.get().await.and_then(|r| r.primary_pod_ref().cloned())) {
+                    (Some(kube_client), Some(primary_pod_ref)) => {
+                        info!("Determining instance IP address for pod as it is the primary: {:?}", primary_pod_ref);
 
-                    if let Some(namespace) = primary_pod_ref.namespace().as_deref() {
-                        let api = Api::<Pod>::namespaced(kube_client.clone(), namespace);
-                        let config = Config::default()
-                            .fields(format!("metadata.name={}", primary_pod_ref.name()).as_str());
-                        let controller = Controller::new(api, config)
-                            .shutdown_on_signal()
-                            .run(reconcile, error_policy, controller_context.clone())
-                            .for_each(|_| ready(()));
-                        select! {
+                        if let Some(namespace) = primary_pod_ref.namespace().as_deref() {
+                            let api = Api::<Pod>::namespaced(kube_client.clone(), namespace);
+                            let config = Config::default()
+                                .fields(format!("metadata.name={}", primary_pod_ref.name()).as_str());
+                            let controller = Controller::new(api, config)
+                                .shutdown_on_signal()
+                                .run(reconcile, error_policy, controller_context.clone())
+                                .for_each(|_| ready(()));
+                            select! {
                             () = controller => {
                                 break;
                             },
@@ -86,21 +86,21 @@ pub fn watch_leader_instance_ip_addr(
                                 continue;
                             }
                         }
-                    } else {
-                        warn!("Primary pod reference missing namespace, cannot determine instance IP");
+                        } else {
+                            warn!("Primary pod reference missing namespace, cannot determine instance IP");
+                        }
+                    }
+                    (None, _) => {
+                        debug!("Kube client is not available, unable to determine primary instance IP address");
+                    }
+                    (_, None) => {
+                        debug!("Instance role is not available, unable to determine primary instance IP address");
                     }
                 }
-                (None, _) => {
-                    debug!("Kube client is not available, unable to determine primary instance IP address");
-                }
-                (_, None) => {
-                    debug!("Instance role is not available, unable to determine primary instance IP address");
-                }
-            }
 
-            continue_on!(kube_client_rx.changed(), instance_role_rx.changed());
-        }
-    });
+                continue_on!(kube_client_rx.changed(), instance_role_rx.changed());
+            }
+        });
 
     rx
 }
@@ -176,7 +176,7 @@ pub fn determine_instance_role(
                             Err(err) => {
                                 warn!("Failed to acquire or renew lease: {err}");
                                 tx.set(InstanceRole::Undetermined).await;
-                            },
+                            }
                         }
 
                         continue_after!(options.lease_check_interval());

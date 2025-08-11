@@ -1,12 +1,12 @@
 use crate::kubernetes::objects::{ObjectRef, Objects};
 use gateway_api::apis::standard::gatewayclasses::GatewayClass;
 use itertools::Itertools;
-use kubera_api::constants::GATEWAY_CLASS_CONTROLLER_NAME;
-use kubera_api::v1alpha1::GatewayClassParameters;
-use kubera_core::continue_on;
-use kubera_core::sync::signal::{Receiver, signal};
-use kubera_core::task::Builder as TaskBuilder;
-use kubera_macros::await_ready;
+use vg_api::constants::GATEWAY_CLASS_CONTROLLER_NAME;
+use vg_api::v1alpha1::GatewayClassParameters;
+use vg_core::continue_on;
+use vg_core::sync::signal::{Receiver, signal};
+use vg_core::task::Builder as TaskBuilder;
+use vg_macros::await_ready;
 use std::sync::Arc;
 use strum::{EnumString, IntoStaticStr};
 use tracing::{debug, info, warn};
@@ -71,13 +71,13 @@ pub fn filter_gateway_classes(
 
 #[derive(Debug, Clone, PartialEq, IntoStaticStr, EnumString)]
 pub enum GatewayClassParametersReferenceState {
-    #[strum(serialize = "kubera.whitefamily.in/NoRef")]
+    #[strum(serialize = "vale-gateway.whitefamily.in/NoRef")]
     NoRef,
-    #[strum(serialize = "kubera.whitefamily.in/InvalidRef")]
+    #[strum(serialize = "vale-gateway.whitefamily.in/InvalidRef")]
     InvalidRef,
-    #[strum(serialize = "kubera.whitefamily.in/NotFound")]
+    #[strum(serialize = "vale-gateway.whitefamily.in/NotFound")]
     NotFound,
-    #[strum(serialize = "kubera.whitefamily.in/Linked")]
+    #[strum(serialize = "vale-gateway.whitefamily.in/Linked")]
     Linked(Arc<GatewayClassParameters>),
 }
 
@@ -130,7 +130,7 @@ pub fn filter_gateway_class_parameters(
                                     tx.set(GatewayClassParametersReferenceState::Linked(
                                         parameters,
                                     ))
-                                    .await;
+                                        .await;
                                 } else {
                                     warn!(
                                         "GatewayClassParameters not found for reference: {}",

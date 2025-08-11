@@ -1,17 +1,17 @@
 use eventsource_client::{Client, ClientBuilder, SSE};
 use futures::TryStreamExt;
 use getset::Getters;
-use kubera_core::continue_on;
-use kubera_core::ipc::GatewayEvent;
-use kubera_core::sync::signal::Receiver;
-use kubera_core::task::Builder as TaskBuilder;
 use std::net::SocketAddr;
 use tokio::select;
 use tokio::signal::ctrl_c;
 use tokio::sync::broadcast::{Sender, channel};
-use tracing::info;
+use tracing::{debug, info};
 use typed_builder::TypedBuilder;
 use url::Url;
+use vg_core::continue_on;
+use vg_core::ipc::GatewayEvent;
+use vg_core::sync::signal::Receiver;
+use vg_core::task::Builder as TaskBuilder;
 
 #[derive(Debug, Getters, TypedBuilder)]
 pub struct PollGatewayEventsParams {
@@ -35,29 +35,29 @@ pub fn poll_gateway_events(
     task_builder
         .new_task(stringify!(poll_gateway_events))
         .spawn(async move {
-        'primary: loop {
-            if let Some(ipc_endpoint_addr) = ipc_endpoint_rx.get().await {
-                let url = {
-                    let mut url = Url::parse(&format!("http://{ipc_endpoint_addr}"))
-                        .expect("Failed to parse URL");
-                    url.set_path(&format!(
-                        "/ipc/namespaces/{}/gateways/{}/events",
-                        params.gateway_namespace, params.gateway_name
-                    ));
-                    url.set_query(Some(&format!("pod_name={}", params.pod_name)));
-                    url
-                };
+            'primary: loop {
+                if let Some(ipc_endpoint_addr) = ipc_endpoint_rx.get().await {
+                    let url = {
+                        let mut url = Url::parse(&format!("http://{ipc_endpoint_addr}"))
+                            .expect("Failed to parse URL");
+                        url.set_path(&format!(
+                            "/ipc/namespaces/{}/gateways/{}/events",
+                            params.gateway_namespace, params.gateway_name
+                        ));
+                        url.set_query(Some(&format!("pod_name={}", params.pod_name)));
+                        url
+                    };
 
-                info!("Watching events at URL: {}", url);
+                    info!("Watching events at URL: {}", url);
 
-                let client = ClientBuilder::for_url(url.as_str())
-                    .expect("Failed to create event source client builder")
-                    .build();
+                    let client = ClientBuilder::for_url(url.as_str())
+                        .expect("Failed to create event source client builder")
+                        .build();
 
-                let mut event_stream = Box::pin(client.stream());
+                    let mut event_stream = Box::pin(client.stream());
 
-                'events: loop {
-                    select! {
+                    'events: loop {
+                        select! {
                         _ = ctrl_c() => {
                             break 'primary; // Exit the loop, shutting down the watcher
                         },
@@ -90,12 +90,12 @@ pub fn poll_gateway_events(
                             }
                         }
                     }
+                    }
+                } else {
+                    continue_on!(ipc_endpoint_rx.changed());
                 }
-            } else {
-                continue_on!(ipc_endpoint_rx.changed());
             }
-        }
-    });
+        });
 
     tx
 }

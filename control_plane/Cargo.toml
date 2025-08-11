@@ -1,5 +1,5 @@
 [package]
-name = "kubera_control_plane"
+name = "vg-control-plane"
 version = "0.1.0"
 edition = "2024"
 
@@ -21,9 +21,10 @@ ipnet = { workspace = true }
 itertools = { workspace = true }
 k8s-openapi = { workspace = true, features = ["v1_32"] }
 kube = { workspace = true }
-kubera_api = { path = "../api" }
-kubera_core = { path = "../core" }
-kubera_macros = { path = "../macros" }
+vg-api = { path = "../api" }
+vg-core = { path = "../core" }
+vg-build = { path = "../build" }
+vg-macros = { path = "../macros" }
 problemdetails = { workspace = true, features = ["axum"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
@@ -37,6 +38,3 @@ kube-leader-election = { git = "https://github.com/daniel-white/kube-leader-elec
 strum = { workspace = true }
 axum-health = "0.1"
 typed-builder = { workspace = true }
-
-
-

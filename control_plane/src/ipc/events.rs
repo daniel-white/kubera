@@ -1,5 +1,5 @@
 use crate::kubernetes::objects::ObjectRef;
-use kubera_core::ipc::{Event, GatewayEvent};
+use vg_core::ipc::{Event, GatewayEvent};
 use std::fmt::Display;
 use thiserror::Error;
 use tokio::sync::broadcast::{Sender as BroadcastSender, channel as broadcast_channel};
@@ -37,7 +37,7 @@ pub struct EventStreamFactory {
 }
 
 impl EventStreamFactory {
-    pub fn all_events(&self) -> impl Stream<Item = Result<Event, RecvError>> + Send + use<> {
+    pub fn all_events(&self) -> impl Stream<Item=Result<Event, RecvError>> + Send + use < > {
         BroadcastStream::new(self.tx.subscribe()).filter_map(|event| match event {
             Ok(event) => Some(Ok(event)),
             Err(_) => Some(Err(RecvError)),
@@ -46,7 +46,7 @@ impl EventStreamFactory {
 
     pub fn gateway_events(
         &self,
-    ) -> impl Stream<Item = Result<GatewayEvent, RecvError>> + Send + use<> {
+    ) -> impl Stream<Item=Result<GatewayEvent, RecvError>> + Send + use < > {
         self.all_events().filter_map(|event| match event {
             Ok(Event::Gateway(event)) => Some(Ok(event)),
             Ok(_) => None,
@@ -57,7 +57,7 @@ impl EventStreamFactory {
     pub fn named_gateway_events(
         &self,
         gateway_ref: ObjectRef,
-    ) -> impl Stream<Item = Result<GatewayEvent, RecvError>> + Send + use<> {
+    ) -> impl Stream<Item=Result<GatewayEvent, RecvError>> + Send + use < > {
         self.gateway_events().filter(move |event| match event {
             Ok(GatewayEvent::ConfigurationUpdate(ref_)) => {
                 ref_.name() == gateway_ref.name()

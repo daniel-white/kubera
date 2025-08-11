@@ -4,27 +4,27 @@ mod proxy;
 mod util;
 
 use crate::cli::Cli;
-use crate::controllers::config::fs::{WatchConfigurationFileParams, watch_configuration_file};
+use crate::controllers::config::fs::{watch_configuration_file, WatchConfigurationFileParams};
 use crate::controllers::config::ipc::{
-    FetchConfigurationParams, fetch_configuration, watch_ipc_endpoint,
+    fetch_configuration, watch_ipc_endpoint, FetchConfigurationParams,
 };
-use crate::controllers::config::selector::{SelectorParams, select_configuration};
-use crate::controllers::ipc_events::{PollGatewayEventsParams, poll_gateway_events};
+use crate::controllers::config::selector::{select_configuration, SelectorParams};
+use crate::controllers::ipc_events::{poll_gateway_events, PollGatewayEventsParams};
 use crate::controllers::router::synthesize_http_router;
-use crate::proxy::Proxy;
+use crate::controllers::static_response_bodies_cache::static_response_bodies_cache;
 use crate::proxy::filters::static_responses::static_responses;
 use crate::proxy::responses::error_responses::error_responses;
+use crate::proxy::Proxy;
 use clap::Parser;
-use kubera_core::crypto::init_crypto;
-use kubera_core::instrumentation::init_instrumentation;
-use kubera_core::sync::signal::signal;
-use kubera_core::task::Builder as TaskBuilder;
 use pingora::prelude::*;
 use pingora::server::Server;
 use pingora::services::listening::Service;
 use proxy::filters::client_addrs::client_addr_filter;
 use proxy::router::topology::TopologyLocation;
-use crate::controllers::static_response_bodies_cache::static_response_bodies_cache;
+use vg_core::crypto::init_crypto;
+use vg_core::instrumentation::init_instrumentation;
+use vg_core::sync::signal::signal;
+use vg_core::task::Builder as TaskBuilder;
 
 #[tokio::main]
 async fn main() {

@@ -97,8 +97,8 @@ impl HeaderOperations for pingora::http::ResponseHeader {
 pub fn apply_header_modifications<H: HeaderOperations>(
     headers: &mut H,
     remove_headers: Option<&Vec<String>>,
-    set_headers: Option<&Vec<kubera_core::config::gateway::types::http::filters::HTTPHeader>>,
-    add_headers: Option<&Vec<kubera_core::config::gateway::types::http::filters::HTTPHeader>>,
+    set_headers: Option<&Vec<vg_core::config::gateway::types::http::filters::HTTPHeader>>,
+    add_headers: Option<&Vec<vg_core::config::gateway::types::http::filters::HTTPHeader>>,
     header_type: &str, // "request" or "response" for logging
 ) -> Result<(), H::Error> {
     // Remove headers first
@@ -169,7 +169,7 @@ pub fn apply_header_modifications<H: HeaderOperations>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use kubera_core::config::gateway::types::http::filters::HTTPHeader;
+    use vg_core::config::gateway::types::http::filters::HTTPHeader;
 
     fn create_test_headers() -> Vec<HTTPHeader> {
         vec![

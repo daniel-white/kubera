@@ -6,19 +6,19 @@ use k8s_openapi::DeepMerge;
 use k8s_openapi::api::apps::v1::{Deployment, DeploymentSpec, DeploymentStrategy};
 use k8s_openapi::api::core::v1::{Service, ServiceSpec};
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
-use kubera_api::v1alpha1::{
-    GatewayClassParameters, GatewayConfiguration, GatewayParameters,
-    ImagePullPolicy as ApiImagePullPolicy,
-};
-use kubera_core::continue_on;
-use kubera_core::sync::signal::{Receiver, signal};
-use kubera_core::task::Builder as TaskBuilder;
-use kubera_macros::await_ready;
 use serde_json::{from_value, json};
 use std::collections::HashMap;
 use std::sync::Arc;
 use strum::IntoStaticStr;
 use tracing::{info, warn};
+use vg_api::v1alpha1::{
+    GatewayClassParameters, GatewayConfiguration, GatewayParameters,
+    ImagePullPolicy as ApiImagePullPolicy,
+};
+use vg_core::continue_on;
+use vg_core::sync::signal::{Receiver, signal};
+use vg_core::task::Builder as TaskBuilder;
+use vg_macros::await_ready;
 
 #[derive(Default, Copy, Clone, Debug, PartialEq, IntoStaticStr)]
 #[strum(serialize_all = "PascalCase")]
@@ -84,60 +84,60 @@ pub fn collect_gateway_instances(
                     gateway_class_parameters_rx,
                     gateway_parameters_rx,
                 )
-                .and_then(
-                    async |gateways, gateway_class_parameters, gateway_parameters| {
-                        info!("Collecting gateway instances");
-                        let gateway_class_parameters: Option<Arc<GatewayClassParameters>> =
-                            gateway_class_parameters.into();
-                        let gateway_class_parameters = gateway_class_parameters.as_deref();
+                    .and_then(
+                        async |gateways, gateway_class_parameters, gateway_parameters| {
+                            info!("Collecting gateway instances");
+                            let gateway_class_parameters: Option<Arc<GatewayClassParameters>> =
+                                gateway_class_parameters.into();
+                            let gateway_class_parameters = gateway_class_parameters.as_deref();
 
-                        let instances = gateways
-                            .iter()
-                            .map(|(gateway_ref, _, gateway)| {
-                                info!("Processing gateway instance: {}", gateway_ref);
-                                let gateway_parameters =
-                                    gateway_parameters.get_by_ref(&gateway_ref);
-                                let gateway_parameters = gateway_parameters.as_deref();
-                                let (
-                                    deployment_overrides,
-                                    image_pull_policy,
-                                    image_repository,
-                                    image_tag,
-                                ) = merge_deployment_overrides(
-                                    &gateway,
-                                    gateway_class_parameters,
-                                    gateway_parameters,
-                                );
-                                let service_overrides = merge_service_overrides(
-                                    &gateway,
-                                    gateway_class_parameters,
-                                    gateway_parameters,
-                                );
-                                let configuration = merge_gateway_configuration(
-                                    &gateway,
-                                    gateway_class_parameters,
-                                    gateway_parameters,
-                                );
-                                (
-                                    gateway_ref,
-                                    GatewayInstanceConfiguration {
-                                        gateway,
-                                        service_overrides,
+                            let instances = gateways
+                                .iter()
+                                .map(|(gateway_ref, _, gateway)| {
+                                    info!("Processing gateway instance: {}", gateway_ref);
+                                    let gateway_parameters =
+                                        gateway_parameters.get_by_ref(&gateway_ref);
+                                    let gateway_parameters = gateway_parameters.as_deref();
+                                    let (
                                         deployment_overrides,
                                         image_pull_policy,
                                         image_repository,
                                         image_tag,
-                                        configuration,
-                                    },
-                                )
-                            })
-                            .collect();
+                                    ) = merge_deployment_overrides(
+                                        &gateway,
+                                        gateway_class_parameters,
+                                        gateway_parameters,
+                                    );
+                                    let service_overrides = merge_service_overrides(
+                                        &gateway,
+                                        gateway_class_parameters,
+                                        gateway_parameters,
+                                    );
+                                    let configuration = merge_gateway_configuration(
+                                        &gateway,
+                                        gateway_class_parameters,
+                                        gateway_parameters,
+                                    );
+                                    (
+                                        gateway_ref,
+                                        GatewayInstanceConfiguration {
+                                            gateway,
+                                            service_overrides,
+                                            deployment_overrides,
+                                            image_pull_policy,
+                                            image_repository,
+                                            image_tag,
+                                            configuration,
+                                        },
+                                    )
+                                })
+                                .collect();
 
-                        tx.set(instances).await;
-                    },
-                )
-                .run()
-                .await;
+                            tx.set(instances).await;
+                        },
+                    )
+                    .run()
+                    .await;
 
                 continue_on!(
                     gateways_rx.changed(),
@@ -186,7 +186,7 @@ fn merge_deployment_overrides(
                 .and_then(|img| img.repository.as_ref())
         })
         .cloned()
-        .unwrap_or_else(|| "kubera".to_string());
+        .unwrap_or_else(|| "vale-gateway".to_string());
 
     let image_tag = deployment_params
         .and_then(|p| p.image.as_ref())

@@ -1,6 +1,6 @@
 apiVersion: v2
-name: kubera
-description: A Helm chart for Kubernetes
+name: vale-gateway
+description: A Helm chart for Vale Gateway on Kubernetes
 
 # A chart can be either an 'application' or a 'library' chart.
 #
@@ -22,4 +22,3 @@ version: 0.1.0
 # follow Semantic Versioning. They should reflect the version the application is using.
 # It is recommended to use it with quotes.
 appVersion: "1.16.0"
-

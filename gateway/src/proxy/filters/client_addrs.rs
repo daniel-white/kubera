@@ -1,18 +1,18 @@
 use http::{HeaderName, HeaderValue};
 use ipnet::IpNet;
-use kubera_core::config::gateway::types::GatewayConfiguration;
-use kubera_core::config::gateway::types::net::{ClientAddrsSource, ProxyHeaders};
-use kubera_core::continue_on;
-use kubera_core::sync::signal::{Receiver, signal};
-use kubera_core::task::Builder as TaskBuilder;
 use pingora::proxy::Session;
 use std::net::IpAddr;
 use std::str::FromStr;
 use std::sync::Arc;
 use tracing::{debug, warn};
 use trusted_proxies::{Config, Trusted};
+use vg_core::config::gateway::types::net::{ClientAddrsSource, ProxyHeaders};
+use vg_core::config::gateway::types::GatewayConfiguration;
+use vg_core::continue_on;
+use vg_core::sync::signal::{signal, Receiver};
+use vg_core::task::Builder as TaskBuilder;
 
-const KUBERA_CLIENT_IP_HEADER: HeaderName = HeaderName::from_static("kubera-client-ip");
+const VALE_GATEWAY_CLIENT_IP_HEADER: HeaderName = HeaderName::from_static("vale-gateway-client-ip");
 
 pub fn client_addr_filter(
     task_builder: &TaskBuilder,
@@ -124,19 +124,19 @@ impl ClientAddrFilter {
             let headers = session.req_header_mut();
             headers
                 .insert_header(
-                    KUBERA_CLIENT_IP_HEADER,
+                    VALE_GATEWAY_CLIENT_IP_HEADER,
                     HeaderValue::from_str(&client_addr.to_string()).unwrap(),
                 )
                 .unwrap_or_else(|err| {
                     warn!(
                         "Failed to insert header {}: {}",
-                        KUBERA_CLIENT_IP_HEADER, err
+                        VALE_GATEWAY_CLIENT_IP_HEADER, err
                     );
                 });
             Some(client_addr)
         } else {
             let headers = session.req_header_mut();
-            headers.remove_header(&KUBERA_CLIENT_IP_HEADER); // **MUST** remove the header from the client if the address is not available
+            headers.remove_header(&VALE_GATEWAY_CLIENT_IP_HEADER); // **MUST** remove the header from the client if the address is not available
             None
         }
     }
@@ -185,7 +185,7 @@ impl ClientAddrExtractor for TrustedProxiesClientAddrExtractor {
             &session.req_header().as_owned_parts(),
             &self.config,
         )
-        .ip();
+            .ip();
         Some(trusted_ip)
     }
 }

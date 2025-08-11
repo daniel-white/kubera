@@ -5,10 +5,10 @@ use crate::proxy::router::topology::TopologyLocation;
 use crate::proxy::router::{HttpBackend, HttpBackendBuilder, HttpRouteRuleMatches};
 use getset::Getters;
 use http::request::Parts;
-use kubera_core::config::gateway::types::http::filters::HttpRouteFilter;
-use kubera_core::net::Hostname;
 use std::sync::Arc;
 use tracing::{debug, instrument};
+use vg_core::config::gateway::types::http::filters::HttpRouteFilter;
+use vg_core::net::Hostname;
 
 /// Enhanced route match result that includes matched prefix context for redirect filters.
 ///
@@ -276,22 +276,18 @@ impl AsRef<str> for HttpRouteRuleUniqueId {
     }
 }
 
-impl From<kubera_core::config::gateway::types::http::router::HttpRouteRuleUniqueId>
+impl From<vg_core::config::gateway::types::http::router::HttpRouteRuleUniqueId>
     for HttpRouteRuleUniqueId
 {
-    fn from(
-        value: kubera_core::config::gateway::types::http::router::HttpRouteRuleUniqueId,
-    ) -> Self {
+    fn from(value: vg_core::config::gateway::types::http::router::HttpRouteRuleUniqueId) -> Self {
         Self::new(value.get())
     }
 }
 
-impl From<&kubera_core::config::gateway::types::http::router::HttpRouteRuleUniqueId>
+impl From<&vg_core::config::gateway::types::http::router::HttpRouteRuleUniqueId>
     for HttpRouteRuleUniqueId
 {
-    fn from(
-        value: &kubera_core::config::gateway::types::http::router::HttpRouteRuleUniqueId,
-    ) -> Self {
+    fn from(value: &vg_core::config::gateway::types::http::router::HttpRouteRuleUniqueId) -> Self {
         Self::new(value.get())
     }
 }

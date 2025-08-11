@@ -1,15 +1,15 @@
 pub const MANAGED_BY_LABEL: &str = "app.kubernetes.io/managed-by";
-pub const MANAGED_BY_VALUE: &str = "kubera-control-plane";
-pub const MANAGED_BY_LABEL_QUERY: &str = "app.kubernetes.io/managed-by=kubera-control-plane";
+pub const MANAGED_BY_VALUE: &str = "vale-gateway-control-plane";
+pub const MANAGED_BY_LABEL_QUERY: &str = "app.kubernetes.io/managed-by=vale-gateway-control-plane";
 
 pub const PART_OF_LABEL: &str = "app.kubernetes.io/part-of";
 
-pub const CONFIGMAP_ROLE_LABEL: &str = "kubera.whitefamily.in/configmap-role";
+pub const CONFIGMAP_ROLE_LABEL: &str = "vale-gateway.whitefamily.in/configmap-role";
 
 pub const CONFIGMAP_ROLE_GATEWAY_CONFIG: &str = "gateway-configuration";
 
-pub const GROUP: &str = "kubera.whitefamily.in";
+pub const GROUP: &str = "vale-gateway.whitefamily.in";
 pub const GATEWAY_CLASS_PARAMETERS_CRD_KIND: &str = "GatewayClassParameters";
 pub const GATEWAY_PARAMETERS_CRD_KIND: &str = "GatewayParameters";
 
-pub const GATEWAY_CLASS_CONTROLLER_NAME: &str = "kubera.whitefamily.in/control-plane";
+pub const GATEWAY_CLASS_CONTROLLER_NAME: &str = "vale-gateway.whitefamily.in/control-plane";

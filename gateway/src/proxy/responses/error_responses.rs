@@ -1,16 +1,16 @@
 use bytes::Bytes;
 use http::header::{CONTENT_LENGTH, CONTENT_TYPE};
 use http::{Response, StatusCode};
-use kubera_core::config::gateway::types::net::ErrorResponseKind;
-use kubera_core::config::gateway::types::GatewayConfiguration;
-use kubera_core::continue_on;
-use kubera_core::sync::signal::{signal, Receiver};
-use kubera_core::task::Builder as TaskBuilder;
-use kubera_macros::await_ready;
 use problemdetails::Problem;
 use std::borrow::Cow;
 use strum::IntoStaticStr;
 use url::Url;
+use vg_core::config::gateway::types::net::ErrorResponseKind;
+use vg_core::config::gateway::types::GatewayConfiguration;
+use vg_core::continue_on;
+use vg_core::sync::signal::{signal, Receiver};
+use vg_core::task::Builder as TaskBuilder;
+use vg_macros::await_ready;
 
 pub fn error_responses(
     task_builder: &TaskBuilder,
@@ -43,10 +43,10 @@ pub fn error_responses(
                                     error_responses.problem_detail().clone().unwrap_or_default();
                                 let authority =
                                     problem_detail.authority().clone().unwrap_or_else(|| {
-                                        "http://kubera.whitefamily.in/problems/".into()
+                                        "http://vale-gateway.whitefamily.in/problems/".into()
                                     });
                                 let authority = Url::parse(&authority).unwrap_or_else(|_| {
-                                    Url::parse("http://kubera.whitefamily.in/problems/").unwrap()
+                                    Url::parse("http://vale-gateway.whitefamily.in/problems/").unwrap()
                                 });
                                 ErrorResponseGenerators::ProblemDetail(
                                     ProblemDetailErrorResponseGenerator::new(authority),

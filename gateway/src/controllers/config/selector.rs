@@ -1,11 +1,11 @@
 use getset::Getters;
-use kubera_core::config::gateway::types::GatewayConfiguration;
-use kubera_core::continue_on;
-use kubera_core::sync::signal::{Receiver, signal};
-use kubera_core::task::Builder as TaskBuilder;
 use std::time::Instant;
 use tracing::debug;
 use typed_builder::TypedBuilder;
+use vg_core::config::gateway::types::GatewayConfiguration;
+use vg_core::continue_on;
+use vg_core::sync::signal::{signal, Receiver};
+use vg_core::task::Builder as TaskBuilder;
 
 #[derive(Getters, Debug, Clone, TypedBuilder)]
 pub struct SelectorParams {
@@ -43,11 +43,11 @@ pub fn select_configuration(
                         Some(fs_config)
                     }
                     (Some((ipc_serial, ipc_config)), Some((fs_serial, _)))
-                        if fs_serial < ipc_serial =>
-                    {
-                        debug!("Using IPC configuration, newer");
-                        Some(ipc_config)
-                    }
+                    if fs_serial < ipc_serial =>
+                        {
+                            debug!("Using IPC configuration, newer");
+                            Some(ipc_config)
+                        }
                     (_, Some((_, fs_config))) => {
                         debug!("Using file-based configuration, newer");
                         Some(fs_config)

@@ -2,7 +2,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   labels:
-    kubera.whitefamily.in/configmap-role: gateway-configuration
+    vale-gateway.whitefamily.in/configmap-role: gateway-configuration
     app.kubernetes.io/name: {{ .gateway_name | quote }}
     app: {{ .gateway_name | quote }}
 data:

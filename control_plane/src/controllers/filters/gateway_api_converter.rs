@@ -2,12 +2,9 @@ use gateway_api::apis::standard::httproutes::{
     HTTPRouteRulesFilters, HTTPRouteRulesFiltersRequestHeaderModifier,
     HTTPRouteRulesFiltersRequestRedirect, HTTPRouteRulesFiltersRequestRedirectPath,
 };
-use kubera_core::config::gateway::types::http::filters::{
-    PathRewrite, PathRewriteType, RequestHeaderModifier, RequestHeaderModifierBuilder,
-    RequestRedirect,
-};
 use thiserror::Error;
 use tracing::debug;
+use vg_core::config::gateway::types::http::filters::{PathRewrite, PathRewriteType, RequestHeaderModifier, RequestHeaderModifierBuilder, RequestRedirect};
 
 #[derive(Debug, Error)]
 pub enum FilterConversionError {
@@ -18,7 +15,7 @@ pub enum FilterConversionError {
     InvalidHeaderValue(String),
 }
 
-/// Convert Gateway API `HTTPRouteRulesFilters` to Kubera `RequestHeaderModifier`
+/// Convert Gateway API `HTTPRouteRulesFilters` to Vale Gateway `RequestHeaderModifier`
 #[allow(dead_code)] // Public API for future Gateway API integration
 pub fn convert_gateway_api_filter(
     filter: &HTTPRouteRulesFilters,
@@ -53,7 +50,7 @@ pub fn convert_gateway_api_filter(
     Ok(None)
 }
 
-/// Convert Gateway API `RequestHeaderModifier` to Kubera `RequestHeaderModifier`
+/// Convert Gateway API `RequestHeaderModifier` to Vale Gateway `RequestHeaderModifier`
 #[allow(dead_code)]
 fn convert_request_header_modifier(
     gw_modifier: &HTTPRouteRulesFiltersRequestHeaderModifier,
@@ -97,7 +94,7 @@ fn convert_request_header_modifier(
     }
 }
 
-/// Convert Gateway API `RequestRedirect` to Kubera `RequestRedirect`
+/// Convert Gateway API `RequestRedirect` to Vale Gateway `RequestRedirect`
 #[allow(dead_code)]
 pub fn convert_request_redirect(
     gw_redirect: &HTTPRouteRulesFiltersRequestRedirect,
@@ -157,7 +154,7 @@ mod tests {
         // Create a Gateway API RequestHeaderModifier with proper types
         let set_headers = vec![HTTPRouteRulesFiltersRequestHeaderModifierSet {
             name: "X-Gateway".to_string(),
-            value: "kubera".to_string(),
+            value: "vale-gateway".to_string(),
         }];
 
         let add_headers = vec![HTTPRouteRulesFiltersRequestHeaderModifierAdd {
@@ -173,7 +170,7 @@ mod tests {
             remove: Some(remove_headers),
         };
 
-        // Convert to Kubera RequestHeaderModifier
+        // Convert to Vale Gateway RequestHeaderModifier
         let result = convert_request_header_modifier(&gw_modifier);
         assert!(result.is_ok(), "conversion should succeed");
 
@@ -183,7 +180,7 @@ mod tests {
             if let Some(set) = modifier.set().as_ref() {
                 assert_eq!(set.len(), 1);
                 assert_eq!(set[0].name, "X-Gateway");
-                assert_eq!(set[0].value, "kubera");
+                assert_eq!(set[0].value, "vale-gateway");
             }
 
             // Check add headers

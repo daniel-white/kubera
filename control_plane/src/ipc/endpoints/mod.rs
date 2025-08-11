@@ -13,15 +13,12 @@ use crate::ipc::events::EventStreamFactory;
 use crate::ipc::gateways::GatewayConfigurationReader;
 use crate::kubernetes::KubeClientCell;
 use crate::options::Options;
-use axum::Router;
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::routing::get;
+use axum::Router;
 use axum_health::Health;
 use getset::{CloneGetters, CopyGetters, Getters};
-use kubera_core::net::Port;
-use kubera_core::sync::signal::Receiver;
-use kubera_core::task::Builder as TaskBuilder;
 use problemdetails::Problem;
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -30,6 +27,9 @@ use tokio::net::TcpListener;
 use tokio::select;
 use tracing::info;
 use typed_builder::TypedBuilder;
+use vg_core::net::Port;
+use vg_core::sync::signal::Receiver;
+use vg_core::task::Builder as TaskBuilder;
 
 #[derive(TypedBuilder, Getters, CloneGetters, Clone)]
 pub struct IpcEndpointState {

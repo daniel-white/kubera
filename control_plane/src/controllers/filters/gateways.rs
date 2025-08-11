@@ -1,11 +1,11 @@
 use crate::kubernetes::objects::{ObjectRef, Objects};
 use gateway_api::apis::standard::gatewayclasses::GatewayClass;
 use gateway_api::apis::standard::gateways::Gateway;
-use kubera_api::v1alpha1::GatewayParameters;
-use kubera_core::continue_on;
-use kubera_core::sync::signal::{Receiver, signal};
-use kubera_core::task::Builder as TaskBuilder;
-use kubera_macros::await_ready;
+use vg_api::v1alpha1::GatewayParameters;
+use vg_core::continue_on;
+use vg_core::sync::signal::{Receiver, signal};
+use vg_core::task::Builder as TaskBuilder;
+use vg_macros::await_ready;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tracing::{debug, info};

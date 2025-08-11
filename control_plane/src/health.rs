@@ -3,8 +3,8 @@ use async_trait::async_trait;
 use axum_health::{HealthDetail, HealthIndicator};
 use kube::Api;
 use kube::api::ListParams;
-use kubera_api::v1alpha1::GatewayClassParameters;
-use kubera_core::sync::signal::Receiver;
+use vg_api::v1alpha1::GatewayClassParameters;
+use vg_core::sync::signal::Receiver;
 use std::ops::Deref;
 
 pub struct KubernetesApiHealthIndicator(Receiver<KubeClientCell>);

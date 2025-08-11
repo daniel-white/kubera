@@ -88,7 +88,7 @@ pub fn await_ready(input: TokenStream) -> TokenStream {
     let block = quote! {{
         use std::future::Future;
         use tracing::{debug, enabled, info, Level};
-        use kubera_core::sync::signal::Receiver;
+        use vg_core::sync::signal::Receiver;
 
         struct Configurator<#(#gen_types), *>
         where

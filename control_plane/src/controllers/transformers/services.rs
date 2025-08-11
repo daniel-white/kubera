@@ -3,15 +3,15 @@ use crate::kubernetes::objects::{ObjectRef, Objects, TopologyLocation};
 use getset::{CopyGetters, Getters};
 use k8s_openapi::api::core::v1::Service;
 use k8s_openapi::api::discovery::v1::EndpointSlice;
-use kubera_core::continue_on;
-use kubera_core::net::Port;
-use kubera_core::sync::signal::{Receiver, signal};
-use kubera_core::task::Builder as TaskBuilder;
-use kubera_macros::await_ready;
 use std::collections::HashMap;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use tracing::debug;
 use typed_builder::TypedBuilder;
+use vg_core::continue_on;
+use vg_core::net::Port;
+use vg_core::sync::signal::{Receiver, signal};
+use vg_core::task::Builder as TaskBuilder;
+use vg_macros::await_ready;
 
 #[derive(Debug, TypedBuilder, Getters, Clone, Hash, PartialEq, Eq)]
 pub struct Endpoints {

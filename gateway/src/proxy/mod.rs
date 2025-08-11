@@ -17,8 +17,6 @@ use filters::response_headers::ResponseHeaderFilter;
 use filters::url_rewrite::URLRewriteFilter;
 use http::header::SERVER;
 use http::StatusCode;
-use kubera_core::config::gateway::types::net::StaticResponse;
-use kubera_core::sync::signal::Receiver;
 use pingora::http::ResponseHeader;
 use pingora::prelude::*;
 use pingora::protocols::http::error_resp::gen_error_response;
@@ -27,6 +25,8 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tracing::{debug, warn};
 use typed_builder::TypedBuilder;
+use vg_core::config::gateway::types::net::StaticResponse;
+use vg_core::sync::signal::Receiver;
 
 #[derive(TypedBuilder)]
 pub struct Proxy {
@@ -298,7 +298,7 @@ impl ProxyHttp for Proxy {
 
 impl Proxy {
     fn set_response_server_header(&self, response: &mut ResponseHeader) -> Result<(), BError> {
-        response.insert_header(SERVER, "Kubera Gateway")?;
+        response.insert_header(SERVER, "Vale Gateway")?;
         Ok(())
     }
 }

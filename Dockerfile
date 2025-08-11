@@ -5,7 +5,7 @@ ARG RUST_PROFILE=release
 
 FROM rust:${RUST_VERSION}-${DEBIAN_RELEASE} AS chef
 RUN cargo install cargo-chef
-WORKDIR /usr/src/kubera
+WORKDIR /usr/src/vale-gateway
 
 FROM chef AS planner
 COPY . .
@@ -17,7 +17,7 @@ ARG RUST_PROFILE
 RUN apt update && apt install -y cmake
 
 # Copy recipe and build dependencies
-COPY --from=planner /usr/src/kubera/recipe.json recipe.json
+COPY --from=planner /usr/src/vale-gateway/recipe.json recipe.json
 RUN cargo chef cook --recipe-path recipe.json $(if [ "${RUST_CONFIGURATION}" = "release" ]; then echo "--release"; fi)
 
 # Build application
@@ -30,9 +30,9 @@ RUN apt update && apt install -y \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-COPY --from=builder /usr/src/kubera/target/${RUST_CONFIGURATION}/kubera_control_plane /usr/local/bin/
-COPY --from=builder /usr/src/kubera/target/${RUST_CONFIGURATION}/kubera_gateway /usr/local/bin/
+COPY --from=builder /usr/src/vale-gateway/target/${RUST_CONFIGURATION}/vg-control-plane /usr/local/bin/
+COPY --from=builder /usr/src/vale-gateway/target/${RUST_CONFIGURATION}/vg-gateway /usr/local/bin/
 
 # Add non-root user for security
-RUN useradd kubera
-USER kubera
+RUN useradd vale-gateway
+USER vale-gateway

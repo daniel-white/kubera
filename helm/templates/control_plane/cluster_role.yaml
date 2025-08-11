@@ -12,7 +12,7 @@ rules:
   - apiGroups: [ "coordination.k8s.io" ]
     resources: [ "leases" ]
     verbs: [ "get", "watch", "list", "create", "update", "patch", "delete" ]
-  - apiGroups: [ "", "gateway.networking.k8s.io", "discovery.k8s.io", "kubera.whitefamily.in" ]
+  - apiGroups: [ "", "gateway.networking.k8s.io", "discovery.k8s.io", "vale-gateway.whitefamily.in" ]
     resources: [ "*" ]
     verbs: [ "get", "watch", "list" ]
   - apiGroups: [ "gateway.networking.k8s.io" ]

@@ -129,4 +129,4 @@ jobs:
       - name: Build workspace
         run: cargo build --workspace --release
       - name: Build Docker image
-        run: docker build -t kubera:test .
+        run: docker build -t vale-gateway:test .

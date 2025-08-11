@@ -1,5 +1,5 @@
 [package]
-name = "kubera_api"
+name = "vg-api"
 version = "0.1.0"
 edition = "2021"
 
@@ -15,5 +15,5 @@ strum = { workspace = true }
 typed-builder = { workspace = true }
 
 [lib]
-name = "kubera_api"
+name = "vg_api"
 path = "src/lib.rs"

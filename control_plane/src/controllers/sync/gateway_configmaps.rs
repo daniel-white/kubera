@@ -18,26 +18,6 @@ use gtmpl_derive::Gtmpl;
 use k8s_openapi::api::core::v1::{ConfigMap, Service};
 use kube::runtime::watcher::Config;
 use kube::ResourceExt;
-use kubera_api::v1alpha1::{
-    ClientAddressesSource, ErrorResponseKind, ProxyIpAddressHeaders, StaticResponseFilter,
-};
-use kubera_core::config::gateway::types::http::filters::{
-    ExtStaticResponseRef, HTTPHeader, HttpRouteFilter, HttpRouteFilterType, RequestHeaderModifier,
-    ResponseHeaderModifier,
-};
-use kubera_core::config::gateway::types::http::router::{
-    HttpMethodMatch, HttpRouteBuilder, HttpRouteRuleBuilder, HttpRouteRuleMatchesBuilder,
-};
-use kubera_core::config::gateway::types::net::{
-    ErrorResponseKind as ConfigErrorResponseKind, ErrorResponses as ConfigErrorResponses,
-    ProblemDetailErrorResponse, ProxyHeaders, StaticResponse, StaticResponseBody,
-};
-use kubera_core::config::gateway::types::{GatewayConfiguration, GatewayConfigurationBuilder};
-use kubera_core::net::{Hostname, Port};
-use kubera_core::sync::signal::{signal, Receiver};
-use kubera_core::task::Builder as TaskBuilder;
-use kubera_core::{continue_after, continue_on};
-use kubera_macros::await_ready;
 use std::collections::{HashMap, HashSet};
 use std::net::IpAddr;
 use std::sync::Arc;
@@ -45,6 +25,27 @@ use tokio::select;
 use tokio::sync::broadcast::Sender;
 use tracing::{debug, error, info, warn};
 use typed_builder::TypedBuilder;
+use vg_api::v1alpha1::{
+    ClientAddressesSource, ErrorResponseKind,
+    ProxyIpAddressHeaders, StaticResponseFilter,
+};
+use vg_core::config::gateway::types::http::filters::{
+    ExtStaticResponseRef, HTTPHeader, HttpRouteFilter, HttpRouteFilterType, RequestHeaderModifier,
+    ResponseHeaderModifier,
+};
+use vg_core::config::gateway::types::http::router::{
+    HttpMethodMatch, HttpRouteBuilder, HttpRouteRuleBuilder, HttpRouteRuleMatchesBuilder,
+};
+use vg_core::config::gateway::types::net::{
+    ErrorResponseKind as ConfigErrorResponseKind, ErrorResponses as ConfigErrorResponses,
+    ProblemDetailErrorResponse, ProxyHeaders, StaticResponse, StaticResponseBody,
+};
+use vg_core::config::gateway::types::{GatewayConfiguration, GatewayConfigurationBuilder};
+use vg_core::net::{Hostname, Port};
+use vg_core::sync::signal::{signal, Receiver};
+use vg_core::task::Builder as TaskBuilder;
+use vg_core::{continue_after, continue_on};
+use vg_macros::await_ready;
 
 const TEMPLATE: &str = include_str!("./templates/gateway_configmap.kubernetes-helm-yaml");
 
@@ -485,12 +486,12 @@ fn process_http_routes(
                             if let Some(filters) = &rule.filters {
                                 for filter in filters {
                                     if let Some(request_header_modifier) = &filter.request_header_modifier {
-                                        // Convert Gateway API RequestHeaderModifier to Kubera RequestHeaderModifier
-                                        let mut kubera_modifier = RequestHeaderModifier::default();
+                                        // Convert Gateway API RequestHeaderModifier to Vale Gateway RequestHeaderModifier
+                                        let mut vg_modifier = RequestHeaderModifier::default();
 
                                         // Convert set headers
                                         if let Some(set_headers) = &request_header_modifier.set {
-                                            kubera_modifier.set = Some(set_headers.iter().map(|h| HTTPHeader {
+                                            vg_modifier.set = Some(set_headers.iter().map(|h| HTTPHeader {
                                                 name: h.name.clone(),
                                                 value: h.value.clone(),
                                             }).collect());
@@ -498,7 +499,7 @@ fn process_http_routes(
 
                                         // Convert add headers
                                         if let Some(add_headers) = &request_header_modifier.add {
-                                            kubera_modifier.add = Some(add_headers.iter().map(|h| HTTPHeader {
+                                            vg_modifier.add = Some(add_headers.iter().map(|h| HTTPHeader {
                                                 name: h.name.clone(),
                                                 value: h.value.clone(),
                                             }).collect());
@@ -506,13 +507,12 @@ fn process_http_routes(
 
                                         // Convert remove headers
                                         if let Some(remove_headers) = &request_header_modifier.remove {
-                                            kubera_modifier.remove = Some(remove_headers.clone());
+                                            vg_modifier.remove = Some(remove_headers.clone());
                                         }
 
-                                        // Add filter to Kubera configuration
-                                        let kubera_filter = HttpRouteFilter {
+                                        let vg_filter = HttpRouteFilter {
                                             filter_type: HttpRouteFilterType::RequestHeaderModifier,
-                                            request_header_modifier: Some(kubera_modifier),
+                                            request_header_modifier: Some(vg_modifier),
                                             response_header_modifier: None,
                                             request_mirror: None,
                                             request_redirect: None,
@@ -520,15 +520,15 @@ fn process_http_routes(
                                             ext_static_response: None,
                                         };
 
-                                        target.add_filter(kubera_filter);
+                                        target.add_filter(vg_filter);
                                     }
                                     if let Some(response_header_modifier) = &filter.response_header_modifier {
-                                        // Convert Gateway API ResponseHeaderModifier to Kubera ResponseHeaderModifier
-                                        let mut kubera_modifier = ResponseHeaderModifier::default();
+                                        // Convert Gateway API ResponseHeaderModifier to Vale Gateway ResponseHeaderModifier
+                                        let mut vg_modifier = ResponseHeaderModifier::default();
 
                                         // Convert set headers
                                         if let Some(set_headers) = &response_header_modifier.set {
-                                            kubera_modifier.set = Some(set_headers.iter().map(|h| HTTPHeader {
+                                            vg_modifier.set = Some(set_headers.iter().map(|h| HTTPHeader {
                                                 name: h.name.clone(),
                                                 value: h.value.clone(),
                                             }).collect());
@@ -536,7 +536,7 @@ fn process_http_routes(
 
                                         // Convert add headers
                                         if let Some(add_headers) = &response_header_modifier.add {
-                                            kubera_modifier.add = Some(add_headers.iter().map(|h| HTTPHeader {
+                                            vg_modifier.add = Some(add_headers.iter().map(|h| HTTPHeader {
                                                 name: h.name.clone(),
                                                 value: h.value.clone(),
                                             }).collect());
@@ -544,50 +544,50 @@ fn process_http_routes(
 
                                         // Convert remove headers
                                         if let Some(remove_headers) = &response_header_modifier.remove {
-                                            kubera_modifier.remove = Some(remove_headers.clone());
+                                            vg_modifier.remove = Some(remove_headers.clone());
                                         }
 
-                                        // Add filter to Kubera configuration
-                                        let kubera_filter = HttpRouteFilter {
+                                        // Add filter to Vale Gateway configuration
+                                        let vg_filter = HttpRouteFilter {
                                             filter_type: HttpRouteFilterType::ResponseHeaderModifier,
                                             request_header_modifier: None,
-                                            response_header_modifier: Some(kubera_modifier),
+                                            response_header_modifier: Some(vg_modifier),
                                             request_mirror: None,
                                             request_redirect: None,
                                             url_rewrite: None,
                                             ext_static_response: None,
                                         };
 
-                                        target.add_filter(kubera_filter);
+                                        target.add_filter(vg_filter);
                                     }
                                     if let Some(request_redirect) = &filter.request_redirect {
-                                        // Convert Gateway API RequestRedirect to Kubera RequestRedirect
+                                        // Convert Gateway API RequestRedirect to Vale Gateway RequestRedirect
                                         use crate::controllers::filters::gateway_api_converter::convert_request_redirect;
 
-                                        let kubera_redirect = convert_request_redirect(request_redirect);
-                                        let kubera_filter = HttpRouteFilter {
+                                        let vg_redirect = convert_request_redirect(request_redirect);
+                                        let vg_filter = HttpRouteFilter {
                                             filter_type: HttpRouteFilterType::RequestRedirect,
                                             request_header_modifier: None,
                                             response_header_modifier: None,
                                             request_mirror: None,
-                                            request_redirect: Some(kubera_redirect),
+                                            request_redirect: Some(vg_redirect),
                                             url_rewrite: None,
                                             ext_static_response: None,
                                         };
-                                        target.add_filter(kubera_filter);
+                                        target.add_filter(vg_filter);
                                     }
                                     if let Some(url_rewrite_filter) = &filter.url_rewrite {
-                                        // Convert Gateway API URLRewrite to Kubera URLRewrite
-                                        let mut kubera_url_rewrite = kubera_core::config::gateway::types::http::filters::URLRewrite {
+                                        // Convert Gateway API URLRewrite to Vale Gateway URLRewrite
+                                        let mut vg_url_rewrite = vg_core::config::gateway::types::http::filters::URLRewrite {
                                             hostname: url_rewrite_filter.hostname.clone(),
                                             path: None,
                                         };
 
                                         // Convert path rewrite if present
                                         if let Some(path_config) = &url_rewrite_filter.path {
-                                            use kubera_core::config::gateway::types::http::filters::{PathRewrite, PathRewriteType};
+                                            use vg_core::config::gateway::types::http::filters::{PathRewrite, PathRewriteType};
 
-                                            let kubera_path_rewrite = match &path_config.r#type {
+                                            let vg_path_rewrite = match &path_config.r#type {
                                                 gateway_api::apis::standard::httproutes::HTTPRouteRulesFiltersUrlRewritePathType::ReplaceFullPath => {
                                                     PathRewrite {
                                                         rewrite_type: PathRewriteType::ReplaceFullPath,
@@ -603,25 +603,25 @@ fn process_http_routes(
                                                     }
                                                 }
                                             };
-                                            kubera_url_rewrite.path = Some(kubera_path_rewrite);
+                                            vg_url_rewrite.path = Some(vg_path_rewrite);
                                         }
 
-                                        // Add URLRewrite filter to Kubera configuration
-                                        let kubera_filter = HttpRouteFilter {
+                                        // Add URLRewrite filter to Vale Gateway configuration
+                                        let vg_filter = HttpRouteFilter {
                                             filter_type: HttpRouteFilterType::URLRewrite,
                                             request_header_modifier: None,
                                             response_header_modifier: None,
                                             request_mirror: None,
                                             request_redirect: None,
-                                            url_rewrite: Some(kubera_url_rewrite),
+                                            url_rewrite: Some(vg_url_rewrite),
                                             ext_static_response: None,
                                         };
-                                        target.add_filter(kubera_filter);
+                                        target.add_filter(vg_filter);
                                     }
 
                                     if let Some(extension_ref) = &filter.extension_ref {
                                         // Handle extension filters
-                                        if extension_ref.group == "kubera.whitefamily.in" {
+                                        if extension_ref.group == "vale-gateway.whitefamily.in" {
                                             match ExtensionFilterKind::try_from(extension_ref.kind.as_str()) {
                                                 Ok(ExtensionFilterKind::StaticResponseFilter) => {
                                                     let filter_ref = ObjectRef::of_kind::<StaticResponseFilter>()
@@ -633,7 +633,7 @@ fn process_http_routes(
                                                         .key(filter_ref.to_string())
                                                         .build();
 
-                                                    let kubera_filter = HttpRouteFilter {
+                                                    let vg_filter = HttpRouteFilter {
                                                         filter_type: HttpRouteFilterType::ExtStaticResponse,
                                                         request_header_modifier: None,
                                                         response_header_modifier: None,
@@ -643,7 +643,7 @@ fn process_http_routes(
                                                         ext_static_response: Some(static_response),
                                                     };
 
-                                                    target.add_filter(kubera_filter);
+                                                    target.add_filter(vg_filter);
                                                 }
                                                 Err(err) => {
                                                     warn!(

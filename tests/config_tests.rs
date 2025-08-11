@@ -37,7 +37,7 @@ async fn test_configuration_validation() {
     ];
 
     for hostname in valid_hostnames {
-        let h = kubera_core::net::Hostname::new(hostname);
+        let h = vg_core::net::Hostname::new(hostname);
         assert!(
             serde_valid::Validate::validate(&h).is_ok(),
             "Hostname '{}' should be valid",
@@ -55,7 +55,7 @@ async fn test_configuration_validation() {
     ];
 
     for hostname in invalid_hostnames {
-        let h = kubera_core::net::Hostname::new(hostname);
+        let h = vg_core::net::Hostname::new(hostname);
         assert!(
             serde_valid::Validate::validate(&h).is_err(),
             "Hostname '{}' should be invalid",
@@ -71,7 +71,7 @@ async fn test_port_validation() {
     // Test valid ports
     let valid_ports = [1u16, 80, 443, 8080, 65535];
     for port in valid_ports {
-        let p = kubera_core::net::Port::new(port);
+        let p = vg_core::net::Port::new(port);
         assert!(serde_valid::Validate::validate(&p).is_ok());
     }
 }
@@ -80,8 +80,8 @@ async fn test_port_validation() {
 async fn test_case_insensitive_operations() {
     init_test_env();
 
-    let hostname1 = kubera_core::net::Hostname::new("Example.COM");
-    let hostname2 = kubera_core::net::Hostname::new("example.com");
+    let hostname1 = vg_core::net::Hostname::new("Example.COM");
+    let hostname2 = vg_core::net::Hostname::new("example.com");
 
     // Should be equal despite different cases
     assert_eq!(hostname1, hostname2);

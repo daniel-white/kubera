@@ -12,17 +12,17 @@ macro_rules! watch_objects {
         use kube::api::ListParams;
         use kube::runtime::Controller;
         use kube::runtime::controller::Action;
-        use kubera_core::sync::signal::{Sender, signal};
+        use vg_core::sync::signal::{Sender, signal};
         use std::fmt::Debug;
         use std::future::ready;
         use std::sync::Arc;
         use thiserror::Error;
         use tracing::instrument;
         use tracing::{debug, info, warn};
-        use kubera_core::continue_on;
+        use vg_core::continue_on;
         use tokio::select;
         use tokio::signal::ctrl_c;
-        use kubera_core::task::Builder as TaskBuilder;
+        use vg_core::task::Builder as TaskBuilder;
         use $crate::kubernetes::objects::Objects;
         use $crate::Options;
 

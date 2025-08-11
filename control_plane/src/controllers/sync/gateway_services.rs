@@ -7,10 +7,10 @@ use crate::{sync_objects, watch_objects};
 use gtmpl_derive::Gtmpl;
 use k8s_openapi::api::core::v1::Service;
 use kube::runtime::watcher::Config;
-use kubera_core::continue_after;
-use kubera_core::sync::signal::Receiver;
-use kubera_core::task::Builder as TaskBuilder;
-use kubera_macros::await_ready;
+use vg_core::continue_after;
+use vg_core::sync::signal::Receiver;
+use vg_core::task::Builder as TaskBuilder;
+use vg_macros::await_ready;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use tokio::sync::broadcast::Sender;
@@ -107,8 +107,8 @@ fn generate_gateway_services(
                                 template_values,
                                 Some(service_overrides.clone()),
                             ))
-                            .inspect_err(|err| warn!("Failed to send upsert action: {}", err))
-                            .ok();
+                                .inspect_err(|err| warn!("Failed to send upsert action: {}", err))
+                                .ok();
                         }
                     })
                     .run()

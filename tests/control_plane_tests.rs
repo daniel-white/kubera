@@ -9,7 +9,7 @@ async fn test_control_plane_signal_communication() {
     init_test_env();
 
     // Test the signal communication mechanism used by the control plane
-    let (tx, rx) = kubera_core::sync::signal::signal::<String>();
+    let (tx, rx) = vg_core::sync::signal::signal::<String>();
 
     // Simulate control plane sending configuration updates
     tx.set("config-v1".to_string()).await;
@@ -29,7 +29,7 @@ async fn test_multiple_controller_coordination() {
     init_test_env();
 
     // Simulate multiple controllers watching the same resource
-    let (tx, rx1) = kubera_core::sync::signal::signal::<i32>();
+    let (tx, rx1) = vg_core::sync::signal::signal::<i32>();
     let rx2 = rx1.clone();
     let rx3 = rx1.clone();
 
@@ -45,7 +45,7 @@ async fn test_multiple_controller_coordination() {
 async fn test_controller_error_handling() {
     init_test_env();
 
-    let (tx, rx) = kubera_core::sync::signal::signal::<String>();
+    let (tx, rx) = vg_core::sync::signal::signal::<String>();
 
     // Set initial state
     tx.set("initial".to_string()).await;
@@ -65,7 +65,7 @@ async fn test_controller_error_handling() {
 async fn test_concurrent_configuration_updates() {
     init_test_env();
 
-    let (tx, rx) = kubera_core::sync::signal::signal::<usize>();
+    let (tx, rx) = vg_core::sync::signal::signal::<usize>();
 
     // Simulate multiple controllers trying to update configuration
     let handles: Vec<_> = (0..5)

@@ -1,7 +1,7 @@
-# Gateway API HTTP Features - Kubera Support Status
+# Gateway API HTTP Features - Vale Gateway Support Status
 
 This document provides a comprehensive overview of Gateway API HTTP features and their current implementation status in
-Kubera Gateway.
+Vale Gateway.
 
 ## Core HTTP Routing Features
 
@@ -77,19 +77,19 @@ Kubera Gateway.
 |---------------------|-----------------|------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------|--------------------------------|---------------|----------------------|
 | **RequestRedirect** | ✅ **Supported** | HTTP redirects (301, 302)                | [Request Redirect](https://gateway-api.sigs.k8s.io/references/spec/#gateway.networking.k8s.io/v1.HTTPRequestRedirectFilter) | 🟠 **Extended**                | 🟢 **High**   | Complete             |
 | **URLRewrite**      | ✅ **Supported** | Rewrite URLs before forwarding           | [URL Rewrite](https://gateway-api.sigs.k8s.io/references/spec/#gateway.networking.k8s.io/v1.HTTPURLRewriteFilter)           | 🟠 **Extended**                | 🟢 **High**   | Complete             |
-| **StaticResponse**  | ✅ **Supported** | Return static responses without upstream | Custom Kubera extension for maintenance pages, error responses, and testing                                                 | 🔧 **Implementation Specific** | 🟡 **Medium** | Complete             |
+| **StaticResponse**  | ✅ **Supported** | Return static responses without upstream | Custom Vale extension for maintenance pages, error responses, and testing                                                   | 🔧 **Implementation Specific** | 🟡 **Medium** | Complete             |
 | **RequestMirror**   | 🏗️ **Defined** | Mirror requests to additional backends   | [Request Mirror](https://gateway-api.sigs.k8s.io/references/spec/#gateway.networking.k8s.io/v1.HTTPRequestMirrorFilter)     | 🟠 **Extended**                | 🔴 **None**   | **High** (3-4 weeks) |
 
 ### Implementation Notes
 
-- **RequestRedirect**: Fully implemented with Gateway API to Kubera config conversion
+- **RequestRedirect**: Fully implemented with Gateway API to Vale config conversion
     - Supports scheme redirection (HTTP to HTTPS)
     - Hostname and port redirection
     - Path rewriting (full path replacement and prefix matching)
     - Status codes 301 (permanent) and 302 (temporary) redirect
     - Proper URL construction using `url::Url` type
     - Complete test coverage with 6/6 tests passing
-- **URLRewrite**: Fully implemented with Gateway API to Kubera config conversion
+- **URLRewrite**: Fully implemented with Gateway API to Vale config conversion
     - Supports hostname rewriting for internal service routing
     - Path rewriting (full path replacement and prefix matching)
     - Query parameter preservation during rewrites
@@ -97,7 +97,7 @@ Kubera Gateway.
     - Proper Pingora integration with request header modifications
     - Complete test coverage with 9/9 tests passing
     - Applied after redirect checks but before upstream forwarding
-- **StaticResponse**: Fully implemented as a custom Kubera extension for maintenance pages and error responses
+- **StaticResponse**: Fully implemented as a custom Vale extension for maintenance pages and error responses
     - Supports configurable HTTP status codes (200, 404, 503, etc.)
     - Custom response bodies with configurable Content-Type headers
     - Key-based lookup system for response configuration management

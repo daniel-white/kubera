@@ -3,11 +3,11 @@ use base64ct::{Base64UrlUnpadded, Encoding};
 use bytes::Bytes;
 use dashmap::DashMap;
 use dashmap::Entry::{Occupied, Vacant};
-use kubera_api::v1alpha1::{StaticResponseFilter, StaticResponseFilterBodyFormat};
-use kubera_core::continue_on;
-use kubera_core::sync::signal::Receiver;
-use kubera_core::task::Builder as TaskBuilder;
-use kubera_macros::await_ready;
+use vg_api::v1alpha1::{StaticResponseFilter, StaticResponseFilterBodyFormat};
+use vg_core::continue_on;
+use vg_core::sync::signal::Receiver;
+use vg_core::task::Builder as TaskBuilder;
+use vg_macros::await_ready;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use typed_builder::TypedBuilder;
@@ -29,10 +29,10 @@ impl StaticResponsesCache {
         match data.cache.entry(key.clone()) {
             Occupied(entry) => Some(entry.get().clone()),
             Vacant(entry) => {
-                if let Some(filters_rx) = &data.filters_rx {
-                    if let Some(filters) = filters_rx.get().await {
-                        if let Some(filter) = filters.get_by_unique_id(&key) {
-                            if let Some(body) = &filter.spec.body {
+                if let Some(filters_rx) = &data.filters_rx
+                    && let Some(filters) = filters_rx.get().await
+                        && let Some(filter) = filters.get_by_unique_id(&key)
+                            && let Some(body) = &filter.spec.body {
                                 let bytes = match &body.format {
                                     StaticResponseFilterBodyFormat::Text => {
                                         Bytes::from(body.text.clone().unwrap().into_bytes())
@@ -41,7 +41,7 @@ impl StaticResponsesCache {
                                         let bytes = Base64UrlUnpadded::decode_vec(
                                             body.binary.as_ref().unwrap(),
                                         )
-                                        .unwrap();
+                                            .unwrap();
                                         Bytes::from(bytes)
                                     }
                                 };
@@ -50,9 +50,6 @@ impl StaticResponsesCache {
                                 entry.insert(value.clone());
                                 return Some(value);
                             }
-                        }
-                    }
-                }
                 None
             }
         }

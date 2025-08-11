@@ -1,16 +1,16 @@
 use getset::Getters;
-use kubera_core::config::gateway::serde::read_configuration;
-use kubera_core::config::gateway::types::GatewayConfiguration;
-use kubera_core::continue_after;
-use kubera_core::io::file_watcher::spawn_file_watcher;
-use kubera_core::sync::signal::{Receiver, signal};
-use kubera_core::task::Builder as TaskBuilder;
 use std::io::Cursor;
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 use tokio::fs::read;
 use tracing::{debug, info};
 use typed_builder::TypedBuilder;
+use vg_core::config::gateway::serde::read_configuration;
+use vg_core::config::gateway::types::GatewayConfiguration;
+use vg_core::continue_after;
+use vg_core::io::file_watcher::spawn_file_watcher;
+use vg_core::sync::signal::{signal, Receiver};
+use vg_core::task::Builder as TaskBuilder;
 
 #[derive(Debug, Getters, TypedBuilder)]
 pub struct WatchConfigurationFileParams {
@@ -38,12 +38,11 @@ pub fn watch_configuration_file(
             loop {
                 let serial = Instant::now();
 
-                if let Ok(config_reader) = read(&params.file_path).await.map(Cursor::new) {
-                    if let Ok(config) = read_configuration(config_reader) {
+                if let Ok(config_reader) = read(&params.file_path).await.map(Cursor::new)
+                    && let Ok(config) = read_configuration(config_reader) {
                         debug!("Configuration file read");
                         tx.set((serial, config)).await;
                     }
-                }
 
                 continue_after!(
                     Duration::from_secs(30), // failsafe timeout to force a re-read

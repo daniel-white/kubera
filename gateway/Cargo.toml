@@ -1,5 +1,5 @@
 [package]
-name = "kubera_gateway"
+name = "vg-gateway"
 version = "0.1.0"
 edition = "2024"
 
@@ -17,8 +17,8 @@ http = { workspace = true }
 http-constant = { workspace = true }
 ipnet = { workspace = true }
 itertools = { workspace = true }
-kubera_core = { path = "../core" }
-kubera_macros = { path = "../macros" }
+vg-core = { path = "../core" }
+vg-macros = { path = "../macros" }
 once_cell = "1"
 pingora = { version = "0.5", features = ["pingora-proxy", "pingora-load-balancing", "lb", "rustls"] }
 problemdetails = { workspace = true }
@@ -46,7 +46,3 @@ test-log = { workspace = true }
 rstest = { workspace = true }
 mockall = { workspace = true }
 wiremock = { workspace = true }
-
-[[bin]]
-name = "kubera_gateway"
-path = "src/main.rs"

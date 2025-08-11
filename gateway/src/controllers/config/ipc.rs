@@ -1,10 +1,4 @@
 use http::StatusCode;
-use kubera_core::config::gateway::serde::read_configuration;
-use kubera_core::config::gateway::types::GatewayConfiguration;
-use kubera_core::continue_on;
-use kubera_core::ipc::GatewayEvent;
-use kubera_core::sync::signal::{Receiver, Sender, signal};
-use kubera_core::task::Builder as TaskBuilder;
 use reqwest::Client;
 use std::io::BufReader;
 use std::net::SocketAddr;
@@ -13,6 +7,12 @@ use tokio::sync::broadcast::Receiver as BroadcastReceiver;
 use tracing::{debug, info, warn};
 use typed_builder::TypedBuilder;
 use url::Url;
+use vg_core::config::gateway::serde::read_configuration;
+use vg_core::config::gateway::types::GatewayConfiguration;
+use vg_core::continue_on;
+use vg_core::ipc::GatewayEvent;
+use vg_core::sync::signal::{signal, Receiver, Sender};
+use vg_core::task::Builder as TaskBuilder;
 
 #[derive(Debug, TypedBuilder)]
 pub struct FetchConfigurationParams {

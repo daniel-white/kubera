@@ -1,14 +1,14 @@
-use kubera_core::config::gateway::types::http::filters::{
-    HTTPHeader, HTTPRouteFilter, HTTPRouteFilterType, RequestHeaderModifier,
+use vg_core::config::gateway::types::http::filters::{
+    HTTPHeader, HTTPHeaderModifierBuilder, HTTPMethod, HTTPPathMatchType, HTTPQueryParamMatchType,
 };
-use kubera_core::config::gateway::GatewayConfig;
+use vg_core::config::gateway::GatewayConfig;
 use serde_yaml;
 
 #[cfg(test)]
 mod config_filter_tests {
     #[test]
     fn test_config_with_filters_deserialization() {
-        // This is what a Kubera config.yaml should look like with filters
+        // This is what a Vale Gateway config.yaml should look like with filters
         let config_yaml = r#"
 version: v1alpha1
 ipc:
@@ -29,7 +29,7 @@ http_routes:
             request_header_modifier:
               set:
                 - name: "X-Gateway"
-                  value: "kubera-gateway"
+                  value: "vale-gateway"
                 - name: "X-Route-Name"
                   value: "test-route"
               add:
@@ -136,7 +136,7 @@ type: "RequestHeaderModifier"
 request_header_modifier:
   set:
     - name: "X-Gateway"
-      value: "kubera-gateway"
+      value: "vale-gateway"
   add:
     - name: "X-Request-ID"
       value: "test-id"

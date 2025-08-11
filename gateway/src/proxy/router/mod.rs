@@ -10,7 +10,6 @@ use enumflags2::BitFlags;
 use getset::{CopyGetters, Getters};
 use http::request::Parts;
 use itertools::Itertools;
-use kubera_core::net::Hostname;
 pub use matches::HttpRouteRuleMatches;
 pub use routes::HttpRoute;
 pub use routes::HttpRouteRule;
@@ -19,6 +18,7 @@ use std::net::{IpAddr, SocketAddr};
 use std::sync::Arc;
 use tracing::debug;
 use typed_builder::TypedBuilder;
+use vg_core::net::Hostname;
 
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct HttpRouter {

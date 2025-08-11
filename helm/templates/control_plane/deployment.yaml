@@ -23,14 +23,14 @@ spec:
       serviceAccountName: {{ include "controlPlane.name" . }}
       containers:
         - name: control-plane
-          image: {{ .Values.controlPlane.deployment.image.repository | default .Values.deployments.image.repository | default "kubera" }}:{{ .Values.controlPlane.deployment.image.tag | default .Values.deployments.image.tag | default "latest" }}
+          image: {{ .Values.controlPlane.deployment.image.repository | default .Values.deployments.image.repository | default "vale-gateway" }}:{{ .Values.controlPlane.deployment.image.tag | default .Values.deployments.image.tag | default "latest" }}
           imagePullPolicy: {{ default .Values.controlPlane.deployment.imagePullPolicy .Values.deployments.imagePullPolicy "IfNotPresent" }}
           command:
-            - /usr/local/bin/kubera_control_plane
+            - /usr/local/bin/vg-control-plane
           env:
             - name: RUST_LOG
               value: {{ (default .Values.controlPlane.logLevel .Values.logLevel "Warn") | lower }}
-            - name: KUBERA_INSTANCE
+            - name: VALE_GATEWAY_INSTANCE
               value: {{ include "controlPlane.name" . }}
             - name: POD_NAMESPACE
               valueFrom:

@@ -3,10 +3,10 @@ use crate::proxy::router::endpoints::EndpointsResolver;
 use crate::proxy::router::{HttpRoute, HttpRouteRule};
 use bytes::Bytes;
 use http::Response;
-use kubera_core::sync::signal::Receiver;
 use std::net::{IpAddr, SocketAddr};
 use std::sync::{Arc, OnceLock};
 use typed_builder::TypedBuilder;
+use vg_core::sync::signal::Receiver;
 
 #[derive(Debug)]
 pub enum UpstreamPeerResult {
@@ -49,15 +49,14 @@ impl Context {
     }
 
     pub fn next_upstream_peer(&mut self) -> UpstreamPeerResult {
-        if let Some(state) = self.state.get_mut() {
-            if let Some(resolver) = &mut state.endpoint_resolver {
+        if let Some(state) = self.state.get_mut()
+            && let Some(resolver) = &mut state.endpoint_resolver {
                 return if let Some(addr) = resolver.next() {
                     UpstreamPeerResult::Addr(addr)
                 } else {
                     UpstreamPeerResult::NotFound
                 };
             }
-        }
         match self.route() {
             Some(MatchRouteResult::NotFound) => UpstreamPeerResult::NotFound,
             Some(MatchRouteResult::MissingConfiguration) | None => {
@@ -74,7 +73,7 @@ impl Context {
 
     /// Get the current backend for header modification
     #[allow(dead_code)] // Public API for future backend context
-    pub fn current_backend(&self) -> Option<&kubera_core::config::gateway::types::net::Backend> {
+    pub fn current_backend(&self) -> Option<&vg_core::config::gateway::types::net::Backend> {
         // For now, return None since the router uses different backend types
         // This will be updated when the router types are unified with core types
         None

@@ -37,7 +37,7 @@ async fn test_gateway_listener_validation() {
     // Test valid port ranges
     let valid_ports = [80u16, 443, 8080, 3000];
     for port in valid_ports {
-        let port_obj = kubera_core::net::Port::new(port);
+        let port_obj = vg_core::net::Port::new(port);
         assert!(serde_valid::Validate::validate(&port_obj).is_ok());
     }
 }
@@ -46,10 +46,10 @@ async fn test_gateway_listener_validation() {
 async fn test_hostname_matching() {
     init_test_env();
 
-    let hostname = kubera_core::net::Hostname::new("api.example.com");
-    let domain_suffix = kubera_core::net::Hostname::new("example.com");
-    let tld_suffix = kubera_core::net::Hostname::new("com");
-    let wrong_suffix = kubera_core::net::Hostname::new("other.com");
+    let hostname = vg_core::net::Hostname::new("api.example.com");
+    let domain_suffix = vg_core::net::Hostname::new("example.com");
+    let tld_suffix = vg_core::net::Hostname::new("com");
+    let wrong_suffix = vg_core::net::Hostname::new("other.com");
 
     assert!(hostname.ends_with(&domain_suffix));
     assert!(hostname.ends_with(&tld_suffix));

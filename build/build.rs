@@ -1,11 +1,11 @@
 use kube::CustomResourceExt;
-use kubera_api::v1alpha1::*;
-use kubera_core::config::gateway::types::GatewayConfiguration;
 use schemars::schema_for;
-use std::fs::File;
 use std::fs::create_dir_all;
+use std::fs::File;
 use std::io::Write;
 use std::path::Path;
+use vg_api::v1alpha1::*;
+use vg_core::config::gateway::types::GatewayConfiguration;
 
 fn main() {
     let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap();
@@ -46,10 +46,10 @@ fn write_crds(out_dir: &Path) {
         GatewayParameters::crd(),
         StaticResponseFilter::crd(),
     ]
-    .iter()
-    .fold(file, |mut output, crd| {
-        writeln!(output, "---").unwrap();
-        writeln!(output, "{}", serde_yaml::to_string(crd).unwrap().as_str()).unwrap();
-        output
-    });
+        .iter()
+        .fold(file, |mut output, crd| {
+            writeln!(output, "---").unwrap();
+            writeln!(output, "{}", serde_yaml::to_string(crd).unwrap().as_str()).unwrap();
+            output
+        });
 }

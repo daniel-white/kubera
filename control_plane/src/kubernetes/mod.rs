@@ -1,6 +1,6 @@
 use kube::Client;
-use kubera_core::sync::signal::{Receiver, signal};
-use kubera_core::task::Builder as TaskBuilder;
+use vg_core::sync::signal::{Receiver, signal};
+use vg_core::task::Builder as TaskBuilder;
 use std::ops::Deref;
 use tracing::error;
 

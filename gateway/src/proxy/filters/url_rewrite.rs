@@ -1,11 +1,11 @@
 use http::Uri;
-use kubera_core::config::gateway::types::http::filters::URLRewrite;
-use kubera_core::sync::signal::{Receiver, signal};
-use kubera_core::task::Builder as TaskBuilder;
 use std::str::FromStr;
 use std::sync::Arc;
 use tracing::{debug, error, warn};
 use url::Url;
+use vg_core::config::gateway::types::http::filters::URLRewrite;
+use vg_core::sync::signal::{signal, Receiver};
+use vg_core::task::Builder as TaskBuilder;
 
 use super::request_redirect::RouteMatchContext;
 
@@ -34,7 +34,7 @@ use super::request_redirect::RouteMatchContext;
 /// # Examples
 ///
 /// ```rust,ignore
-/// use kubera_core::config::gateway::types::http::filters::{URLRewrite, PathRewrite, PathRewriteType};
+/// use vg_core::config::gateway::types::http::filters::{URLRewrite, PathRewrite, PathRewriteType};
 ///
 /// // Basic path rewrite
 /// let rewrite = URLRewrite {
@@ -204,10 +204,10 @@ impl URLRewriteFilter {
     fn build_rewrite_path(
         &self,
         original_path: &str,
-        path_config: &kubera_core::config::gateway::types::http::filters::PathRewrite,
+        path_config: &vg_core::config::gateway::types::http::filters::PathRewrite,
         context: &RouteMatchContext,
     ) -> String {
-        use kubera_core::config::gateway::types::http::filters::PathRewriteType;
+        use vg_core::config::gateway::types::http::filters::PathRewriteType;
 
         match path_config.rewrite_type {
             PathRewriteType::ReplaceFullPath => path_config
@@ -308,13 +308,11 @@ impl URLRewriteFilter {
             request_header.set_uri(rewrite_result.uri.clone());
 
             // Update host header if hostname was rewritten
-            if let Some(new_host) = rewrite_result.uri.host() {
-                if new_host != original_uri.host().unwrap_or("") {
-                    if let Err(e) = request_header.insert_header("Host", new_host) {
+            if let Some(new_host) = rewrite_result.uri.host()
+                && new_host != original_uri.host().unwrap_or("")
+                    && let Err(e) = request_header.insert_header("Host", new_host) {
                         warn!("Failed to update Host header: {}", e);
                     }
-                }
-            }
 
             debug!("Applied URL rewrite to request header");
         }
@@ -351,7 +349,7 @@ pub fn create_url_rewrite_filter_receiver(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use kubera_core::config::gateway::types::http::filters::{PathRewrite, PathRewriteType};
+    use vg_core::config::gateway::types::http::filters::{PathRewrite, PathRewriteType};
 
     #[test]
     fn test_basic_hostname_rewrite() {

@@ -1,11 +1,11 @@
 use crate::kubernetes::objects::{ObjectRef, Objects};
 use gateway_api::httproutes::{HTTPRoute, HTTPRouteRulesFiltersType};
 use getset::Getters;
-use kubera_api::v1alpha1::StaticResponseFilter;
-use kubera_core::continue_on;
-use kubera_core::sync::signal::{Receiver, signal};
-use kubera_core::task::Builder as TaskBuilder;
-use kubera_macros::await_ready;
+use vg_api::v1alpha1::StaticResponseFilter;
+use vg_core::continue_on;
+use vg_core::sync::signal::{Receiver, signal};
+use vg_core::task::Builder as TaskBuilder;
+use vg_macros::await_ready;
 use std::collections::HashMap;
 use std::sync::Arc;
 use strum::{EnumString, IntoStaticStr};
@@ -48,7 +48,7 @@ pub fn collect_extension_filters_by_gateway(
 
                             let extension_filters = filters
                                 .entry(gateway_ref.clone())
-                                .or_insert_with(ExtensionFilters::default);
+                                .or_default();
 
                             for filter in http_routes
                                 .iter()
@@ -61,7 +61,7 @@ pub fn collect_extension_filters_by_gateway(
                                         None
                                     }
                                 })
-                                .filter(|f| &f.group == "kubera.whitefamily.in")
+                                .filter(|f| &f.group == "vale-gateway.whitefamily.in")
                             {
                                 let kind = ExtensionFilterKind::try_from(filter.kind.as_str());
                                 if Ok(ExtensionFilterKind::StaticResponseFilter) == kind {

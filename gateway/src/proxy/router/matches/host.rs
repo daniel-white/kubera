@@ -1,6 +1,6 @@
-use http::{HeaderMap, header::HOST};
-use kubera_core::net::Hostname;
+use http::{header::HOST, HeaderMap};
 use tracing::{debug, instrument};
+use vg_core::net::Hostname;
 
 #[derive(Debug, PartialEq, Clone)]
 #[allow(dead_code)]

@@ -1,10 +1,10 @@
 apiVersion: gateway.networking.k8s.io/v1beta1
 kind: Gateway
 metadata:
-  name: kubera-gateway
+  name: vale-gateway
   namespace: default
 spec:
-  gatewayClassName: kubera-gateway
+  gatewayClassName: vale-gateway
   listeners:
     - name: http
       protocol: HTTP
@@ -54,7 +54,7 @@ metadata:
   namespace: default
 spec:
   parentRefs:
-    - name: kubera-gateway
+    - name: vale-gateway
   rules:
     # Basic echo route with both request and response header modifications
     - matches:
@@ -67,7 +67,7 @@ spec:
           requestHeaderModifier:
             set:
               - name: "X-Gateway"
-                value: "kubera-gateway"
+                value: "vale-gateway"
               - name: "X-Route-Name"
                 value: "echo-route"
             add:
@@ -83,7 +83,7 @@ spec:
           responseHeaderModifier:
             set:
               - name: "X-Powered-By"
-                value: "Kubera Gateway"
+                value: "Vale Gateway"
               - name: "X-Response-Source"
                 value: "echo-service"
             add:
@@ -111,7 +111,7 @@ spec:
                 value: "v1"
             add:
               - name: "X-Request-Source"
-                value: "kubera-gateway"
+                value: "vale-gateway"
       backendRefs:
         - name: echo-service
           port: 80
@@ -132,7 +132,7 @@ spec:
           requestHeaderModifier:
             set:
               - name: "X-Rewritten-By"
-                value: "kubera-gateway"
+                value: "vale-gateway"
             add:
               - name: "X-Original-Path"
                 value: "/v1"
@@ -289,10 +289,10 @@ metadata:
   namespace: default
 data:
   README.md: |
-    # Kubera Gateway Header Modification Examples
+    # Vale Gateway Header Modification Examples
     
     This demo showcases both RequestHeaderModifier and ResponseHeaderModifier
-    capabilities in the Kubera Gateway implementation.
+    capabilities in the Vale Gateway implementation.
     
     ## Request Header Modifications
     
@@ -304,7 +304,7 @@ data:
         requestHeaderModifier:
           set:
             - name: "X-Gateway"
-              value: "kubera-gateway"
+              value: "vale-gateway"
           add:
             - name: "X-Request-ID"
               value: "generated-uuid-12345"
@@ -322,7 +322,7 @@ data:
         responseHeaderModifier:
           set:
             - name: "X-Powered-By"
-              value: "Kubera Gateway"
+              value: "Vale Gateway"
           add:
             - name: "X-Gateway-Processing"
               value: "completed"
@@ -356,21 +356,21 @@ data:
     
     ```bash
     # Test basic echo with header modifications
-    curl -H "Host: kubera-gateway" http://localhost/echo
+    curl -H "Host: vale-gateway" http://localhost/echo
     
     # Test API route with JSON content-type
     curl -H "Content-Type: application/json" \
-         -H "Host: kubera-gateway" \
+         -H "Host: vale-gateway" \
          http://localhost/api
     
     # Test admin route with authentication
     curl -H "X-Admin-Token: admin-secret" \
-         -H "Host: kubera-gateway" \
+         -H "Host: vale-gateway" \
          http://localhost/admin
     
     # Test CORS route
     curl -H "Origin: https://example.com" \
-         -H "Host: kubera-gateway" \
+         -H "Host: vale-gateway" \
          http://localhost/cors
     ```
     
@@ -398,7 +398,7 @@ data:
     5. **API Management**: Add rate limiting and processing status headers
 
   implementation-status.md: |
-    # Kubera Gateway Implementation Status
+    # Vale Gateway Implementation Status
     
     ✅ **Request Header Filters**
     
@@ -434,7 +434,7 @@ data:
     Both request and response header modifications are applied transparently
     and can be configured independently per route.
 ---
-apiVersion: kubera.whitefamily.in/v1alpha1
+apiVersion: vale-gateway.whitefamily.in/v1alpha1
 kind: StaticResponseFilter
 metadata:
   name: no-content-204
@@ -443,7 +443,7 @@ spec:
   status_code: 204
   # No body specified for 204 No Content response
 ---
-apiVersion: kubera.whitefamily.in/v1alpha1
+apiVersion: vale-gateway.whitefamily.in/v1alpha1
 kind: StaticResponseFilter
 metadata:
   name: hello-world
@@ -462,7 +462,7 @@ metadata:
   namespace: default
 spec:
   parentRefs:
-    - name: kubera-gateway
+    - name: vale-gateway
   rules:
     # New 204 No Content route
     - matches:
@@ -472,7 +472,7 @@ spec:
       filters:
         - type: ExtensionRef
           extensionRef:
-            group: kubera.whitefamily.in
+            group: vale-gateway.whitefamily.in
             kind: StaticResponseFilter
             name: no-content-204
     # Hello World route for demonstration
@@ -483,6 +483,45 @@ spec:
       filters:
         - type: ExtensionRef
           extensionRef:
-            group: kubera.whitefamily.in
+            group: vale-gateway.whitefamily.in
             kind: StaticResponseFilter
             name: hello-world
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: echo2-service
+  namespace: default
+spec:
+  selector:
+    app: echo2
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8080
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: echo2
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: echo2
+  template:
+    metadata:
+      labels:
+        app: echo2
+    spec:
+      containers:
+        - name: echo2
+          image: hashicorp/http-echo
+          args:
+            - "-text=Hello from the second service via Vale Gateway!"
+          ports:
+            - containerPort: 8080
+          env:
+            - name: GATEWAY_NAME
+              value: "vale-gateway"

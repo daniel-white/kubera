@@ -1,10 +1,10 @@
 use crate::kubernetes::objects::Objects;
 use gateway_api::apis::standard::gateways::Gateway;
-use kubera_api::v1alpha1::GatewayParameters;
-use kubera_core::continue_on;
-use kubera_core::sync::signal::{Receiver, signal};
-use kubera_core::task::Builder as TaskBuilder;
-use kubera_macros::await_ready;
+use vg_api::v1alpha1::GatewayParameters;
+use vg_core::continue_on;
+use vg_core::sync::signal::{Receiver, signal};
+use vg_core::task::Builder as TaskBuilder;
+use vg_macros::await_ready;
 use tracing::debug;
 
 // Note: GatewayClassParametersReferenceState is defined in gateway_classes.rs

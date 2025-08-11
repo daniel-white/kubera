@@ -24,12 +24,12 @@ spec:
                 path: config.yaml
       containers:
         - name: gateway
-          image: {{ .image_repository | default "kubera" }}:{{ .image_tag | default "latest" }}
-          imagePullPolicy: {{ .image_pull_policy | quote }}
+          image: {{ .image_repository | default "vale-gateway" }}:{{ .image_tag | default "latest" }}
+          imagePullPolicy: {{ .image_pull_policy | default "IfNotPresent" }}
           command:
-            - /usr/local/bin/kubera_gateway
+            - /usr/local/bin/vg-gateway
           volumeMounts:
-            - mountPath: /etc/kubera
+            - mountPath: /etc/vale-gateway
               name: config
               readOnly: true
           env:

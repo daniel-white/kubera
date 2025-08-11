@@ -1,7 +1,11 @@
 [package]
-name = "kubera_core"
+name = "vg-core"
 version = "0.1.0"
 edition = "2024"
+
+[lib]
+name = "vg_core"
+path = "src/lib.rs"
 
 [dependencies]
 anyhow = { workspace = true }
@@ -36,6 +40,4 @@ test-log = { workspace = true }
 rstest = { workspace = true }
 serde_json = { workspace = true }
 
-[lib]
-name = "kubera_core"
-path = "src/lib.rs"
+

@@ -4,7 +4,7 @@ deployments:
   imagePullPolicy: IfNotPresent
   # Global image configuration - serves as default for all components
   image:
-    repository: kubera
+    repository: vale-gateway
     tag: latest
 
 gatewayClass:

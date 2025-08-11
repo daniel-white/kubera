@@ -50,11 +50,10 @@ tokio = { version = "1", features = ["full", "tracing"] }
 tracing = { version = "0.1", features = ["log"] }
 typed-builder = "0.21"
 unicase = "2"
-# Testing dependencies
-tokio-test = "0.4"
-criterion = { version = "0.5", features = ["html_reports"] }
-proptest = "1.5"
-mockall = "0.13"
-tempfile = "3.8"
-wiremock = "0.6"
+criterion = "0.5"
+proptest = "1"
+tempfile = "3"
 test-log = "0.2"
+mockall = "0.13"
+wiremock = "0.6"
+tokio-test = "0.4"

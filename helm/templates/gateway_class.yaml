@@ -3,14 +3,14 @@ kind: GatewayClass
 metadata:
   name: {{ include "gateway_class.name" . }}
 spec:
-  controllerName: kubera.whitefamily.in/control-plane
+  controllerName: vale-gateway.whitefamily.in/control-plane
   parametersRef:
-    group: kubera.whitefamily.in
+    group: vale-gateway.whitefamily.in
     kind: GatewayClassParameters
     name: {{ include "gateway_class.name" . }}
 
 ---
-apiVersion: kubera.whitefamily.in/v1alpha1
+apiVersion: vale-gateway.whitefamily.in/v1alpha1
 kind: GatewayClassParameters
 metadata:
   name: {{ include "gateway_class.name" . }}
@@ -23,7 +23,7 @@ spec:
     {{- toYaml .Values.gateways.deployment.strategy | nindent 6 -}}
     {{- end }}
     image:
-      repository: {{ .Values.gateways.deployment.image.repository | default .Values.deployments.image.repository | default "kubera" }}
+      repository: {{ .Values.gateways.deployment.image.repository | default .Values.deployments.image.repository | default "vale-gateway" }}
       tag: {{ .Values.gateways.deployment.image.tag | default .Values.deployments.image.tag | default "latest" }}
   gateway:
     logLevel: {{ .Values.gateways.logLevel | default "Info" }}

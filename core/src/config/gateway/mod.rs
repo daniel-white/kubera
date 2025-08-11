@@ -4,14 +4,14 @@ pub mod types;
 #[cfg(test)]
 mod filter_deserialization_tests {
     use crate::config::gateway::types::{
-        GatewayConfiguration,
         http::filters::{HttpRouteFilter, HttpRouteFilterType},
+        GatewayConfiguration,
     };
     use serde_yaml;
 
     #[test]
     fn test_config_with_filters_deserialization() {
-        // This is what a Kubera config.yaml should look like with filters
+        // This is what a Vale Gateway config.yaml should look like with filters
         let config_yaml = r#"
 version: v1alpha1
 ipc:
@@ -32,7 +32,7 @@ http_routes:
             request_header_modifier:
               set:
                 - name: "X-Gateway"
-                  value: "kubera-gateway"
+                  value: "vale-gateway"
                 - name: "X-Route-Name"
                   value: "test-route"
               add:
@@ -100,7 +100,7 @@ type: "RequestHeaderModifier"
 request_header_modifier:
   set:
     - name: "X-Gateway"
-      value: "kubera-gateway"
+      value: "vale-gateway"
   add:
     - name: "X-Request-ID"
       value: "test-id"

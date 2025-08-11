@@ -1,9 +1,9 @@
 {{- define "controlPlane.name" -}}
-{{- default .Values.controlPlane.name "kubera-gateway-control-plane" | trunc 63 | trimSuffix "-" }}
+{{- default .Values.controlPlane.name "vale-gateway-control-plane" | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
 {{- define "gateway_class.name" -}}
-{{- default .Values.gatewayClass.name "kubera-gateway" | trunc 63 | trimSuffix "-" }}
+{{- default .Values.gatewayClass.name "vale-gateway" | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
 

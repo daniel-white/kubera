@@ -1,15 +1,15 @@
 use crate::kubernetes::objects::ObjectRef;
 use dashmap::DashMap;
 use dashmap::mapref::one::Ref;
-use kubera_core::config::gateway::serde::{WriteError, write_configuration};
-use kubera_core::config::gateway::types::GatewayConfiguration;
+use vg_core::config::gateway::serde::{WriteError, write_configuration};
+use vg_core::config::gateway::types::GatewayConfiguration;
 use std::io::{BufWriter, IntoInnerError};
 use std::string::FromUtf8Error;
 use std::sync::Arc;
 use thiserror::Error;
 
 pub fn create_gateway_configuration_services()
--> (GatewayConfigurationReader, GatewayConfigurationManager) {
+    -> (GatewayConfigurationReader, GatewayConfigurationManager) {
     let configurations = Arc::new(DashMap::new());
     (
         GatewayConfigurationReader {
@@ -30,9 +30,9 @@ impl GatewayConfigurationReader {
     }
 
     pub fn get_configuration_yaml(
-        &self,
+        &'_ self,
         gateway_ref: &ObjectRef,
-    ) -> Option<Ref<ObjectRef, String>> {
+    ) -> Option<Ref<'_, ObjectRef, String>> {
         self.configurations.get(gateway_ref)
     }
 }

@@ -1,5 +1,5 @@
 [package]
-name = "kubera_build"
+name = "vg-build"
 version = "0.1.0"
 edition = "2024"
 
@@ -7,12 +7,12 @@ edition = "2024"
 
 [build-dependencies]
 kube = { workspace = true }
-kubera_api = { path = "../api" }
-kubera_core = { path = "../core" }
+vg-api = { path = "../api" }
+vg-core = { path = "../core" }
 schemars = { workspace = true }
 serde = { workspace = true }
 serde_yaml = { workspace = true }
 
 [lib]
-name = "kubera_build"
+name = "vg_build"
 path = "src/lib.rs"

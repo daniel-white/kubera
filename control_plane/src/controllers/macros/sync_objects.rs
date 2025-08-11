@@ -6,18 +6,18 @@ macro_rules! sync_objects {
         use kube::Api;
         use kube::api::{ Patch, ObjectMeta };
         use kube::Client;
-        use kubera_api::constants::{MANAGED_BY_LABEL, MANAGED_BY_VALUE, PART_OF_LABEL, MANAGED_BY_LABEL_QUERY};
+        use vg_api::constants::{MANAGED_BY_LABEL, MANAGED_BY_VALUE, PART_OF_LABEL, MANAGED_BY_LABEL_QUERY};
         use k8s_openapi::DeepMerge;
         use std::collections::BTreeMap;
         use tokio::select;
         use tokio::signal::ctrl_c;
         use tokio::sync::broadcast::{channel, error::RecvError};
         use tracing::{debug, info, trace, warn};
-        use kubera_core::{continue_after, continue_on};
-        use kubera_core::sync::signal::{signal, Receiver};
+        use vg_core::{continue_after, continue_on};
+        use vg_core::sync::signal::{signal, Receiver};
         use std::collections::HashSet;
         use $crate::options::Options;
-        use kubera_core::task::Builder as TaskBuilder;
+        use vg_core::task::Builder as TaskBuilder;
 
         let (tx, mut rx) = channel::<SyncObjectAction<$template_value_type, $object_type>>(50);
 

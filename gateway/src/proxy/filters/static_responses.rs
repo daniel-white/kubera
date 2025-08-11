@@ -3,18 +3,18 @@ use bytes::Bytes;
 use getset::{CloneGetters, CopyGetters, Getters};
 use http::header::{CONTENT_LENGTH, CONTENT_TYPE, SERVER};
 use http::StatusCode;
-pub(crate) use kubera_core::config::gateway::types::net::StaticResponse;
-use kubera_core::config::gateway::types::GatewayConfiguration;
-use kubera_core::continue_on;
-use kubera_core::sync::signal::{signal, Receiver};
-use kubera_core::task::Builder as TaskBuilder;
-use kubera_macros::await_ready;
 use pingora::http::ResponseHeader;
 use pingora::prelude::*;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tracing::{debug, warn};
 use typed_builder::TypedBuilder;
+pub(crate) use vg_core::config::gateway::types::net::StaticResponse;
+use vg_core::config::gateway::types::GatewayConfiguration;
+use vg_core::continue_on;
+use vg_core::sync::signal::{signal, Receiver};
+use vg_core::task::Builder as TaskBuilder;
+use vg_macros::await_ready;
 
 /// Filter for handling static HTTP responses based on StaticResponse configuration.
 ///
@@ -137,7 +137,7 @@ impl StaticResponseFilter {
 
             let response = http::Response::builder()
                 .status(static_response.status_code())
-                .header(SERVER, "Kubera Gateway");
+                .header(SERVER, "Vale Gateway");
 
             let response = match static_response.body() {
                 Some(body) => response

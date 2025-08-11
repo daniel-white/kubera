@@ -1,11 +1,11 @@
 use http::{StatusCode, Uri};
-use kubera_core::config::gateway::types::http::filters::RequestRedirect;
-use kubera_core::sync::signal::{Receiver, signal};
-use kubera_core::task::Builder as TaskBuilder;
 use std::str::FromStr;
 use std::sync::Arc;
 use tracing::{debug, error, warn};
 use url::Url;
+use vg_core::config::gateway::types::http::filters::RequestRedirect;
+use vg_core::sync::signal::{signal, Receiver};
+use vg_core::task::Builder as TaskBuilder;
 
 /// Filter for handling HTTP request redirects based on RequestRedirect configuration.
 ///
@@ -34,7 +34,7 @@ use url::Url;
 /// # Examples
 ///
 /// ```rust,ignore
-/// use kubera_core::config::gateway::types::http::filters::{RequestRedirect, PathRewrite, PathRewriteType};
+/// use vg_core::config::gateway::types::http::filters::{RequestRedirect, PathRewrite, PathRewriteType};
 ///
 /// // Basic redirect to HTTPS
 /// let redirect = RequestRedirect {
@@ -240,10 +240,10 @@ impl RequestRedirectFilter {
     fn build_redirect_path(
         &self,
         original_path: &str,
-        path_config: &kubera_core::config::gateway::types::http::filters::PathRewrite,
+        path_config: &vg_core::config::gateway::types::http::filters::PathRewrite,
         context: &RouteMatchContext,
     ) -> String {
-        use kubera_core::config::gateway::types::http::filters::PathRewriteType;
+        use vg_core::config::gateway::types::http::filters::PathRewriteType;
 
         match path_config.rewrite_type {
             PathRewriteType::ReplaceFullPath => path_config
@@ -393,7 +393,7 @@ pub fn create_request_redirect_filter_receiver(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use kubera_core::config::gateway::types::http::filters::{PathRewrite, PathRewriteType};
+    use vg_core::config::gateway::types::http::filters::{PathRewrite, PathRewriteType};
 
     #[test]
     fn test_basic_redirect() {

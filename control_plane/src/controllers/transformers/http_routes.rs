@@ -3,11 +3,11 @@ use gateway_api::apis::standard::gateways::Gateway;
 use gateway_api::apis::standard::httproutes::HTTPRoute;
 use getset::{CopyGetters, Getters};
 use k8s_openapi::api::core::v1::Service;
-use kubera_core::continue_on;
-use kubera_core::net::Port;
-use kubera_core::sync::signal::{Receiver, signal};
-use kubera_core::task::Builder as TaskBuilder;
-use kubera_macros::await_ready;
+use vg_core::continue_on;
+use vg_core::net::Port;
+use vg_core::sync::signal::{Receiver, signal};
+use vg_core::task::Builder as TaskBuilder;
+use vg_macros::await_ready;
 use std::collections::HashMap;
 use std::collections::hash_map::Entry;
 use std::sync::Arc;
@@ -47,7 +47,9 @@ pub fn collect_http_route_backends(
                         for (rule_idx, rule) in http_route.spec.rules.iter().flatten().enumerate() {
                             'backend_refs:
                             for (backend_idx, backend_ref) in rule.backend_refs.iter().flatten().enumerate() {
-                                #[allow(clippy::single_match_else)] // We'll likely add more kinds later
+                                #[allow(
+                                    clippy::single_match_else
+                                )] // We'll likely add more kinds later
                                 match backend_ref.kind.as_deref() {
                                     Some("Service") => {
                                         let service_ref = ObjectRef::of_kind::<Service>()
@@ -93,7 +95,7 @@ pub fn collect_http_route_backends(
                     }
 
                     tx.set(http_route_backends).await;
-            }).run().await;
+                }).run().await;
 
             continue_on!(http_routes_rx.changed());
         }

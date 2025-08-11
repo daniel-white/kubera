@@ -1,4 +1,4 @@
-apiVersion: kubera.whitefamily.in/v1alpha1
+apiVersion: vale-gateway.whitefamily.in/v1alpha1
 kind: GatewayClassParameters
 metadata:
   name: custom-image-gateway-class
@@ -7,8 +7,8 @@ spec:
     imagePullPolicy: IfNotPresent
     replicas: 2
     image:
-      repository: my-custom-kubera-gateway
-      tag: v1.2.3
+      repository: my-custom-vale-gateway
+      tag: v1.5.0
     strategy:
       type: RollingUpdate
       rollingUpdate:
@@ -25,14 +25,14 @@ kind: GatewayClass
 metadata:
   name: custom-image-gateway-class
 spec:
-  controllerName: kubera.whitefamily.in/control-plane
+  controllerName: vale-gateway.whitefamily.in/control-plane
   parametersRef:
-    group: kubera.whitefamily.in
+    group: vale-gateway.whitefamily.in
     kind: GatewayClassParameters
     name: custom-image-gateway-class
 
 ---
-apiVersion: kubera.whitefamily.in/v1alpha1
+apiVersion: vale-gateway.whitefamily.in/v1alpha1
 kind: GatewayParameters
 metadata:
   name: gateway-specific-image
@@ -52,7 +52,7 @@ metadata:
   name: custom-image-gateway
   namespace: default
   annotations:
-    kubera.whitefamily.in/parameters: gateway-specific-image
+    vale-gateway.whitefamily.in/parameters: gateway-specific-image
 spec:
   gatewayClassName: custom-image-gateway-class
   listeners:
@@ -65,19 +65,19 @@ spec:
 
 ---
 # Example 1: Using global image configuration for both components
-# Both control plane and gateway will use "kubera:v2.0.0"
+# Both control plane and gateway will use "vale-gateway:v2.0.0"
 deployments:
   image:
-    repository: kubera
+    repository: vale-gateway
     tag: v2.0.0
 
 ---
 # Example 2: Same image, different versions for independent deployment
-# Control plane: kubera:v2.0.0
-# Gateway: kubera:v1.9.5 (can deploy gateway updates independently)
+# Control plane: vale-gateway:v2.0.0
+# Gateway: vale-gateway:v1.9.5 (can deploy gateway updates independently)
 deployments:
   image:
-    repository: kubera
+    repository: vale-gateway
     tag: v2.0.0
 
 gateways:
@@ -103,7 +103,7 @@ gateways:
 
 ---
 # Example 4: Gateway Class Parameters with custom image
-apiVersion: kubera.whitefamily.in/v1alpha1
+apiVersion: vale-gateway.whitefamily.in/v1alpha1
 kind: GatewayClassParameters
 metadata:
   name: custom-image-gateway-class
@@ -112,7 +112,7 @@ spec:
     imagePullPolicy: IfNotPresent
     replicas: 2
     image:
-      repository: kubera
+      repository: vale-gateway
       tag: v1.2.3
     strategy:
       type: RollingUpdate

@@ -2,7 +2,7 @@ use clap::Parser;
 use getset::{CopyGetters, Getters};
 
 #[derive(Parser, Getters, CopyGetters)]
-#[command(about = "A Kubernetes control plane for Kubera", long_about = None)]
+#[command(about = "A Kubernetes control plane for Vale Gateway", long_about = None)]
 pub struct Cli {
     #[getset(get_copy = "pub")]
     #[arg(default_value = "8080", env = "PORT", long = "port")]
@@ -17,6 +17,6 @@ pub struct Cli {
     pod_name: String,
 
     #[getset(get = "pub")]
-    #[arg(env = "KUBERA_INSTANCE", long = "instance")]
+    #[arg(env = "VALE_GATEWAY_INSTANCE", long = "instance")]
     instance_name: String,
 }

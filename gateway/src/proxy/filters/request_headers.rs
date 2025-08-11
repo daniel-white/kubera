@@ -1,10 +1,10 @@
-use kubera_core::config::gateway::types::http::filters::RequestHeaderModifier;
-use kubera_core::continue_on;
-use kubera_core::sync::signal::{Receiver, signal};
-use kubera_core::task::Builder as TaskBuilder;
 use std::sync::Arc;
+use vg_core::config::gateway::types::http::filters::RequestHeaderModifier;
+use vg_core::continue_on;
+use vg_core::sync::signal::{signal, Receiver};
+use vg_core::task::Builder as TaskBuilder;
 
-use super::headers::{HeaderOperations, apply_header_modifications};
+use super::headers::{apply_header_modifications, HeaderOperations};
 
 /// Filter for modifying request headers based on RequestHeaderModifier configuration
 #[derive(Debug, Clone, PartialEq)]
@@ -68,7 +68,7 @@ pub fn request_header_filter(
 mod tests {
     use super::*;
     use http::{HeaderMap, HeaderValue};
-    use kubera_core::config::gateway::types::http::filters::RequestHeaderModifierBuilder;
+    use vg_core::config::gateway::types::http::filters::RequestHeaderModifierBuilder;
 
     #[test]
     fn test_header_modification() {

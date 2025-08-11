@@ -1,6 +1,6 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use kubera_core::sync::signal;
 use tokio::runtime::Runtime;
+use vg_core::sync::signal;
 
 fn benchmark_signal_operations(c: &mut Criterion) {
     let rt = Runtime::new().unwrap();
@@ -33,7 +33,7 @@ fn benchmark_signal_operations(c: &mut Criterion) {
 }
 
 fn benchmark_networking_types(c: &mut Criterion) {
-    use kubera_core::net::{Hostname, Port};
+    use vg_core::net::{Hostname, Port};
 
     c.bench_function("port_creation", |b| {
         b.iter(|| Port::new(black_box(8080)));
@@ -57,7 +57,7 @@ fn benchmark_networking_types(c: &mut Criterion) {
 }
 
 fn benchmark_serialization(c: &mut Criterion) {
-    use kubera_core::net::{Hostname, Port};
+    use vg_core::net::{Hostname, Port};
     use serde_json;
 
     let port = Port::new(8080);

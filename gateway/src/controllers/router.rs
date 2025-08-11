@@ -1,13 +1,14 @@
 use crate::proxy::router::topology::TopologyLocation;
 use crate::proxy::router::{HttpRouter, HttpRouterBuilder};
 use http::HeaderValue;
-use kubera_core::config::gateway::types::GatewayConfiguration;
-use kubera_core::config::gateway::types::http::router::*;
-use kubera_core::continue_on;
-use kubera_core::sync::signal::{Receiver, signal};
-use kubera_core::task::Builder as TaskBuilder;
-use kubera_macros::await_ready;
 use std::sync::Arc;
+use tracing::{debug, info};
+use vg_core::config::gateway::types::http::router::*;
+use vg_core::config::gateway::types::GatewayConfiguration;
+use vg_core::continue_on;
+use vg_core::sync::signal::{signal, Receiver};
+use vg_core::task::Builder as TaskBuilder;
+use vg_macros::await_ready;
 
 pub fn synthesize_http_router(
     task_builder: &TaskBuilder,
@@ -45,12 +46,12 @@ fn build_router(
     let mut router = HttpRouterBuilder::new(current_location);
 
     // for host_match in gateway_config.hosts().iter() {
-    //     match host_match.match_type() {
+    //     match hostMatch.match_type() {
     //         HostnameMatchType::Exact => {
-    //             router.add_exact_host(host_match.value());
+    //             router.add_exact_host(hostMatch.value());
     //         }
     //         HostnameMatchType::Suffix => {
-    //             router.add_host_suffix(host_match.value());
+    //             router.add_host_suffix(hostMatch.value());
     //         }
     //     }
     // }
@@ -99,7 +100,7 @@ fn build_router(
                                                 HeaderValue::from_str(
                                                     config_header.value().as_str(),
                                                 )
-                                                .unwrap(),
+                                                    .unwrap(),
                                             );
                                         }
                                         HttpHeaderMatchType::RegularExpression => {
@@ -170,9 +171,9 @@ mod tests {
     use crate::controllers::router::build_router;
     use crate::proxy::router::topology::TopologyLocation;
     use http::request::Builder;
-    use kubera_core::config::gateway::serde::read_configuration;
     use std::io::Cursor;
     use std::sync::Arc;
+    use vg_core::config::gateway::serde::read_configuration;
 
     #[test]
     fn test_router_simple() {

@@ -1,7 +1,7 @@
 <component name="ProjectRunConfigurationManager">
   <configuration default="false" name="Run Controlplane" type="CargoCommandRunConfiguration" factoryName="Cargo Command" singleton="false">
     <option name="buildProfileId" value="dev" />
-    <option name="command" value="run --bin kubera_control_plane -- --namespace default --pod-name foo --instance kubera-gateway-control-plane" />
+    <option name="command" value="run --bin vg_control_plane -- --namespace default --pod-name foo --instance vale-gateway-control-plane" />
     <option name="workingDirectory" value="file://$PROJECT_DIR$" />
     <envs>
       <env name="RUST_LOG" value="debug" />

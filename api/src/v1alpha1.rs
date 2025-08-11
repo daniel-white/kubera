@@ -74,7 +74,7 @@ pub struct CommonGatewayParameterSpec {
 #[derive(Default, CustomResource, Deserialize, Serialize, Clone, Debug, JsonSchema, PartialEq)]
 #[kube(
     kind = "GatewayClassParameters",
-    group = "kubera.whitefamily.in",
+    group = "vale-gateway.whitefamily.in",
     version = "v1alpha1",
     singular = "gateway-class-parameters",
     plural = "gateway-class-parameters"
@@ -89,7 +89,7 @@ pub struct GatewayClassParametersSpec {
 #[derive(Default, CustomResource, Deserialize, Serialize, Clone, Debug, JsonSchema, PartialEq)]
 #[kube(
     kind = "GatewayParameters",
-    group = "kubera.whitefamily.in",
+    group = "vale-gateway.whitefamily.in",
     version = "v1alpha1",
     namespaced,
     singular = "gateway-parameters",
@@ -248,7 +248,7 @@ pub fn cidr_array_schema(_: &mut SchemaGenerator) -> Schema {
 #[derive(Default, CustomResource, Deserialize, Serialize, Clone, Debug, JsonSchema, PartialEq)]
 #[kube(
     kind = "StaticResponseFilter",
-    group = "kubera.whitefamily.in",
+    group = "vale-gateway.whitefamily.in",
     version = "v1alpha1",
     namespaced,
     singular = "staticresponsefilter",

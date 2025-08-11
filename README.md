@@ -1,8 +1,9 @@
-# Kubera (name TBD)
+# Vale Gateway
 
 ## Rust-based Kubernetes Gateway API implementation using Pingora
 
-Kubera is a Rust-based implementation of the Kubernetes Gateway API, leveraging the Pingora proxy for efficient and
+Vale Gateway is a Rust-based implementation of the Kubernetes Gateway API, leveraging the Pingora proxy for efficient
+and
 scalable traffic management. This project aims to provide a robust and flexible solution for managing ingress traffic in
 Kubernetes clusters.
 
@@ -16,11 +17,11 @@ at this time to make it production worthy without additional help.
 - `control_plane/`: Contains the controller logic for managing Gateway API resources via the Kubernetes API.
 - `core/`: Contains the core configuration and reusable components.
 - `gateway/`: Contains the proxy implementation using Pingora.
-- `helm/`: Contains a Helm chart for deploying the Kubera controller.
+- `helm/`: Contains a Helm chart for deploying the Vale Gateway controller.
 
 ## Running locally
 
-To run Kubera locally, you need to have the following prerequisites installed:
+To run Vale Gateway locally, you need to have the following prerequisites installed:
 
 - Rust
 - Docker
@@ -42,11 +43,11 @@ To run Kubera locally, you need to have the following prerequisites installed:
    ```
 4. Build the Docker image:
    ```bash
-   docker build -t kubera-controller:latest .
+   docker build -t vale-gateway-controller:latest .
    ```
 5. Deploy the controller to Minikube:
    ```bash
-   helm upgrade --install kubera helm/
+   helm upgrade --install vale-gateway helm/
    ```
 6. Add `Service`, `Deployment`, `Gateway` and `HTTPRoute` resources to your cluster (not provided in this repo yet):
    ```bash
@@ -63,7 +64,7 @@ The following CRDs are defined in the `api/` directory:
 
 ## Features
 
-Kubera supports the following Gateway API features:
+Vale Gateway supports the following Gateway API features:
 
 ### Core Gateway API Resources
 

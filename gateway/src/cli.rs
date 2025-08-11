@@ -1,12 +1,12 @@
 use anyhow::Result;
 use clap::Parser;
 use getset::{CloneGetters, CopyGetters, Getters};
-use kubera_core::net::Port;
 use std::path::PathBuf;
+use vg_core::net::Port;
 
 #[derive(Parser, Debug, Getters, Clone, CopyGetters, CloneGetters)]
-#[command(name = "kubera-gateway")]
-#[command(about = "The Kubera Gateway", long_about = None)]
+#[command(name = "vale-gateway")]
+#[command(about = "The Vale Gateway", long_about = None)]
 pub struct Cli {
     #[getset(get_copy = "pub")]
     #[arg(default_value ="80",
@@ -18,8 +18,8 @@ pub struct Cli {
 
     #[getset(get_clone = "pub")]
     #[arg(
-        default_value = "/etc/kubera/config.yaml",
-        env = "KUBERA_GATEWAY_CONFIG_FILE_PATH",
+        default_value = "/etc/vale-gateway/config.yaml",
+        env = "VALE_GATEWAY_CONFIG_FILE_PATH",
         long = "config-file-path"
     )]
     config_file_path: PathBuf,

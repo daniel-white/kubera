@@ -29,9 +29,9 @@ use crate::kubernetes::start_kubernetes_client;
 use crate::options::Options;
 use clap::Parser;
 use cli::Cli;
-use kubera_core::crypto::init_crypto;
-use kubera_core::instrumentation::init_instrumentation;
-use kubera_core::task::Builder as TaskBuilder;
+use vg_core::crypto::init_crypto;
+use vg_core::instrumentation::init_instrumentation;
+use vg_core::task::Builder as TaskBuilder;
 use std::sync::Arc;
 use thiserror::Error;
 use tracing::error;
@@ -47,7 +47,9 @@ pub enum MainError {
 }
 
 #[tokio::main(flavor = "multi_thread")]
-#[allow(clippy::expect_used)] // Expect is used here to ensure that the application fails fast if the parameters are invalid
+#[allow(
+    clippy::expect_used
+)] // Expect is used here to ensure that the application fails fast if the parameters are invalid
 async fn main() -> Result<(), MainError> {
     let args = Cli::parse();
     let options = Arc::new(Options::default());

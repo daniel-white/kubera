@@ -8,7 +8,7 @@ static INIT: Once = Once::new();
 pub fn init_test_env() {
     INIT.call_once(|| {
         // Initialize crypto for tests
-        kubera_core::crypto::init_crypto();
+        vg_core::crypto::init_crypto();
 
         // Set up test logging
         let _ = env_logger::builder()
@@ -28,7 +28,7 @@ metadata:
   name: test-gateway
   namespace: default
 spec:
-  gatewayClassName: kubera
+  gatewayClassName: vale-gateway
   listeners:
   - name: http
     port: 80
