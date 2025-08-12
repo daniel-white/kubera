@@ -3,14 +3,15 @@ use base64ct::{Base64UrlUnpadded, Encoding};
 use bytes::Bytes;
 use dashmap::DashMap;
 use dashmap::Entry::{Occupied, Vacant};
+use std::sync::Arc;
+use tokio::sync::RwLock;
+use tracing::warn;
+use typed_builder::TypedBuilder;
 use vg_api::v1alpha1::{StaticResponseFilter, StaticResponseFilterBodyFormat};
 use vg_core::continue_on;
 use vg_core::sync::signal::Receiver;
 use vg_core::task::Builder as TaskBuilder;
 use vg_macros::await_ready;
-use std::sync::Arc;
-use tokio::sync::RwLock;
-use typed_builder::TypedBuilder;
 
 #[derive(Debug, Default)]
 struct StaticResponseCacheState {
@@ -31,25 +32,40 @@ impl StaticResponsesCache {
             Vacant(entry) => {
                 if let Some(filters_rx) = &data.filters_rx
                     && let Some(filters) = filters_rx.get().await
-                        && let Some(filter) = filters.get_by_unique_id(&key)
-                            && let Some(body) = &filter.spec.body {
-                                let bytes = match &body.format {
-                                    StaticResponseFilterBodyFormat::Text => {
-                                        Bytes::from(body.text.clone().unwrap().into_bytes())
-                                    }
-                                    StaticResponseFilterBodyFormat::Binary => {
-                                        let bytes = Base64UrlUnpadded::decode_vec(
-                                            body.binary.as_ref().unwrap(),
-                                        )
-                                            .unwrap();
-                                        Bytes::from(bytes)
-                                    }
-                                };
-
-                                let value = (body.content_type.clone(), bytes);
-                                entry.insert(value.clone());
-                                return Some(value);
+                    && let Some(filter) = filters.get_by_unique_id(&key)
+                    && let Some(body) = &filter.spec.body
+                {
+                    let bytes = match &body.format {
+                        StaticResponseFilterBodyFormat::Text => {
+                            if let Some(text) = &body.text {
+                                Bytes::from(text.clone().into_bytes())
+                            } else {
+                                warn!("Text format static response body is missing text content");
+                                return None;
                             }
+                        }
+                        StaticResponseFilterBodyFormat::Binary => {
+                            if let Some(binary) = &body.binary {
+                                match Base64UrlUnpadded::decode_vec(binary) {
+                                    Ok(bytes) => Bytes::from(bytes),
+                                    Err(err) => {
+                                        warn!("Failed to decode base64 binary content: {}", err);
+                                        return None;
+                                    }
+                                }
+                            } else {
+                                warn!(
+                                    "Binary format static response body is missing binary content"
+                                );
+                                return None;
+                            }
+                        }
+                    };
+
+                    let value = (body.content_type.clone(), bytes);
+                    entry.insert(value.clone());
+                    return Some(value);
+                }
                 None
             }
         }

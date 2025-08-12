@@ -26,8 +26,7 @@ use tokio::sync::broadcast::Sender;
 use tracing::{debug, error, info, warn};
 use typed_builder::TypedBuilder;
 use vg_api::v1alpha1::{
-    ClientAddressesSource, ErrorResponseKind,
-    ProxyIpAddressHeaders, StaticResponseFilter,
+    ClientAddressesSource, ErrorResponseKind, ProxyIpAddressHeaders, StaticResponseFilter,
 };
 use vg_core::config::gateway::types::http::filters::{
     ExtStaticResponseRef, HTTPHeader, HttpRouteFilter, HttpRouteFilterType, RequestHeaderModifier,
@@ -362,28 +361,33 @@ fn set_static_responses(
     builder: &mut GatewayConfigurationBuilder,
     extension_filters: &ExtensionFilters,
 ) {
-    let static_responses = extension_filters
+    let static_responses: Vec<_> = extension_filters
         .static_responses()
         .iter()
-        .map(|(ref_, _, filter)| {
+        .filter_map(|(ref_, _, filter)| {
             let spec = &filter.spec;
+
+            let version_key = filter.metadata.resource_version.as_ref()?;
+            let uid = filter.uid()?;
+
             let builder = StaticResponse::builder()
                 .key(ref_.to_string())
-                .version_key(filter.metadata.resource_version.as_ref().unwrap())
+                .version_key(version_key)
                 .status_code(spec.status_code);
 
             if let Some(body) = &spec.body {
-                let body = StaticResponseBody::builder()
+                let body_result = StaticResponseBody::builder()
                     .content_type(body.content_type.clone())
-                    .identifier(filter.uid().unwrap())
+                    .identifier(uid)
                     .build();
 
-                builder.body(body).build()
+                Some(builder.body(body_result).build())
             } else {
-                builder.build()
+                Some(builder.build())
             }
         })
         .collect();
+
     builder.with_static_responses(static_responses);
 }
 

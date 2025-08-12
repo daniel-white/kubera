@@ -1,0 +1,254 @@
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: Gateway
+metadata:
+  name: vale-gateway
+  namespace: default
+spec:
+  gatewayClassName: vale-gateway
+  listeners:
+    - name: http
+      protocol: HTTP
+      port: 80
+      # Explicitly restrict routes to the same namespace only
+      allowedRoutes:
+        namespaces:
+          from: Same
+---
+# Create a separate namespace for testing cross-namespace route rejection
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: other-namespace
+---
+# Echo service in the default namespace (allowed)
+apiVersion: v1
+kind: Service
+metadata:
+  name: echo-service
+  namespace: default
+spec:
+  selector:
+    app: echo
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8080
+---
+# Echo service in the other namespace (for rejected route)
+apiVersion: v1
+kind: Service
+metadata:
+  name: echo-service-other
+  namespace: other-namespace
+spec:
+  selector:
+    app: echo-other
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8080
+---
+# Echo deployment in default namespace
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: echo
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: echo
+  template:
+    metadata:
+      labels:
+        app: echo
+    spec:
+      containers:
+        - name: echo
+          image: ealen/echo-server:latest
+          ports:
+            - containerPort: 8080
+          env:
+            - name: PORT
+              value: "8080"
+---
+# Echo deployment in other namespace
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: echo-other
+  namespace: other-namespace
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: echo-other
+  template:
+    metadata:
+      labels:
+        app: echo-other
+    spec:
+      containers:
+        - name: echo
+          image: ealen/echo-server:latest
+          ports:
+            - containerPort: 8080
+          env:
+            - name: PORT
+              value: "8080"
+            - name: ECHO_HEADERS
+              value: "true"
+---
+# HTTPRoute in the same namespace as Gateway - THIS WILL BE ALLOWED
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: echo-route-allowed
+  namespace: default
+  annotations:
+    description: "This route is in the same namespace as the Gateway and will be allowed"
+spec:
+  parentRefs:
+    - name: vale-gateway
+      namespace: default
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /echo
+      filters:
+        - type: RequestHeaderModifier
+          requestHeaderModifier:
+            set:
+              - name: "X-Gateway"
+                value: "vale-gateway"
+              - name: "X-Route-Name"
+                value: "echo-route-allowed"
+              - name: "X-Namespace"
+                value: "default"
+            add:
+              - name: "X-Request-ID"
+                value: "allowed-route-12345"
+        - type: ResponseHeaderModifier
+          responseHeaderModifier:
+            set:
+              - name: "X-Powered-By"
+                value: "Vale Gateway"
+              - name: "X-Route-Status"
+                value: "ALLOWED"
+      backendRefs:
+        - name: echo-service
+          port: 80
+
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /api
+      filters:
+        - type: RequestHeaderModifier
+          requestHeaderModifier:
+            set:
+              - name: "X-API-Version"
+                value: "v1"
+              - name: "X-Route-Source"
+                value: "allowed-namespace"
+      backendRefs:
+        - name: echo-service
+          port: 80
+---
+# HTTPRoute in a different namespace - THIS WILL BE REJECTED
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: echo-route-rejected
+  namespace: other-namespace
+  annotations:
+    description: "This route is in a different namespace and will be REJECTED due to allowedRoutes.namespaces.from=Same"
+spec:
+  parentRefs:
+    - name: vale-gateway
+      namespace: default  # Explicitly reference the Gateway in the default namespace
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /rejected
+      filters:
+        - type: RequestHeaderModifier
+          requestHeaderModifier:
+            set:
+              - name: "X-Gateway"
+                value: "vale-gateway"
+              - name: "X-Route-Name"
+                value: "echo-route-rejected"
+              - name: "X-Namespace"
+                value: "other-namespace"
+              - name: "X-Status"
+                value: "THIS-SHOULD-BE-REJECTED"
+            add:
+              - name: "X-Request-ID"
+                value: "rejected-route-67890"
+        - type: ResponseHeaderModifier
+          responseHeaderModifier:
+            set:
+              - name: "X-Route-Status"
+                value: "REJECTED"
+      backendRefs:
+        - name: echo-service-other
+          port: 80
+---
+# Example Gateway with "All" namespace policy for comparison
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: Gateway
+metadata:
+  name: vale-gateway-permissive
+  namespace: default
+spec:
+  gatewayClassName: vale-gateway
+  listeners:
+    - name: http
+      protocol: HTTP
+      port: 8080  # Different port to avoid conflicts
+      # Allow routes from all namespaces
+      allowedRoutes:
+        namespaces:
+          from: All
+---
+# HTTPRoute that would be allowed by the permissive Gateway
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: echo-route-permissive-allowed
+  namespace: other-namespace
+  annotations:
+    description: "This route targets the permissive Gateway that allows routes from all namespaces"
+spec:
+  parentRefs:
+    - name: vale-gateway-permissive
+      namespace: default
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /permissive
+      filters:
+        - type: RequestHeaderModifier
+          requestHeaderModifier:
+            set:
+              - name: "X-Gateway"
+                value: "vale-gateway-permissive"
+              - name: "X-Route-Name"
+                value: "echo-route-permissive-allowed"
+              - name: "X-Namespace"
+                value: "other-namespace"
+              - name: "X-Policy"
+                value: "All-namespaces-allowed"
+        - type: ResponseHeaderModifier
+          responseHeaderModifier:
+            set:
+              - name: "X-Route-Status"
+                value: "ALLOWED-BY-PERMISSIVE-POLICY"
+      backendRefs:
+        - name: echo-service-other
+          port: 80

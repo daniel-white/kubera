@@ -94,3 +94,266 @@ async fn test_concurrent_configuration_updates() {
     let value = final_config.unwrap();
     assert!(value < 50); // Max possible value is 4*10 + 2 = 42
 }
+
+//! Tests for HTTP route namespace filtering functionality
+
+mod http_route_namespace_filtering {
+    use crate::common::*;
+    use gateway_api::apis::standard::gateways::{
+        Gateway, GatewaySpec, GatewaySpecListeners, GatewaySpecListenersAllowedRoutes,
+        GatewaySpecListenersAllowedRoutesNamespaces,
+    };
+    use gateway_api::apis::standard::httproutes::{HTTPRoute, HTTPRouteSpec, HTTPRouteSpecParentRefs};
+    use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
+    use std::time::Duration;
+    use test_log::test;
+    use vg_control_plane::controllers::filters::http_routes::filter_http_routes;
+    use vg_control_plane::kubernetes::objects::{ObjectRef, Objects};
+    use vg_core::sync::signal::signal;
+    use vg_core::task::Builder as TaskBuilder;
+
+    /// Helper function to create a test Gateway with specific allowedRoutes configuration
+    fn create_test_gateway(name: &str, namespace: &str, allowed_routes_from: Option<&str>) -> Gateway {
+        let allowed_routes = if let Some(from_value) = allowed_routes_from {
+            Some(GatewaySpecListenersAllowedRoutes {
+                namespaces: Some(GatewaySpecListenersAllowedRoutesNamespaces {
+                    from: Some(from_value.to_string()),
+                    selector: None,
+                }),
+                kinds: None,
+            })
+        } else {
+            None
+        };
+
+        Gateway {
+            metadata: ObjectMeta {
+                name: Some(name.to_string()),
+                namespace: Some(namespace.to_string()),
+                ..Default::default()
+            },
+            spec: GatewaySpec {
+                gateway_class_name: "vale-gateway".to_string(),
+                listeners: Some(vec![GatewaySpecListeners {
+                    name: "http".to_string(),
+                    port: 80,
+                    protocol: "HTTP".to_string(),
+                    allowed_routes,
+                    hostname: None,
+                    tls: None,
+                }]),
+                addresses: None,
+                infrastructure: None,
+            },
+            status: None,
+        }
+    }
+
+    /// Helper function to create a test HTTPRoute
+    fn create_test_http_route(name: &str, namespace: &str, gateway_name: &str, gateway_namespace: Option<&str>) -> HTTPRoute {
+        HTTPRoute {
+            metadata: ObjectMeta {
+                name: Some(name.to_string()),
+                namespace: Some(namespace.to_string()),
+                ..Default::default()
+            },
+            spec: HTTPRouteSpec {
+                parent_refs: Some(vec![HTTPRouteSpecParentRefs {
+                    group: None,
+                    kind: None,
+                    name: gateway_name.to_string(),
+                    namespace: gateway_namespace.map(|s| s.to_string()),
+                    port: None,
+                    section_name: None,
+                }]),
+                hostnames: None,
+                rules: Some(vec![]),
+            },
+            status: None,
+        }
+    }
+
+    #[test]
+    async fn test_http_route_same_namespace_allowed() {
+        init_test_env();
+
+        let task_builder = TaskBuilder::new("test");
+
+        // Create gateway with default allowedRoutes (Same namespace)
+        let gateway = create_test_gateway("test-gateway", "default", None);
+        let gateway_ref = ObjectRef::of_kind::<Gateway>()
+            .namespace("default")
+            .name("test-gateway")
+            .build();
+
+        let mut gateways = Objects::new();
+        gateways.insert(gateway_ref, gateway.into());
+
+        // Create HTTPRoute in the same namespace
+        let http_route = create_test_http_route("test-route", "default", "test-gateway", None);
+        let route_ref = ObjectRef::of_kind::<HTTPRoute>()
+            .namespace("default")
+            .name("test-route")
+            .build();
+
+        let mut http_routes = Objects::new();
+        http_routes.insert(route_ref.clone(), http_route.into());
+
+        // Set up signal channels
+        let (gateways_tx, gateways_rx) = signal();
+        let (http_routes_tx, http_routes_rx) = signal();
+
+        gateways_tx.set(gateways).await;
+        http_routes_tx.set(http_routes).await;
+
+        // Test filtering
+        let filtered_rx = filter_http_routes(&task_builder, &gateways_rx, &http_routes_rx);
+
+        // Give the filter time to process
+        tokio::time::sleep(Duration::from_millis(100)).await;
+
+        let filtered_routes = filtered_rx.get().await.expect("Should have filtered routes");
+        assert_eq!(filtered_routes.len(), 1, "Route in same namespace should be allowed");
+        assert!(filtered_routes.contains_by_ref(&route_ref), "The specific route should be present");
+    }
+
+    #[test]
+    async fn test_http_route_different_namespace_rejected_with_same_policy() {
+        init_test_env();
+
+        let task_builder = TaskBuilder::new("test");
+
+        // Create gateway with explicit "Same" namespace policy
+        let gateway = create_test_gateway("test-gateway", "default", Some("Same"));
+        let gateway_ref = ObjectRef::of_kind::<Gateway>()
+            .namespace("default")
+            .name("test-gateway")
+            .build();
+
+        let mut gateways = Objects::new();
+        gateways.insert(gateway_ref, gateway.into());
+
+        // Create HTTPRoute in a different namespace
+        let http_route = create_test_http_route("test-route", "other", "test-gateway", Some("default"));
+        let route_ref = ObjectRef::of_kind::<HTTPRoute>()
+            .namespace("other")
+            .name("test-route")
+            .build();
+
+        let mut http_routes = Objects::new();
+        http_routes.insert(route_ref, http_route.into());
+
+        // Set up signal channels
+        let (gateways_tx, gateways_rx) = signal();
+        let (http_routes_tx, http_routes_rx) = signal();
+
+        gateways_tx.set(gateways).await;
+        http_routes_tx.set(http_routes).await;
+
+        // Test filtering
+        let filtered_rx = filter_http_routes(&task_builder, &gateways_rx, &http_routes_rx);
+
+        // Give the filter time to process
+        tokio::time::sleep(Duration::from_millis(100)).await;
+
+        let filtered_routes = filtered_rx.get().await.expect("Should have filtered routes");
+        assert_eq!(filtered_routes.len(), 0, "Route in different namespace should be rejected with Same policy");
+    }
+
+    #[test]
+    async fn test_http_route_all_namespaces_allowed() {
+        init_test_env();
+
+        let task_builder = TaskBuilder::new("test");
+
+        // Create gateway with "All" namespace policy
+        let gateway = create_test_gateway("test-gateway", "default", Some("All"));
+        let gateway_ref = ObjectRef::of_kind::<Gateway>()
+            .namespace("default")
+            .name("test-gateway")
+            .build();
+
+        let mut gateways = Objects::new();
+        gateways.insert(gateway_ref, gateway.into());
+
+        // Create HTTPRoutes in different namespaces
+        let route1 = create_test_http_route("test-route-1", "default", "test-gateway", Some("default"));
+        let route1_ref = ObjectRef::of_kind::<HTTPRoute>()
+            .namespace("default")
+            .name("test-route-1")
+            .build();
+
+        let route2 = create_test_http_route("test-route-2", "other", "test-gateway", Some("default"));
+        let route2_ref = ObjectRef::of_kind::<HTTPRoute>()
+            .namespace("other")
+            .name("test-route-2")
+            .build();
+
+        let mut http_routes = Objects::new();
+        http_routes.insert(route1_ref.clone(), route1.into());
+        http_routes.insert(route2_ref.clone(), route2.into());
+
+        // Set up signal channels
+        let (gateways_tx, gateways_rx) = signal();
+        let (http_routes_tx, http_routes_rx) = signal();
+
+        gateways_tx.set(gateways).await;
+        http_routes_tx.set(http_routes).await;
+
+        // Test filtering
+        let filtered_rx = filter_http_routes(&task_builder, &gateways_rx, &http_routes_rx);
+
+        // Give the filter time to process
+        tokio::time::sleep(Duration::from_millis(100)).await;
+
+        let filtered_routes = filtered_rx.get().await.expect("Should have filtered routes");
+        assert_eq!(filtered_routes.len(), 2, "All routes should be allowed with All policy");
+        assert!(filtered_routes.contains_by_ref(&route1_ref), "Route in same namespace should be present");
+        assert!(filtered_routes.contains_by_ref(&route2_ref), "Route in different namespace should be present");
+    }
+
+    #[test]
+    async fn test_http_route_selector_namespace_policy() {
+        init_test_env();
+
+        let task_builder = TaskBuilder::new("test");
+
+        // Create gateway with "Selector" namespace policy (currently unimplemented, should allow)
+        let gateway = create_test_gateway("test-gateway", "default", Some("Selector"));
+        let gateway_ref = ObjectRef::of_kind::<Gateway>()
+            .namespace("default")
+            .name("test-gateway")
+            .build();
+
+        let mut gateways = Objects::new();
+        gateways.insert(gateway_ref, gateway.into());
+
+        // Create HTTPRoute in different namespace
+        let http_route = create_test_http_route("test-route", "other", "test-gateway", Some("default"));
+        let route_ref = ObjectRef::of_kind::<HTTPRoute>()
+            .namespace("other")
+            .name("test-route")
+            .build();
+
+        let mut http_routes = Objects::new();
+        http_routes.insert(route_ref.clone(), http_route.into());
+
+        // Set up signal channels
+        let (gateways_tx, gateways_rx) = signal();
+        let (http_routes_tx, http_routes_rx) = signal();
+
+        gateways_tx.set(gateways).await;
+        http_routes_tx.set(http_routes).await;
+
+        // Test filtering
+        let filtered_rx = filter_http_routes(&task_builder, &gateways_rx, &http_routes_rx);
+
+        // Give the filter time to process
+        tokio::time::sleep(Duration::from_millis(100)).await;
+
+        let filtered_routes = filtered_rx.get().await.expect("Should have filtered routes");
+        // Currently selector is unimplemented and allows routes (with warning)
+        assert_eq!(filtered_routes.len(), 1, "Route should be allowed with Selector policy (unimplemented)");
+        assert!(filtered_routes.contains_by_ref(&route_ref), "The route should be present");
+    }
+}
