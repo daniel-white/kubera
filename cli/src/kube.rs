@@ -28,10 +28,12 @@ pub async fn get_gateways(
     all_namespaces: bool,
     selector: Option<&str>,
 ) -> Result<Vec<Gateway>> {
-    let api: Api<Gateway> = if all_namespaces || namespace.is_none() {
+    let api: Api<Gateway> = if all_namespaces {
         Api::all(client.clone())
+    } else if let Some(ns) = namespace {
+        Api::namespaced(client.clone(), ns)
     } else {
-        Api::namespaced(client.clone(), namespace.unwrap())
+        Api::all(client.clone())
     };
 
     let mut list_params = kube::api::ListParams::default();
@@ -62,10 +64,12 @@ pub async fn get_gateway_pods(
     gateway: Option<&str>,
     all_namespaces: bool,
 ) -> Result<Vec<Pod>> {
-    let api: Api<Pod> = if all_namespaces || namespace.is_none() {
+    let api: Api<Pod> = if all_namespaces {
         Api::all(client.clone())
+    } else if let Some(ns) = namespace {
+        Api::namespaced(client.clone(), ns)
     } else {
-        Api::namespaced(client.clone(), namespace.unwrap())
+        Api::all(client.clone())
     };
 
     let mut list_params = kube::api::ListParams::default();
@@ -90,10 +94,12 @@ pub async fn get_gateway_services(
     gateway: Option<&str>,
     all_namespaces: bool,
 ) -> Result<Vec<Service>> {
-    let api: Api<Service> = if all_namespaces || namespace.is_none() {
+    let api: Api<Service> = if all_namespaces {
         Api::all(client.clone())
+    } else if let Some(ns) = namespace {
+        Api::namespaced(client.clone(), ns)
     } else {
-        Api::namespaced(client.clone(), namespace.unwrap())
+        Api::all(client.clone())
     };
 
     let mut list_params = kube::api::ListParams::default();
@@ -116,10 +122,12 @@ pub async fn get_gateway_deployments(
     gateway: Option<&str>,
     all_namespaces: bool,
 ) -> Result<Vec<Deployment>> {
-    let api: Api<Deployment> = if all_namespaces || namespace.is_none() {
+    let api: Api<Deployment> = if all_namespaces {
         Api::all(client.clone())
+    } else if let Some(ns) = namespace {
+        Api::namespaced(client.clone(), ns)
     } else {
-        Api::namespaced(client.clone(), namespace.unwrap())
+        Api::all(client.clone())
     };
 
     let mut list_params = kube::api::ListParams::default();

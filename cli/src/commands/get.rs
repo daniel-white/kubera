@@ -38,7 +38,7 @@ impl GatewayInfo {
         let listeners = spec
             .listeners
             .iter()
-            .map(|l| ListenerInfo::from_listener(l))
+            .map(ListenerInfo::from_listener)
             .collect();
 
         Self {
@@ -203,7 +203,7 @@ fn output_gateways(gateways: &[GatewayInfo], format: &OutputFormat) -> Result<()
                 let address = gateway.addresses.first().unwrap_or(&address_default);
                 let age = gateway
                     .age
-                    .map(|a| format_age(a))
+                    .map(format_age)
                     .unwrap_or_else(|| "<unknown>".to_string());
 
                 println!(
@@ -228,7 +228,7 @@ fn output_gateways(gateways: &[GatewayInfo], format: &OutputFormat) -> Result<()
                     .join(",");
                 let age = gateway
                     .age
-                    .map(|a| format_age(a))
+                    .map(format_age)
                     .unwrap_or_else(|| "<unknown>".to_string());
 
                 println!(
@@ -257,7 +257,7 @@ fn output_pods(pods: &[PodInfo], format: &OutputFormat) -> Result<()> {
             for pod in pods {
                 let age = pod
                     .age
-                    .map(|a| format_age(a))
+                    .map(format_age)
                     .unwrap_or_else(|| "<unknown>".to_string());
 
                 println!(
@@ -274,7 +274,7 @@ fn output_pods(pods: &[PodInfo], format: &OutputFormat) -> Result<()> {
             for pod in pods {
                 let age = pod
                     .age
-                    .map(|a| format_age(a))
+                    .map(format_age)
                     .unwrap_or_else(|| "<unknown>".to_string());
                 let node = pod.node.as_deref().unwrap_or("<none>");
 
@@ -305,7 +305,7 @@ fn output_services(services: &[ServiceInfo], format: &OutputFormat) -> Result<()
                 let ports = service.ports.join(",");
                 let age = service
                     .age
-                    .map(|a| format_age(a))
+                    .map(format_age)
                     .unwrap_or_else(|| "<unknown>".to_string());
                 let cluster_ip = service.cluster_ip.as_deref().unwrap_or("<none>");
 
@@ -329,7 +329,7 @@ fn output_services(services: &[ServiceInfo], format: &OutputFormat) -> Result<()
                 };
                 let age = service
                     .age
-                    .map(|a| format_age(a))
+                    .map(format_age)
                     .unwrap_or_else(|| "<unknown>".to_string());
                 let cluster_ip = service.cluster_ip.as_deref().unwrap_or("<none>");
 
@@ -365,7 +365,7 @@ fn output_deployments(deployments: &[DeploymentInfo], format: &OutputFormat) -> 
             for deployment in deployments {
                 let age = deployment
                     .age
-                    .map(|a| format_age(a))
+                    .map(format_age)
                     .unwrap_or_else(|| "<unknown>".to_string());
 
                 println!(

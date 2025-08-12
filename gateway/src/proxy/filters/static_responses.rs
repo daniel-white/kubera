@@ -57,6 +57,7 @@ pub struct FullStaticResponse {
     status_code: StatusCode,
     #[getset(get = "pub")]
     #[builder(setter(into))]
+    #[allow(dead_code)] // TODO: Will be used for response versioning
     version_key: String,
     body: Option<FullStaticResponseBody>,
 }
@@ -72,6 +73,7 @@ pub struct FullStaticResponseBody {
     #[getset(get = "pub")]
     content_type: String,
     #[getset(get = "pub")]
+    #[allow(dead_code)] // TODO: Will be used for response identification
     identifier: String,
     #[getset(get_clone = "pub")]
     content: Arc<Bytes>,

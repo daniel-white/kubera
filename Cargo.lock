@@ -5442,6 +5442,7 @@ dependencies = [
  "tokio",
  "tokio-test",
  "tracing",
+ "tracing-subscriber",
  "typed-builder",
  "unicase",
 ]
