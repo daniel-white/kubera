@@ -1,0 +1,22 @@
+[package]
+name = "vgctl"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+vg-api = { path = "../api" }
+vg-core = { path = "../core" }
+clap = { workspace = true }
+kube = { workspace = true }
+kube-conf = { workspace = true }
+k8s-openapi = { workspace = true }
+tokio = { workspace = true }
+anyhow = { workspace = true }
+serde_json = { workspace = true }
+serde_yaml = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+serde = { workspace = true }
+tokio-stream = { workspace = true }
+chrono = { workspace = true }
+gateway-api = "0.16"
