@@ -103,6 +103,14 @@ pub enum Commands {
         #[arg(last = true)]
         command: Vec<String>,
     },
+    /// Show status of gateway resources
+    Status {
+        /// Resource type to show status for
+        #[arg(value_enum)]
+        resource_type: crate::commands::status::StatusResourceType,
+        /// Resource name (optional)
+        name: Option<String>,
+    },
 }
 
 #[derive(Subcommand)]
