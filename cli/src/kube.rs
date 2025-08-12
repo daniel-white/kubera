@@ -1,23 +1,37 @@
-use anyhow::{Context, Result};
+use anyhow::Result;
 use gateway_api::gateways::Gateway;
-use k8s_openapi::api::apps::v1::Deployment;
-use k8s_openapi::api::core::v1::{Pod, Service};
-use kube::{Api, Client, Config};
+use k8s_openapi::api::{
+    apps::v1::Deployment,
+    core::v1::{Pod, Service},
+};
+use kube::{api::Api, Client, Config};
+use tracing::{debug, info};
 
-// Re-export types from commands for backward compatibility
+/// Re-export ContextInfo from the context module
 pub use crate::commands::context::ContextInfo;
 
-/// Create a Kubernetes client using kube-conf for proper context handling
+
+/// Create a Kubernetes client with optional kubeconfig path
 pub async fn create_kube_client(kubeconfig_path: Option<&str>) -> Result<Client> {
-    let config = if let Some(_path) = kubeconfig_path {
-        // For now, use default configuration - kubeconfig path loading can be enhanced later
-        Config::infer().await?
-    } else {
-        // Use default configuration (respects KUBECONFIG env var, then ~/.kube/config)
-        Config::infer().await?
+    let config = match kubeconfig_path {
+        Some(path) => {
+            info!("Using kubeconfig from: {}", path);
+            Config::from_kubeconfig(&kube::config::KubeConfigOptions {
+                context: None,
+                cluster: None,
+                user: None,
+            })
+            .await?
+        }
+        None => {
+            debug!("Using default kubeconfig");
+            Config::infer().await?
+        }
     };
 
-    Client::try_from(config).context("Failed to create Kubernetes client")
+    let client = Client::try_from(config)?;
+    debug!("Successfully created Kubernetes client");
+    Ok(client)
 }
 
 /// Get gateway resources from the cluster
@@ -28,12 +42,10 @@ pub async fn get_gateways(
     all_namespaces: bool,
     selector: Option<&str>,
 ) -> Result<Vec<Gateway>> {
-    let api: Api<Gateway> = if all_namespaces {
+    let api: Api<Gateway> = if all_namespaces || namespace.is_none() {
         Api::all(client.clone())
-    } else if let Some(ns) = namespace {
-        Api::namespaced(client.clone(), ns)
     } else {
-        Api::all(client.clone())
+        Api::namespaced(client.clone(), namespace.unwrap())
     };
 
     let mut list_params = kube::api::ListParams::default();
@@ -64,12 +76,10 @@ pub async fn get_gateway_pods(
     gateway: Option<&str>,
     all_namespaces: bool,
 ) -> Result<Vec<Pod>> {
-    let api: Api<Pod> = if all_namespaces {
+    let api: Api<Pod> = if all_namespaces || namespace.is_none() {
         Api::all(client.clone())
-    } else if let Some(ns) = namespace {
-        Api::namespaced(client.clone(), ns)
     } else {
-        Api::all(client.clone())
+        Api::namespaced(client.clone(), namespace.unwrap())
     };
 
     let mut list_params = kube::api::ListParams::default();
@@ -94,12 +104,10 @@ pub async fn get_gateway_services(
     gateway: Option<&str>,
     all_namespaces: bool,
 ) -> Result<Vec<Service>> {
-    let api: Api<Service> = if all_namespaces {
+    let api: Api<Service> = if all_namespaces || namespace.is_none() {
         Api::all(client.clone())
-    } else if let Some(ns) = namespace {
-        Api::namespaced(client.clone(), ns)
     } else {
-        Api::all(client.clone())
+        Api::namespaced(client.clone(), namespace.unwrap())
     };
 
     let mut list_params = kube::api::ListParams::default();
@@ -122,12 +130,10 @@ pub async fn get_gateway_deployments(
     gateway: Option<&str>,
     all_namespaces: bool,
 ) -> Result<Vec<Deployment>> {
-    let api: Api<Deployment> = if all_namespaces {
+    let api: Api<Deployment> = if all_namespaces || namespace.is_none() {
         Api::all(client.clone())
-    } else if let Some(ns) = namespace {
-        Api::namespaced(client.clone(), ns)
     } else {
-        Api::all(client.clone())
+        Api::namespaced(client.clone(), namespace.unwrap())
     };
 
     let mut list_params = kube::api::ListParams::default();

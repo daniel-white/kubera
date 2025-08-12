@@ -1,14 +1,17 @@
 use anyhow::Result;
 use chrono::{DateTime, Utc};
 use gateway_api::gateways::Gateway;
-use k8s_openapi::api::apps::v1::Deployment;
-use k8s_openapi::api::core::v1::{Pod, Service};
+use k8s_openapi::api::{
+    apps::v1::Deployment,
+    core::v1::{Pod, Service},
+};
 use kube::Client;
 use serde::{Deserialize, Serialize};
-use tracing::warn;
+use tabled::{Table, Tabled};
 
 use crate::cli::{Cli, GetResource, OutputFormat};
 use crate::kube::{get_gateway_deployments, get_gateway_pods, get_gateway_services, get_gateways};
+use crate::table_theme::TableTheme;
 
 /// Models specific to the get command
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -25,7 +28,7 @@ pub struct GatewayInfo {
 impl GatewayInfo {
     pub fn from_gateway(gateway: Gateway) -> Self {
         let metadata = gateway.metadata;
-        let spec = &gateway.spec;
+        let spec = gateway.spec;
         let status = gateway.status.unwrap_or_default();
 
         let addresses = status
@@ -50,6 +53,27 @@ impl GatewayInfo {
             status: "Ready".to_string(), // TODO: Parse actual status
             age: metadata.creation_timestamp.map(|ts| ts.0),
         }
+    }
+}
+
+// Helper functions for formatting complex fields
+fn format_age_from_datetime(timestamp: DateTime<Utc>) -> String {
+    let duration = Utc::now().signed_duration_since(timestamp);
+    if duration.num_days() > 0 {
+        format!("{}d", duration.num_days())
+    } else if duration.num_hours() > 0 {
+        format!("{}h", duration.num_hours())
+    } else if duration.num_minutes() > 0 {
+        format!("{}m", duration.num_minutes())
+    } else {
+        format!("{}s", duration.num_seconds())
+    }
+}
+
+fn format_age_from_option(age: Option<DateTime<Utc>>) -> String {
+    match age {
+        Some(timestamp) => format_age_from_datetime(timestamp),
+        None => "<unknown>".to_string(),
     }
 }
 
@@ -132,20 +156,30 @@ impl ServiceInfo {
         let metadata = service.metadata;
         let spec = service.spec.unwrap_or_default();
 
+        let external_ips = spec.external_ips.unwrap_or_default();
+
         let ports = spec
             .ports
             .unwrap_or_default()
             .into_iter()
             .map(|port| {
+                let target_port = match port.target_port {
+                    Some(target) => match target {
+                        k8s_openapi::apimachinery::pkg::util::intstr::IntOrString::Int(i) => {
+                            i.to_string()
+                        }
+                        k8s_openapi::apimachinery::pkg::util::intstr::IntOrString::String(s) => s,
+                    },
+                    None => port.port.to_string(),
+                };
                 format!(
-                    "{}/{}",
+                    "{}:{}/{}",
+                    port.protocol.unwrap_or_default().to_lowercase(),
                     port.port,
-                    port.protocol.unwrap_or_default().to_lowercase()
+                    target_port
                 )
             })
             .collect();
-
-        let external_ips = spec.external_ips.unwrap_or_default();
 
         Self {
             name: metadata.name.unwrap_or_default(),
@@ -190,52 +224,135 @@ impl DeploymentInfo {
     }
 }
 
+// Table row structures for consistent display
+#[derive(Tabled)]
+struct GatewayTableRow {
+    name: String,
+    namespace: String,
+    class: String,
+    address: String,
+    age: String,
+}
+
+#[derive(Tabled)]
+struct GatewayWideTableRow {
+    name: String,
+    namespace: String,
+    class: String,
+    address: String,
+    listeners: String,
+    age: String,
+}
+
+#[derive(Tabled)]
+struct PodTableRow {
+    name: String,
+    namespace: String,
+    ready: String,
+    status: String,
+    restarts: i32,
+    age: String,
+}
+
+#[derive(Tabled)]
+struct PodWideTableRow {
+    name: String,
+    namespace: String,
+    ready: String,
+    status: String,
+    restarts: i32,
+    node: String,
+    age: String,
+}
+
+#[derive(Tabled)]
+struct ServiceTableRow {
+    name: String,
+    namespace: String,
+    r#type: String,
+    cluster_ip: String,
+    ports: String,
+    age: String,
+}
+
+#[derive(Tabled)]
+struct ServiceWideTableRow {
+    name: String,
+    namespace: String,
+    r#type: String,
+    cluster_ip: String,
+    external_ip: String,
+    ports: String,
+    age: String,
+}
+
+#[derive(Tabled)]
+struct DeploymentTableRow {
+    name: String,
+    namespace: String,
+    ready: String,
+    up_to_date: i32,
+    available: i32,
+    age: String,
+}
+
 /// Output formatting functions
 fn output_gateways(gateways: &[GatewayInfo], format: &OutputFormat) -> Result<()> {
     match format {
         OutputFormat::Table => {
-            println!(
-                "{:<20} {:<15} {:<20} {:<15} {:<10}",
-                "NAME", "NAMESPACE", "CLASS", "ADDRESS", "AGE"
-            );
-            for gateway in gateways {
-                let address_default = "<none>".to_string();
-                let address = gateway.addresses.first().unwrap_or(&address_default);
-                let age = gateway
-                    .age
-                    .map(format_age)
-                    .unwrap_or_else(|| "<unknown>".to_string());
+            let rows: Vec<GatewayTableRow> = gateways
+                .iter()
+                .map(|gateway| {
+                    let address = gateway
+                        .addresses
+                        .first()
+                        .cloned()
+                        .unwrap_or_else(|| "<none>".to_string());
+                    let age = format_age_from_option(gateway.age);
 
-                println!(
-                    "{:<20} {:<15} {:<20} {:<15} {:<10}",
-                    gateway.name, gateway.namespace, gateway.gateway_class, address, age
-                );
-            }
+                    GatewayTableRow {
+                        name: gateway.name.clone(),
+                        namespace: gateway.namespace.clone(),
+                        class: gateway.gateway_class.clone(),
+                        address,
+                        age,
+                    }
+                })
+                .collect();
+
+            let table = TableTheme::apply_default(Table::new(rows));
+            println!("{}", table);
         }
         OutputFormat::Wide => {
-            println!(
-                "{:<20} {:<15} {:<20} {:<15} {:<30} {:<10}",
-                "NAME", "NAMESPACE", "CLASS", "ADDRESS", "LISTENERS", "AGE"
-            );
-            for gateway in gateways {
-                let address_default = "<none>".to_string();
-                let address = gateway.addresses.first().unwrap_or(&address_default);
-                let listeners = gateway
-                    .listeners
-                    .iter()
-                    .map(|l| format!("{}:{}", l.name, l.port))
-                    .collect::<Vec<_>>()
-                    .join(",");
-                let age = gateway
-                    .age
-                    .map(format_age)
-                    .unwrap_or_else(|| "<unknown>".to_string());
+            let rows: Vec<GatewayWideTableRow> = gateways
+                .iter()
+                .map(|gateway| {
+                    let address = gateway
+                        .addresses
+                        .first()
+                        .cloned()
+                        .unwrap_or_else(|| "<none>".to_string());
+                    let listeners = gateway
+                        .listeners
+                        .iter()
+                        .map(|l| format!("{}:{}", l.name, l.port))
+                        .collect::<Vec<_>>()
+                        .join(",");
+                    let age = format_age_from_option(gateway.age);
 
-                println!(
-                    "{:<20} {:<15} {:<20} {:<15} {:<30} {:<10}",
-                    gateway.name, gateway.namespace, gateway.gateway_class, address, listeners, age
-                );
-            }
+                    GatewayWideTableRow {
+                        name: gateway.name.clone(),
+                        namespace: gateway.namespace.clone(),
+                        class: gateway.gateway_class.clone(),
+                        address,
+                        listeners,
+                        age,
+                    }
+                })
+                .collect();
+
+            let table = TableTheme::apply_wide(Table::new(rows));
+            println!("{}", table);
         }
         OutputFormat::Json => {
             println!("{}", serde_json::to_string_pretty(gateways)?);
@@ -250,39 +367,46 @@ fn output_gateways(gateways: &[GatewayInfo], format: &OutputFormat) -> Result<()
 fn output_pods(pods: &[PodInfo], format: &OutputFormat) -> Result<()> {
     match format {
         OutputFormat::Table => {
-            println!(
-                "{:<30} {:<15} {:<8} {:<12} {:<8} {:<10}",
-                "NAME", "NAMESPACE", "READY", "STATUS", "RESTARTS", "AGE"
-            );
-            for pod in pods {
-                let age = pod
-                    .age
-                    .map(format_age)
-                    .unwrap_or_else(|| "<unknown>".to_string());
+            let rows: Vec<PodTableRow> = pods
+                .iter()
+                .map(|pod| {
+                    let age = format_age_from_option(pod.age);
 
-                println!(
-                    "{:<30} {:<15} {:<8} {:<12} {:<8} {:<10}",
-                    pod.name, pod.namespace, pod.ready, pod.status, pod.restarts, age
-                );
-            }
+                    PodTableRow {
+                        name: pod.name.clone(),
+                        namespace: pod.namespace.clone(),
+                        ready: pod.ready.clone(),
+                        status: pod.status.clone(),
+                        restarts: pod.restarts,
+                        age,
+                    }
+                })
+                .collect();
+
+            let table = TableTheme::apply_default(Table::new(rows));
+            println!("{}", table);
         }
         OutputFormat::Wide => {
-            println!(
-                "{:<30} {:<15} {:<8} {:<12} {:<8} {:<20} {:<10}",
-                "NAME", "NAMESPACE", "READY", "STATUS", "RESTARTS", "NODE", "AGE"
-            );
-            for pod in pods {
-                let age = pod
-                    .age
-                    .map(format_age)
-                    .unwrap_or_else(|| "<unknown>".to_string());
-                let node = pod.node.as_deref().unwrap_or("<none>");
+            let rows: Vec<PodWideTableRow> = pods
+                .iter()
+                .map(|pod| {
+                    let age = format_age_from_option(pod.age);
+                    let node = pod.node.as_deref().unwrap_or("<none>").to_string();
 
-                println!(
-                    "{:<30} {:<15} {:<8} {:<12} {:<8} {:<20} {:<10}",
-                    pod.name, pod.namespace, pod.ready, pod.status, pod.restarts, node, age
-                );
-            }
+                    PodWideTableRow {
+                        name: pod.name.clone(),
+                        namespace: pod.namespace.clone(),
+                        ready: pod.ready.clone(),
+                        status: pod.status.clone(),
+                        restarts: pod.restarts,
+                        node,
+                        age,
+                    }
+                })
+                .collect();
+
+            let table = TableTheme::apply_wide(Table::new(rows));
+            println!("{}", table);
         }
         OutputFormat::Json => {
             println!("{}", serde_json::to_string_pretty(pods)?);
@@ -297,53 +421,62 @@ fn output_pods(pods: &[PodInfo], format: &OutputFormat) -> Result<()> {
 fn output_services(services: &[ServiceInfo], format: &OutputFormat) -> Result<()> {
     match format {
         OutputFormat::Table => {
-            println!(
-                "{:<30} {:<15} {:<12} {:<15} {:<20} {:<10}",
-                "NAME", "NAMESPACE", "TYPE", "CLUSTER-IP", "PORTS", "AGE"
-            );
-            for service in services {
-                let ports = service.ports.join(",");
-                let age = service
-                    .age
-                    .map(format_age)
-                    .unwrap_or_else(|| "<unknown>".to_string());
-                let cluster_ip = service.cluster_ip.as_deref().unwrap_or("<none>");
+            let rows: Vec<ServiceTableRow> = services
+                .iter()
+                .map(|service| {
+                    let ports = service.ports.join(",");
+                    let age = format_age_from_option(service.age);
+                    let cluster_ip = service
+                        .cluster_ip
+                        .as_deref()
+                        .unwrap_or("<none>")
+                        .to_string();
 
-                println!(
-                    "{:<30} {:<15} {:<12} {:<15} {:<20} {:<10}",
-                    service.name, service.namespace, service.service_type, cluster_ip, ports, age
-                );
-            }
+                    ServiceTableRow {
+                        name: service.name.clone(),
+                        namespace: service.namespace.clone(),
+                        r#type: service.service_type.clone(),
+                        cluster_ip,
+                        ports,
+                        age,
+                    }
+                })
+                .collect();
+
+            let table = TableTheme::apply_default(Table::new(rows));
+            println!("{}", table);
         }
         OutputFormat::Wide => {
-            println!(
-                "{:<30} {:<15} {:<12} {:<15} {:<15} {:<20} {:<10}",
-                "NAME", "NAMESPACE", "TYPE", "CLUSTER-IP", "EXTERNAL-IP", "PORTS", "AGE"
-            );
-            for service in services {
-                let ports = service.ports.join(",");
-                let external_ips = if service.external_ips.is_empty() {
-                    "<none>".to_string()
-                } else {
-                    service.external_ips.join(",")
-                };
-                let age = service
-                    .age
-                    .map(format_age)
-                    .unwrap_or_else(|| "<unknown>".to_string());
-                let cluster_ip = service.cluster_ip.as_deref().unwrap_or("<none>");
+            let rows: Vec<ServiceWideTableRow> = services
+                .iter()
+                .map(|service| {
+                    let ports = service.ports.join(",");
+                    let external_ip = if service.external_ips.is_empty() {
+                        "<none>".to_string()
+                    } else {
+                        service.external_ips.join(",")
+                    };
+                    let age = format_age_from_option(service.age);
+                    let cluster_ip = service
+                        .cluster_ip
+                        .as_deref()
+                        .unwrap_or("<none>")
+                        .to_string();
 
-                println!(
-                    "{:<30} {:<15} {:<12} {:<15} {:<15} {:<20} {:<10}",
-                    service.name,
-                    service.namespace,
-                    service.service_type,
-                    cluster_ip,
-                    external_ips,
-                    ports,
-                    age
-                );
-            }
+                    ServiceWideTableRow {
+                        name: service.name.clone(),
+                        namespace: service.namespace.clone(),
+                        r#type: service.service_type.clone(),
+                        cluster_ip,
+                        external_ip,
+                        ports,
+                        age,
+                    }
+                })
+                .collect();
+
+            let table = TableTheme::apply_wide(Table::new(rows));
+            println!("{}", table);
         }
         OutputFormat::Json => {
             println!("{}", serde_json::to_string_pretty(services)?);
@@ -358,26 +491,24 @@ fn output_services(services: &[ServiceInfo], format: &OutputFormat) -> Result<()
 fn output_deployments(deployments: &[DeploymentInfo], format: &OutputFormat) -> Result<()> {
     match format {
         OutputFormat::Table => {
-            println!(
-                "{:<30} {:<15} {:<8} {:<10} {:<10} {:<10}",
-                "NAME", "NAMESPACE", "READY", "UP-TO-DATE", "AVAILABLE", "AGE"
-            );
-            for deployment in deployments {
-                let age = deployment
-                    .age
-                    .map(format_age)
-                    .unwrap_or_else(|| "<unknown>".to_string());
+            let rows: Vec<DeploymentTableRow> = deployments
+                .iter()
+                .map(|deployment| {
+                    let age = format_age_from_option(deployment.age);
 
-                println!(
-                    "{:<30} {:<15} {:<8} {:<10} {:<10} {:<10}",
-                    deployment.name,
-                    deployment.namespace,
-                    deployment.ready,
-                    deployment.up_to_date,
-                    deployment.available,
-                    age
-                );
-            }
+                    DeploymentTableRow {
+                        name: deployment.name.clone(),
+                        namespace: deployment.namespace.clone(),
+                        ready: deployment.ready.clone(),
+                        up_to_date: deployment.up_to_date,
+                        available: deployment.available,
+                        age,
+                    }
+                })
+                .collect();
+
+            let table = TableTheme::apply_default(Table::new(rows));
+            println!("{}", table);
         }
         OutputFormat::Wide => output_deployments(deployments, &OutputFormat::Table)?,
         OutputFormat::Json => {
@@ -390,18 +521,12 @@ fn output_deployments(deployments: &[DeploymentInfo], format: &OutputFormat) -> 
     Ok(())
 }
 
-fn format_age(timestamp: DateTime<Utc>) -> String {
-    let now = Utc::now();
-    let duration = now.signed_duration_since(timestamp);
-
-    if duration.num_days() > 0 {
-        format!("{}d", duration.num_days())
-    } else if duration.num_hours() > 0 {
-        format!("{}h", duration.num_hours())
-    } else if duration.num_minutes() > 0 {
-        format!("{}m", duration.num_minutes())
+// Additional helper functions
+fn format_ports(ports: &Vec<String>) -> String {
+    if ports.is_empty() {
+        "<none>".to_string()
     } else {
-        format!("{}s", duration.num_seconds())
+        ports.join(",")
     }
 }
 
@@ -430,7 +555,6 @@ pub async fn handle_get_command(client: &Client, resource: &GetResource, cli: &C
             output_gateways(&gateway_info, &cli.output)?;
         }
         GetResource::GatewayClasses { name: _name } => {
-            warn!("Gateway classes listing not yet implemented");
             // TODO: Implement gateway class discovery
         }
         GetResource::Pods {

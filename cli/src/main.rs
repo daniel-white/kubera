@@ -1,37 +1,35 @@
 mod cli;
 mod commands;
 mod kube;
-mod models;
+mod table_theme;
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 use clap::Parser;
-
 use cli::Cli;
 use commands::handle_command;
 use kube::create_kube_client;
+use vg_core::crypto::init_crypto;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    vg_core::crypto::init_crypto();
+    init_crypto();
 
     let cli = Cli::parse();
 
-    // Initialize logging based on verbosity
-    let subscriber = tracing_subscriber::fmt()
-        .with_max_level(if cli.verbose {
-            tracing::Level::DEBUG
-        } else {
-            tracing::Level::INFO
-        })
-        .finish();
-    tracing::subscriber::set_global_default(subscriber)
-        .context("Failed to set tracing subscriber")?;
+    if cli.verbose {
+        tracing_subscriber::fmt().with_env_filter("debug").init();
+    } else {
+        tracing_subscriber::fmt().with_env_filter("info").init();
+    }
 
-    let client = create_kube_client(cli.kubeconfig.as_deref())
-        .await
-        .context("Failed to create Kubernetes client")?;
-
-    handle_command(&client, &cli).await?;
-
+    match create_kube_client(cli.kubeconfig.as_deref()).await {
+        Ok(client) => {
+            handle_command(&client, &cli).await?;
+        }
+        Err(e) => {
+            eprintln!("Failed to create Kubernetes client: {}", e);
+            std::process::exit(1);
+        }
+    }
     Ok(())
 }

@@ -9,8 +9,8 @@ use self::filters::{
     filter_gateways, filter_http_routes,
 };
 use self::sync::{
-    SyncGatewayConfigmapsParams, sync_gateway_class_status, sync_gateway_configmaps,
-    sync_gateway_deployments, sync_gateway_services,
+    sync_gateway_class_status, sync_gateway_configmaps, sync_gateway_deployments,
+    sync_gateway_services, RouteAttachmentState, SyncGatewayConfigmapsParams,
 };
 use self::transformers::{
     bind_static_responses_cache, collect_extension_filters_by_gateway, collect_gateway_instances,
@@ -27,13 +27,13 @@ use gateway_api::apis::standard::gateways::Gateway;
 use gateway_api::apis::standard::httproutes::HTTPRoute;
 use getset::{CloneGetters, Getters};
 use k8s_openapi::api::discovery::v1::EndpointSlice;
-use vg_api::v1alpha1::{GatewayClassParameters, GatewayParameters, StaticResponseFilter};
-use vg_core::sync::signal::Receiver;
-use vg_core::task::Builder as TaskBuilder;
 use std::sync::Arc;
 use thiserror::Error;
 pub use transformers::StaticResponsesCache;
 use typed_builder::TypedBuilder;
+use vg_api::v1alpha1::{GatewayClassParameters, GatewayParameters, StaticResponseFilter};
+use vg_core::sync::signal::Receiver;
+use vg_core::task::Builder as TaskBuilder;
 
 #[derive(Getters, CloneGetters, TypedBuilder)]
 pub struct SpawnControllersParams {
@@ -108,6 +108,9 @@ pub fn spawn_controllers(task_builder: &TaskBuilder, params: SpawnControllersPar
         &gateway_parameters_rx,
     );
     let http_routes_rx = filter_http_routes(task_builder, &gateways_rx, &http_routes_rx);
+
+    // TODO: Add Gateway and HTTPRoute status controllers once Gateway API struct issues are resolved
+
     let http_routes_by_gateway_rx = collect_http_routes_by_gateway(task_builder, &http_routes_rx);
     let service_backends_rx = collect_http_route_backends(task_builder, &http_routes_rx);
     let backends_rx =

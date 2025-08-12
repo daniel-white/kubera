@@ -59,23 +59,23 @@ pub struct FullStaticResponse {
     #[builder(setter(into))]
     #[allow(dead_code)] // TODO: Will be used for response versioning
     version_key: String,
+    #[allow(dead_code)] // TODO: Will be used for response identification
+    #[getset(get_clone = "pub")]
     body: Option<FullStaticResponseBody>,
 }
 
 impl FullStaticResponse {
-    pub fn body(&self) -> Option<&FullStaticResponseBody> {
-        self.body.as_ref()
-    }
-}
+                    .header(CONTENT_LENGTH, body.content.len())
+                    .body(Some(body.content.as_ref().clone()))
+                    .body(None)
+                    .expect("Failed to build static response without body"),
 
 #[derive(TypedBuilder, CloneGetters, Getters)]
 pub struct FullStaticResponseBody {
     #[getset(get = "pub")]
     content_type: String,
     #[getset(get = "pub")]
-    #[allow(dead_code)] // TODO: Will be used for response identification
     identifier: String,
-    #[getset(get_clone = "pub")]
     content: Arc<Bytes>,
 }
 
@@ -148,8 +148,8 @@ impl StaticResponseFilter {
                     .body(Some(body.content().as_ref().clone()))
                     .expect("Failed to build static response"),
                 None => response
-                    .body(None)
-                    .expect("Failed to build static response without body"),
+                    .header(CONTENT_LENGTH, body.content().len())
+                    .body(Some(body.content().as_ref().clone()))
             };
 
             let (headers, body) = response.into_parts();

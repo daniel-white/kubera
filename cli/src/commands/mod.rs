@@ -5,6 +5,7 @@ pub mod exec;
 pub mod get;
 pub mod logs;
 pub mod port_forward;
+pub mod status;
 
 use anyhow::Result;
 use kube::Client;
@@ -71,6 +72,12 @@ pub async fn handle_command(client: &Client, cli: &Cli) -> Result<()> {
             ref command,
         } => {
             exec::handle_exec_command(client, name, container.as_deref(), command, cli).await?;
+        }
+        Commands::Status {
+            ref resource_type,
+            ref name,
+        } => {
+            status::handle_status_command(client, resource_type, name.as_deref(), cli).await?;
         }
     }
 
