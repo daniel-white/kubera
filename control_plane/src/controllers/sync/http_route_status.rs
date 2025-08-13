@@ -6,8 +6,6 @@ use k8s_openapi::chrono;
 use kube::api::PostParams;
 use kube::Api;
 use std::collections::HashMap;
-use std::sync::Arc;
-use std::time::Duration;
 use tracing::{debug, info, warn};
 use vg_core::continue_after;
 use vg_core::sync::signal::Receiver;
@@ -62,7 +60,7 @@ pub fn sync_http_route_status(
                                     reason: "Route not processed yet".to_string(),
                                 });
 
-                            let status = build_http_route_status(&route, attachment_state).await;
+                            let status = build_http_route_status(&route, attachment_state);
                             debug!("HTTPRoute status to be updated: {:?}", status);
 
                             let route_api = Api::<HTTPRoute>::namespaced(
@@ -114,18 +112,18 @@ pub fn sync_http_route_status(
                 .run()
                 .await;
 
-                    http_routes_rx.changed(),
-async fn build_http_route_status(
+                continue_after!(
+                    std::time::Duration::from_secs(30),
                     kube_client_rx.changed(),
                     instance_role_rx.changed(),
-                    http_route_rx.changed(),
+                    http_routes_rx.changed(),
                     route_attachment_states.changed()
                 );
             }
         });
 }
 
-                    http_route_rx.changed(),
+fn build_http_route_status(
     route: &HTTPRoute,
     attachment_state: RouteAttachmentState,
 ) -> HTTPRouteStatus {
