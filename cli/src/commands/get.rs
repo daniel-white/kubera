@@ -13,6 +13,17 @@ use crate::cli::{Cli, GetResource, OutputFormat};
 use crate::kube::{get_gateway_deployments, get_gateway_pods, get_gateway_services, get_gateways};
 use crate::table_theme::{EmojiFormatter, TableTheme};
 
+fn themed_table<T: tabled::Tabled>(rows: Vec<T>, format: &OutputFormat) -> Table {
+    match format {
+        OutputFormat::Table => TableTheme::apply_default(Table::new(rows)),
+        OutputFormat::TableEmoji => TableTheme::apply_default_with_emoji(Table::new(rows)),
+        OutputFormat::Wide => TableTheme::apply_wide(Table::new(rows)),
+        OutputFormat::WideEmoji => TableTheme::apply_wide_with_emoji(Table::new(rows)),
+        OutputFormat::Kubectl => TableTheme::apply_kubectl(Table::new(rows)),
+        _ => TableTheme::apply_default(Table::new(rows)),
+    }
+}
+
 /// Models specific to the get command
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GatewayInfo {
@@ -299,7 +310,11 @@ struct DeploymentTableRow {
 /// Output formatting functions
 fn output_gateways(gateways: &[GatewayInfo], format: &OutputFormat, _cli: &Cli) -> Result<()> {
     match format {
-        OutputFormat::Table => {
+        OutputFormat::Table
+        | OutputFormat::TableEmoji
+        | OutputFormat::Wide
+        | OutputFormat::WideEmoji
+        | OutputFormat::Kubectl => {
             let rows: Vec<GatewayTableRow> = gateways
                 .iter()
                 .map(|gateway| {
@@ -320,97 +335,11 @@ fn output_gateways(gateways: &[GatewayInfo], format: &OutputFormat, _cli: &Cli) 
                 })
                 .collect();
 
-            let table = TableTheme::apply_default(Table::new(rows));
-            println!("{}", table);
-        }
-        OutputFormat::TableEmoji => {
-            let rows: Vec<GatewayTableRow> = gateways
-                .iter()
-                .map(|gateway| {
-                    let address = gateway
-                        .addresses
-                        .first()
-                        .cloned()
-                        .unwrap_or_else(|| "<none>".to_string());
-                    let age = format_age_from_option(gateway.age);
-
-                    GatewayTableRow {
-                        name: gateway.name.clone(),
-                        namespace: gateway.namespace.clone(),
-                        class: gateway.gateway_class.clone(),
-                        address,
-                        age,
-                    }
-                })
-                .collect();
-
-            let mut table = TableTheme::apply_default_with_emoji(Table::new(rows));
-            // Apply emoji formatting to relevant columns
-            table = EmojiFormatter::apply_to_column(table, 3); // Address column
-            println!("{}", table);
-        }
-        OutputFormat::Kubectl => {
-            let rows: Vec<GatewayTableRow> = gateways
-                .iter()
-                .map(|gateway| {
-                    let address = gateway
-                        .addresses
-                        .first()
-                        .cloned()
-                        .unwrap_or_else(|| "<none>".to_string());
-                    let age = format_age_from_option(gateway.age);
-
-                    GatewayTableRow {
-                        name: gateway.name.clone(),
-                        namespace: gateway.namespace.clone(),
-                        class: gateway.gateway_class.clone(),
-                        address,
-                        age,
-                    }
-                })
-                .collect();
-
-            let table = TableTheme::apply_kubectl(Table::new(rows));
-            println!("{}", table);
-        }
-        OutputFormat::Wide | OutputFormat::WideEmoji => {
-            let rows: Vec<GatewayWideTableRow> = gateways
-                .iter()
-                .map(|gateway| {
-                    let address = gateway
-                        .addresses
-                        .first()
-                        .cloned()
-                        .unwrap_or_else(|| "<none>".to_string());
-                    let listeners = gateway
-                        .listeners
-                        .iter()
-                        .map(|l| format!("{}:{}", l.name, l.port))
-                        .collect::<Vec<_>>()
-                        .join(",");
-                    let age = format_age_from_option(gateway.age);
-
-                    GatewayWideTableRow {
-                        name: gateway.name.clone(),
-                        namespace: gateway.namespace.clone(),
-                        class: gateway.gateway_class.clone(),
-                        address,
-                        listeners,
-                        age,
-                    }
-                })
-                .collect();
-
-            let mut table = if matches!(format, OutputFormat::WideEmoji) {
-                TableTheme::apply_wide_with_emoji(Table::new(rows))
-            } else {
-                TableTheme::apply_wide(Table::new(rows))
-            };
-
-            if matches!(format, OutputFormat::WideEmoji) {
+            let mut table = themed_table(rows, format);
+            // Apply emoji formatting to relevant columns for emoji formats
+            if matches!(format, OutputFormat::TableEmoji | OutputFormat::WideEmoji) {
                 table = EmojiFormatter::apply_to_column(table, 3); // Address column
             }
-
             println!("{}", table);
         }
         OutputFormat::Json => {

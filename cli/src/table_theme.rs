@@ -2,7 +2,7 @@ use tabled::{
     settings::{
         format::Format,
         object::{Columns, Rows},
-        Alignment, Modify, Style,
+        Alignment, Modify, Style, Width,
     },
     Table,
 };
@@ -123,6 +123,13 @@ impl EmojiFormatter {
 pub struct TableTheme;
 
 impl TableTheme {
+    /// Get terminal width, defaulting to 120 if unable to detect
+    fn get_terminal_width() -> usize {
+        terminal_size::terminal_size()
+            .map(|(w, _)| w.0 as usize)
+            .unwrap_or(120)
+    }
+
     /// Apply the default theme to a table - kubectl-like clean style with curved borders
     pub fn apply_default(mut table: Table) -> Table {
         table
@@ -153,13 +160,19 @@ impl TableTheme {
     }
 
     /// Apply theme for wide tables - clean spacing for wide output with curved borders
-    pub fn apply_wide(table: Table) -> Table {
-        Self::apply_default(table)
+    pub fn apply_wide(mut table: Table) -> Table {
+        let terminal_width = Self::get_terminal_width();
+        table = Self::apply_default(table);
+        table.with(Width::increase(terminal_width));
+        table
     }
 
     /// Apply theme for wide tables with emoji formatting
-    pub fn apply_wide_with_emoji(table: Table) -> Table {
-        Self::apply_default_with_emoji(table)
+    pub fn apply_wide_with_emoji(mut table: Table) -> Table {
+        let terminal_width = Self::get_terminal_width();
+        table = Self::apply_default_with_emoji(table);
+        table.with(Width::increase(terminal_width));
+        table
     }
 
     /// Apply theme with color coding for status indicators (optional, can be enabled later)

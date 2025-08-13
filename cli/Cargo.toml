@@ -21,3 +21,4 @@ tokio-stream = { workspace = true }
 chrono = { workspace = true }
 gateway-api = "0.16"
 tabled = "0.20.0"
+terminal_size = "0.3"
