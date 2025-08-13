@@ -104,10 +104,9 @@ pub async fn get_gateway_services(
     gateway: Option<&str>,
     all_namespaces: bool,
 ) -> Result<Vec<Service>> {
-    let api: Api<Service> = if all_namespaces || namespace.is_none() {
-        Api::all(client.clone())
-    } else {
-        Api::namespaced(client.clone(), namespace.unwrap())
+    let api: Api<Service> = match (all_namespaces, namespace) {
+        (true, _) | (_, None) => Api::all(client.clone()),
+        (false, Some(ns)) => Api::namespaced(client.clone(), ns),
     };
 
     let mut list_params = kube::api::ListParams::default();

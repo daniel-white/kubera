@@ -176,4 +176,9 @@ pub enum DescribeResource {
         /// Pod name
         name: String,
     },
+    /// Describe HTTPRoute resources
+    HTTPRoute {
+        /// HTTPRoute name
+        name: String,
+    },
 }
