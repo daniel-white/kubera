@@ -297,7 +297,7 @@ struct DeploymentTableRow {
 }
 
 /// Output formatting functions
-fn output_gateways(gateways: &[GatewayInfo], format: &OutputFormat, use_emoji: bool) -> Result<()> {
+fn output_gateways(gateways: &[GatewayInfo], format: &OutputFormat, cli: &Cli) -> Result<()> {
     match format {
         OutputFormat::Table => {
             let rows: Vec<GatewayTableRow> = gateways
@@ -320,14 +320,15 @@ fn output_gateways(gateways: &[GatewayInfo], format: &OutputFormat, use_emoji: b
                 })
                 .collect();
 
-            let mut table = if use_emoji {
-                TableTheme::apply_default_with_emoji(Table::new(rows))
-            } else {
-                TableTheme::apply_default(Table::new(rows))
+            let mut table = match (cli.kubectl, cli.emoji) {
+                (true, true) => TableTheme::apply_default_kubectl_with_emoji(Table::new(rows)),
+                (true, false) => TableTheme::apply_default_kubectl(Table::new(rows)),
+                (false, true) => TableTheme::apply_default_with_emoji(Table::new(rows)),
+                (false, false) => TableTheme::apply_default(Table::new(rows)),
             };
 
             // Apply emoji formatting to relevant columns when enabled
-            if use_emoji {
+            if cli.emoji {
                 // Address column (index 3) might contain status-like values
                 table = EmojiFormatter::apply_to_column(table, 3);
             }
@@ -362,7 +363,12 @@ fn output_gateways(gateways: &[GatewayInfo], format: &OutputFormat, use_emoji: b
                 })
                 .collect();
 
-            let table = TableTheme::apply_wide(Table::new(rows));
+            let table = match (cli.kubectl, cli.emoji) {
+                (true, true) => TableTheme::apply_wide_kubectl_with_emoji(Table::new(rows)),
+                (true, false) => TableTheme::apply_wide_kubectl(Table::new(rows)),
+                (false, true) => TableTheme::apply_wide_with_emoji(Table::new(rows)),
+                (false, false) => TableTheme::apply_wide(Table::new(rows)),
+            };
             println!("{}", table);
         }
         OutputFormat::Json => {
@@ -375,7 +381,7 @@ fn output_gateways(gateways: &[GatewayInfo], format: &OutputFormat, use_emoji: b
     Ok(())
 }
 
-fn output_pods(pods: &[PodInfo], format: &OutputFormat, use_emoji: bool) -> Result<()> {
+fn output_pods(pods: &[PodInfo], format: &OutputFormat, cli: &Cli) -> Result<()> {
     match format {
         OutputFormat::Table => {
             let rows: Vec<PodTableRow> = pods
@@ -394,14 +400,15 @@ fn output_pods(pods: &[PodInfo], format: &OutputFormat, use_emoji: bool) -> Resu
                 })
                 .collect();
 
-            let mut table = if use_emoji {
-                TableTheme::apply_default_with_emoji(Table::new(rows))
-            } else {
-                TableTheme::apply_default(Table::new(rows))
+            let mut table = match (cli.kubectl, cli.emoji) {
+                (true, true) => TableTheme::apply_default_kubectl_with_emoji(Table::new(rows)),
+                (true, false) => TableTheme::apply_default_kubectl(Table::new(rows)),
+                (false, true) => TableTheme::apply_default_with_emoji(Table::new(rows)),
+                (false, false) => TableTheme::apply_default(Table::new(rows)),
             };
 
             // Apply emoji formatting to relevant columns when enabled
-            if use_emoji {
+            if cli.emoji {
                 // Ready column (index 2), Status column (index 3), Restarts column (index 4)
                 table = EmojiFormatter::apply_to_column(table, 2); // Ready (e.g., "1/1")
                 table = EmojiFormatter::apply_to_column(table, 3); // Status (e.g., "Running")
@@ -429,14 +436,15 @@ fn output_pods(pods: &[PodInfo], format: &OutputFormat, use_emoji: bool) -> Resu
                 })
                 .collect();
 
-            let mut table = if use_emoji {
-                TableTheme::apply_wide_with_emoji(Table::new(rows))
-            } else {
-                TableTheme::apply_wide(Table::new(rows))
+            let mut table = match (cli.kubectl, cli.emoji) {
+                (true, true) => TableTheme::apply_wide_kubectl_with_emoji(Table::new(rows)),
+                (true, false) => TableTheme::apply_wide_kubectl(Table::new(rows)),
+                (false, true) => TableTheme::apply_wide_with_emoji(Table::new(rows)),
+                (false, false) => TableTheme::apply_wide(Table::new(rows)),
             };
 
             // Apply emoji formatting to relevant columns when enabled
-            if use_emoji {
+            if cli.emoji {
                 // Ready column (index 2), Status column (index 3), Restarts column (index 4)
                 table = EmojiFormatter::apply_to_column(table, 2); // Ready
                 table = EmojiFormatter::apply_to_column(table, 3); // Status
@@ -455,7 +463,7 @@ fn output_pods(pods: &[PodInfo], format: &OutputFormat, use_emoji: bool) -> Resu
     Ok(())
 }
 
-fn output_services(services: &[ServiceInfo], format: &OutputFormat, use_emoji: bool) -> Result<()> {
+fn output_services(services: &[ServiceInfo], format: &OutputFormat, cli: &Cli) -> Result<()> {
     match format {
         OutputFormat::Table => {
             let rows: Vec<ServiceTableRow> = services
@@ -480,10 +488,11 @@ fn output_services(services: &[ServiceInfo], format: &OutputFormat, use_emoji: b
                 })
                 .collect();
 
-            let table = if use_emoji {
-                TableTheme::apply_default_with_emoji(Table::new(rows))
-            } else {
-                TableTheme::apply_default(Table::new(rows))
+            let table = match (cli.kubectl, cli.emoji) {
+                (true, true) => TableTheme::apply_default_kubectl_with_emoji(Table::new(rows)),
+                (true, false) => TableTheme::apply_default_kubectl(Table::new(rows)),
+                (false, true) => TableTheme::apply_default_with_emoji(Table::new(rows)),
+                (false, false) => TableTheme::apply_default(Table::new(rows)),
             };
 
             println!("{}", table);
@@ -517,7 +526,12 @@ fn output_services(services: &[ServiceInfo], format: &OutputFormat, use_emoji: b
                 })
                 .collect();
 
-            let table = TableTheme::apply_wide(Table::new(rows));
+            let table = match (cli.kubectl, cli.emoji) {
+                (true, true) => TableTheme::apply_wide_kubectl_with_emoji(Table::new(rows)),
+                (true, false) => TableTheme::apply_wide_kubectl(Table::new(rows)),
+                (false, true) => TableTheme::apply_wide_with_emoji(Table::new(rows)),
+                (false, false) => TableTheme::apply_wide(Table::new(rows)),
+            };
             println!("{}", table);
         }
         OutputFormat::Json => {
@@ -533,7 +547,7 @@ fn output_services(services: &[ServiceInfo], format: &OutputFormat, use_emoji: b
 fn output_deployments(
     deployments: &[DeploymentInfo],
     format: &OutputFormat,
-    use_emoji: bool,
+    cli: &Cli,
 ) -> Result<()> {
     match format {
         OutputFormat::Table => {
@@ -553,21 +567,22 @@ fn output_deployments(
                 })
                 .collect();
 
-            let mut table = if use_emoji {
-                TableTheme::apply_default_with_emoji(Table::new(rows))
-            } else {
-                TableTheme::apply_default(Table::new(rows))
+            let mut table = match (cli.kubectl, cli.emoji) {
+                (true, true) => TableTheme::apply_default_kubectl_with_emoji(Table::new(rows)),
+                (true, false) => TableTheme::apply_default_kubectl(Table::new(rows)),
+                (false, true) => TableTheme::apply_default_with_emoji(Table::new(rows)),
+                (false, false) => TableTheme::apply_default(Table::new(rows)),
             };
 
             // Apply emoji formatting to relevant columns when enabled
-            if use_emoji {
+            if cli.emoji {
                 // Ready column (index 2) shows replica ratios like "2/3"
                 table = EmojiFormatter::apply_to_column(table, 2); // Ready
             }
 
             println!("{}", table);
         }
-        OutputFormat::Wide => output_deployments(deployments, &OutputFormat::Table, use_emoji)?,
+        OutputFormat::Wide => output_deployments(deployments, &OutputFormat::Table, cli)?,
         OutputFormat::Json => {
             println!("{}", serde_json::to_string_pretty(deployments)?);
         }
@@ -600,7 +615,7 @@ pub async fn handle_get_command(client: &Client, resource: &GetResource, cli: &C
                 .map(GatewayInfo::from_gateway)
                 .collect();
 
-            output_gateways(&gateway_info, &cli.output, cli.emoji)?;
+            output_gateways(&gateway_info, &cli.output, cli)?;
         }
         GetResource::GatewayClasses { name: _name } => {
             // TODO: Implement gateway class discovery
@@ -619,7 +634,7 @@ pub async fn handle_get_command(client: &Client, resource: &GetResource, cli: &C
 
             let pod_info: Vec<PodInfo> = pods.into_iter().map(PodInfo::from_pod).collect();
 
-            output_pods(&pod_info, &cli.output, cli.emoji)?;
+            output_pods(&pod_info, &cli.output, cli)?;
         }
         GetResource::Services {
             gateway,
@@ -638,7 +653,7 @@ pub async fn handle_get_command(client: &Client, resource: &GetResource, cli: &C
                 .map(ServiceInfo::from_service)
                 .collect();
 
-            output_services(&service_info, &cli.output, cli.emoji)?;
+            output_services(&service_info, &cli.output, cli)?;
         }
         GetResource::Deployments {
             gateway,
@@ -657,7 +672,7 @@ pub async fn handle_get_command(client: &Client, resource: &GetResource, cli: &C
                 .map(DeploymentInfo::from_deployment)
                 .collect();
 
-            output_deployments(&deployment_info, &cli.output, cli.emoji)?;
+            output_deployments(&deployment_info, &cli.output, cli)?;
         }
     }
 

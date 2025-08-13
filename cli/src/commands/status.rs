@@ -244,10 +244,11 @@ async fn show_gateway_status(client: &Client, name: Option<&str>, cli: &Cli) -> 
         });
     }
 
-    let mut table = if cli.emoji {
-        TableTheme::apply_status_with_emoji(Table::new(rows))
-    } else {
-        TableTheme::apply_status(Table::new(rows))
+    let mut table = match (cli.kubectl, cli.emoji) {
+        (true, true) => TableTheme::apply_status_kubectl_with_emoji(Table::new(rows)),
+        (true, false) => TableTheme::apply_status_kubectl(Table::new(rows)),
+        (false, true) => TableTheme::apply_status_with_emoji(Table::new(rows)),
+        (false, false) => TableTheme::apply_status(Table::new(rows)),
     };
 
     // Apply emoji formatting to specific columns when enabled
@@ -366,10 +367,11 @@ async fn show_httproute_status(client: &Client, name: Option<&str>, cli: &Cli) -
         })
         .collect();
 
-    let mut table = if cli.emoji {
-        TableTheme::apply_status_with_emoji(Table::new(rows))
-    } else {
-        TableTheme::apply_status(Table::new(rows))
+    let mut table = match (cli.kubectl, cli.emoji) {
+        (true, true) => TableTheme::apply_status_kubectl_with_emoji(Table::new(rows)),
+        (true, false) => TableTheme::apply_status_kubectl(Table::new(rows)),
+        (false, true) => TableTheme::apply_status_with_emoji(Table::new(rows)),
+        (false, false) => TableTheme::apply_status(Table::new(rows)),
     };
 
     // Apply emoji formatting to specific columns when enabled
@@ -442,10 +444,11 @@ async fn show_gatewayclass_status(client: &Client, name: Option<&str>, cli: &Cli
         })
         .collect();
 
-    let mut table = if cli.emoji {
-        TableTheme::apply_status_with_emoji(Table::new(rows))
-    } else {
-        TableTheme::apply_status(Table::new(rows))
+    let mut table = match (cli.kubectl, cli.emoji) {
+        (true, true) => TableTheme::apply_status_kubectl_with_emoji(Table::new(rows)),
+        (true, false) => TableTheme::apply_status_kubectl(Table::new(rows)),
+        (false, true) => TableTheme::apply_status_with_emoji(Table::new(rows)),
+        (false, false) => TableTheme::apply_status(Table::new(rows)),
     };
 
     // Apply emoji formatting to specific columns when enabled
@@ -556,10 +559,11 @@ async fn show_staticresponsefilter_status(
         })
         .collect();
 
-    let mut table = if cli.emoji {
-        TableTheme::apply_status_with_emoji(Table::new(rows))
-    } else {
-        TableTheme::apply_status(Table::new(rows))
+    let mut table = match (cli.kubectl, cli.emoji) {
+        (true, true) => TableTheme::apply_status_kubectl_with_emoji(Table::new(rows)),
+        (true, false) => TableTheme::apply_status_kubectl(Table::new(rows)),
+        (false, true) => TableTheme::apply_status_with_emoji(Table::new(rows)),
+        (false, false) => TableTheme::apply_status(Table::new(rows)),
     };
 
     // Apply emoji formatting to specific columns when enabled

@@ -169,4 +169,57 @@ impl TableTheme {
         // Color coding can be added here when needed
         table
     }
+
+    /// Apply kubectl-style formatting - minimal borders, space-separated columns
+    pub fn apply_kubectl(mut table: Table) -> Table {
+        table
+            .with(Style::blank())
+            .with(Modify::new(Rows::first()).with(Format::content(|s| s.to_uppercase())))
+            .with(Modify::new(Columns::new(..)).with(Alignment::left()));
+        table
+    }
+
+    /// Apply kubectl-style formatting with emoji support
+    pub fn apply_kubectl_with_emoji(mut table: Table) -> Table {
+        table = Self::apply_kubectl(table);
+        // Apply emoji formatting to all columns - will be refined per table type
+        table
+    }
+
+    /// Apply kubectl-style theme for status tables
+    pub fn apply_status_kubectl(table: Table) -> Table {
+        Self::apply_kubectl(table)
+    }
+
+    /// Apply kubectl-style theme for status tables with emoji formatting
+    pub fn apply_status_kubectl_with_emoji(mut table: Table) -> Table {
+        table = Self::apply_status_kubectl(table);
+        // Common status table columns that benefit from emoji formatting
+        // Apply emoji to status columns (indices will vary by table type)
+        table
+    }
+
+    /// Apply kubectl-style theme for wide tables
+    pub fn apply_wide_kubectl(table: Table) -> Table {
+        Self::apply_kubectl(table)
+    }
+
+    /// Apply kubectl-style theme for wide tables with emoji formatting
+    pub fn apply_wide_kubectl_with_emoji(mut table: Table) -> Table {
+        table = Self::apply_wide_kubectl(table);
+        // Apply emoji formatting to all columns
+        table
+    }
+
+    /// Apply kubectl-style theme for default tables
+    pub fn apply_default_kubectl(table: Table) -> Table {
+        Self::apply_kubectl(table)
+    }
+
+    /// Apply kubectl-style theme for default tables with emoji formatting
+    pub fn apply_default_kubectl_with_emoji(mut table: Table) -> Table {
+        table = Self::apply_default_kubectl(table);
+        // Apply emoji formatting to all columns
+        table
+    }
 }

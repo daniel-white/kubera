@@ -30,6 +30,10 @@ pub struct Cli {
     /// Use emojis in table output for better visual representation
     #[arg(long, global = true)]
     pub emoji: bool,
+
+    /// Use kubectl-style table formatting (minimal borders, space-separated columns)
+    #[arg(long, global = true)]
+    pub kubectl: bool,
 }
 
 #[derive(Clone, clap::ValueEnum)]
