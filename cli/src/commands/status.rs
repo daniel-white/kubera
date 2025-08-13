@@ -21,8 +21,6 @@ pub enum StatusResourceType {
     GatewayClass,
     #[value(name = "staticresponsefilter", alias = "srf")]
     StaticResponseFilter,
-    #[value(name = "all")]
-    All,
 }
 
 impl std::str::FromStr for StatusResourceType {
@@ -34,7 +32,6 @@ impl std::str::FromStr for StatusResourceType {
             "httproute" | "route" => Ok(StatusResourceType::HTTPRoute),
             "gatewayclass" | "gwc" => Ok(StatusResourceType::GatewayClass),
             "staticresponsefilter" | "srf" => Ok(StatusResourceType::StaticResponseFilter),
-            "all" => Ok(StatusResourceType::All),
             _ => Err(anyhow::anyhow!("Invalid resource type: {}", s)),
         }
     }
@@ -134,15 +131,6 @@ pub async fn handle_status_command(
         }
         StatusResourceType::StaticResponseFilter => {
             show_staticresponsefilter_status(client, name, cli).await?
-        }
-        StatusResourceType::All => {
-            show_gateway_status(client, name, &cli.output, cli.namespace.as_deref()).await?;
-            println!();
-            show_httproute_status(client, name, &cli.output, cli.namespace.as_deref()).await?;
-            println!();
-            show_gatewayclass_status(client, name, &cli.output).await?;
-            println!();
-            show_staticresponsefilter_status(client, name, cli).await?;
         }
     }
     Ok(())
