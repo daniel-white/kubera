@@ -26,6 +26,10 @@ pub struct Cli {
     /// Enable verbose logging
     #[arg(short, long, global = true)]
     pub verbose: bool,
+
+    /// Use emojis in table output for better visual representation
+    #[arg(long, global = true)]
+    pub emoji: bool,
 }
 
 #[derive(Clone, clap::ValueEnum)]

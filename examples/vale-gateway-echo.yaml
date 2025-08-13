@@ -455,6 +455,18 @@ spec:
     content_type: "text/plain"
     text: "Hello, World!"
 ---
+apiVersion: vale-gateway.whitefamily.in/v1alpha1
+kind: StaticResponseFilter
+metadata:
+  name: oh-no
+  namespace: default
+spec:
+  status_code: 504
+  body:
+    format: Text
+    content_type: "text/plain"
+    text: "Problem"
+---
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:

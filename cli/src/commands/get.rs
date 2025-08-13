@@ -11,7 +11,7 @@ use tabled::{Table, Tabled};
 
 use crate::cli::{Cli, GetResource, OutputFormat};
 use crate::kube::{get_gateway_deployments, get_gateway_pods, get_gateway_services, get_gateways};
-use crate::table_theme::TableTheme;
+use crate::table_theme::{EmojiFormatter, TableTheme};
 
 /// Models specific to the get command
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -297,7 +297,7 @@ struct DeploymentTableRow {
 }
 
 /// Output formatting functions
-fn output_gateways(gateways: &[GatewayInfo], format: &OutputFormat) -> Result<()> {
+fn output_gateways(gateways: &[GatewayInfo], format: &OutputFormat, use_emoji: bool) -> Result<()> {
     match format {
         OutputFormat::Table => {
             let rows: Vec<GatewayTableRow> = gateways
@@ -320,7 +320,18 @@ fn output_gateways(gateways: &[GatewayInfo], format: &OutputFormat) -> Result<()
                 })
                 .collect();
 
-            let table = TableTheme::apply_default(Table::new(rows));
+            let mut table = if use_emoji {
+                TableTheme::apply_default_with_emoji(Table::new(rows))
+            } else {
+                TableTheme::apply_default(Table::new(rows))
+            };
+
+            // Apply emoji formatting to relevant columns when enabled
+            if use_emoji {
+                // Address column (index 3) might contain status-like values
+                table = EmojiFormatter::apply_to_column(table, 3);
+            }
+
             println!("{}", table);
         }
         OutputFormat::Wide => {
@@ -364,7 +375,7 @@ fn output_gateways(gateways: &[GatewayInfo], format: &OutputFormat) -> Result<()
     Ok(())
 }
 
-fn output_pods(pods: &[PodInfo], format: &OutputFormat) -> Result<()> {
+fn output_pods(pods: &[PodInfo], format: &OutputFormat, use_emoji: bool) -> Result<()> {
     match format {
         OutputFormat::Table => {
             let rows: Vec<PodTableRow> = pods
@@ -383,7 +394,20 @@ fn output_pods(pods: &[PodInfo], format: &OutputFormat) -> Result<()> {
                 })
                 .collect();
 
-            let table = TableTheme::apply_default(Table::new(rows));
+            let mut table = if use_emoji {
+                TableTheme::apply_default_with_emoji(Table::new(rows))
+            } else {
+                TableTheme::apply_default(Table::new(rows))
+            };
+
+            // Apply emoji formatting to relevant columns when enabled
+            if use_emoji {
+                // Ready column (index 2), Status column (index 3), Restarts column (index 4)
+                table = EmojiFormatter::apply_to_column(table, 2); // Ready (e.g., "1/1")
+                table = EmojiFormatter::apply_to_column(table, 3); // Status (e.g., "Running")
+                table = EmojiFormatter::apply_to_column(table, 4); // Restarts (numeric)
+            }
+
             println!("{}", table);
         }
         OutputFormat::Wide => {
@@ -405,7 +429,20 @@ fn output_pods(pods: &[PodInfo], format: &OutputFormat) -> Result<()> {
                 })
                 .collect();
 
-            let table = TableTheme::apply_wide(Table::new(rows));
+            let mut table = if use_emoji {
+                TableTheme::apply_wide_with_emoji(Table::new(rows))
+            } else {
+                TableTheme::apply_wide(Table::new(rows))
+            };
+
+            // Apply emoji formatting to relevant columns when enabled
+            if use_emoji {
+                // Ready column (index 2), Status column (index 3), Restarts column (index 4)
+                table = EmojiFormatter::apply_to_column(table, 2); // Ready
+                table = EmojiFormatter::apply_to_column(table, 3); // Status
+                table = EmojiFormatter::apply_to_column(table, 4); // Restarts
+            }
+
             println!("{}", table);
         }
         OutputFormat::Json => {
@@ -418,7 +455,7 @@ fn output_pods(pods: &[PodInfo], format: &OutputFormat) -> Result<()> {
     Ok(())
 }
 
-fn output_services(services: &[ServiceInfo], format: &OutputFormat) -> Result<()> {
+fn output_services(services: &[ServiceInfo], format: &OutputFormat, use_emoji: bool) -> Result<()> {
     match format {
         OutputFormat::Table => {
             let rows: Vec<ServiceTableRow> = services
@@ -443,7 +480,12 @@ fn output_services(services: &[ServiceInfo], format: &OutputFormat) -> Result<()
                 })
                 .collect();
 
-            let table = TableTheme::apply_default(Table::new(rows));
+            let table = if use_emoji {
+                TableTheme::apply_default_with_emoji(Table::new(rows))
+            } else {
+                TableTheme::apply_default(Table::new(rows))
+            };
+
             println!("{}", table);
         }
         OutputFormat::Wide => {
@@ -488,7 +530,11 @@ fn output_services(services: &[ServiceInfo], format: &OutputFormat) -> Result<()
     Ok(())
 }
 
-fn output_deployments(deployments: &[DeploymentInfo], format: &OutputFormat) -> Result<()> {
+fn output_deployments(
+    deployments: &[DeploymentInfo],
+    format: &OutputFormat,
+    use_emoji: bool,
+) -> Result<()> {
     match format {
         OutputFormat::Table => {
             let rows: Vec<DeploymentTableRow> = deployments
@@ -507,10 +553,21 @@ fn output_deployments(deployments: &[DeploymentInfo], format: &OutputFormat) -> 
                 })
                 .collect();
 
-            let table = TableTheme::apply_default(Table::new(rows));
+            let mut table = if use_emoji {
+                TableTheme::apply_default_with_emoji(Table::new(rows))
+            } else {
+                TableTheme::apply_default(Table::new(rows))
+            };
+
+            // Apply emoji formatting to relevant columns when enabled
+            if use_emoji {
+                // Ready column (index 2) shows replica ratios like "2/3"
+                table = EmojiFormatter::apply_to_column(table, 2); // Ready
+            }
+
             println!("{}", table);
         }
-        OutputFormat::Wide => output_deployments(deployments, &OutputFormat::Table)?,
+        OutputFormat::Wide => output_deployments(deployments, &OutputFormat::Table, use_emoji)?,
         OutputFormat::Json => {
             println!("{}", serde_json::to_string_pretty(deployments)?);
         }
@@ -519,15 +576,6 @@ fn output_deployments(deployments: &[DeploymentInfo], format: &OutputFormat) -> 
         }
     }
     Ok(())
-}
-
-// Additional helper functions
-fn format_ports(ports: &Vec<String>) -> String {
-    if ports.is_empty() {
-        "<none>".to_string()
-    } else {
-        ports.join(",")
-    }
 }
 
 /// Handle all get subcommands
@@ -552,7 +600,7 @@ pub async fn handle_get_command(client: &Client, resource: &GetResource, cli: &C
                 .map(GatewayInfo::from_gateway)
                 .collect();
 
-            output_gateways(&gateway_info, &cli.output)?;
+            output_gateways(&gateway_info, &cli.output, cli.emoji)?;
         }
         GetResource::GatewayClasses { name: _name } => {
             // TODO: Implement gateway class discovery
@@ -571,7 +619,7 @@ pub async fn handle_get_command(client: &Client, resource: &GetResource, cli: &C
 
             let pod_info: Vec<PodInfo> = pods.into_iter().map(PodInfo::from_pod).collect();
 
-            output_pods(&pod_info, &cli.output)?;
+            output_pods(&pod_info, &cli.output, cli.emoji)?;
         }
         GetResource::Services {
             gateway,
@@ -590,7 +638,7 @@ pub async fn handle_get_command(client: &Client, resource: &GetResource, cli: &C
                 .map(ServiceInfo::from_service)
                 .collect();
 
-            output_services(&service_info, &cli.output)?;
+            output_services(&service_info, &cli.output, cli.emoji)?;
         }
         GetResource::Deployments {
             gateway,
@@ -609,7 +657,7 @@ pub async fn handle_get_command(client: &Client, resource: &GetResource, cli: &C
                 .map(DeploymentInfo::from_deployment)
                 .collect();
 
-            output_deployments(&deployment_info, &cli.output)?;
+            output_deployments(&deployment_info, &cli.output, cli.emoji)?;
         }
     }
 

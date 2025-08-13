@@ -1,5 +1,5 @@
 use crate::cli::Cli;
-use crate::table_theme::TableTheme;
+use crate::table_theme::{EmojiFormatter, TableTheme};
 use anyhow::{Context, Result};
 use gateway_api::apis::standard::gatewayclasses::GatewayClass;
 use gateway_api::apis::standard::gateways::Gateway;
@@ -202,8 +202,20 @@ async fn show_gateway_status(client: &Client, name: Option<&str>, cli: &Cli) -> 
             }
         })
         .collect();
-    
-    let table = TableTheme::apply_status(Table::new(rows));
+
+    let mut table = if cli.emoji {
+        TableTheme::apply_status_with_emoji(Table::new(rows))
+    } else {
+        TableTheme::apply_status(Table::new(rows))
+    };
+
+    // Apply emoji formatting to specific columns when enabled
+    if cli.emoji {
+        // Accepted column (index 2), Programmed column (index 3)
+        table = EmojiFormatter::apply_to_column(table, 2); // Accepted (True/False)
+        table = EmojiFormatter::apply_to_column(table, 3); // Programmed (True/False)
+    }
+
     println!("{}", table);
 
     Ok(())
@@ -310,14 +322,26 @@ async fn show_httproute_status(client: &Client, name: Option<&str>, cli: &Cli) -
             }
         })
         .collect();
-    
-    let table = TableTheme::apply_status(Table::new(rows));
+
+    let mut table = if cli.emoji {
+        TableTheme::apply_status_with_emoji(Table::new(rows))
+    } else {
+        TableTheme::apply_status(Table::new(rows))
+    };
+
+    // Apply emoji formatting to specific columns when enabled
+    if cli.emoji {
+        // Accepted column (index 3), Resolved Refs column (index 4)
+        table = EmojiFormatter::apply_to_column(table, 3); // Accepted (True/False)
+        table = EmojiFormatter::apply_to_column(table, 4); // Resolved Refs (True/False)
+    }
+
     println!("{}", table);
 
     Ok(())
 }
 
-async fn show_gatewayclass_status(client: &Client, name: Option<&str>, _cli: &Cli) -> Result<()> {
+async fn show_gatewayclass_status(client: &Client, name: Option<&str>, cli: &Cli) -> Result<()> {
     // GatewayClass is cluster-scoped, so we don't use namespace
     let api: Api<GatewayClass> = Api::all(client.clone());
 
@@ -374,8 +398,19 @@ async fn show_gatewayclass_status(client: &Client, name: Option<&str>, _cli: &Cl
             }
         })
         .collect();
-    
-    let table = TableTheme::apply_status(Table::new(rows));
+
+    let mut table = if cli.emoji {
+        TableTheme::apply_status_with_emoji(Table::new(rows))
+    } else {
+        TableTheme::apply_status(Table::new(rows))
+    };
+
+    // Apply emoji formatting to specific columns when enabled
+    if cli.emoji {
+        // Accepted column (index 1)
+        table = EmojiFormatter::apply_to_column(table, 1); // Accepted (True/False)
+    }
+
     println!("{}", table);
 
     Ok(())
@@ -477,8 +512,22 @@ async fn show_staticresponsefilter_status(
             }
         })
         .collect();
-    
-    let table = TableTheme::apply_status(Table::new(rows));
+
+    let mut table = if cli.emoji {
+        TableTheme::apply_status_with_emoji(Table::new(rows))
+    } else {
+        TableTheme::apply_status(Table::new(rows))
+    };
+
+    // Apply emoji formatting to specific columns when enabled
+    if cli.emoji {
+        // Accepted (index 2), Ready (index 3), Attached (index 4), Status Code (index 6)
+        table = EmojiFormatter::apply_to_column(table, 2); // Accepted (True/False)
+        table = EmojiFormatter::apply_to_column(table, 3); // Ready (True/False)
+        table = EmojiFormatter::apply_to_column(table, 4); // Attached (True/False)
+        table = EmojiFormatter::apply_to_column(table, 6); // Status Code (HTTP codes)
+    }
+
     println!("{}", table);
 
     Ok(())
