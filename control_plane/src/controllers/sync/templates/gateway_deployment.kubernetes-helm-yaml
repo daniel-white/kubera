@@ -7,7 +7,7 @@ metadata:
     gateway.networking.k8s.io/gateway: {{ .gateway_name | quote }}
     app: {{ .gateway_name | quote }}
 spec:
-  replicas: 1
+  replicas: {{ .replicas }}
   selector:
     matchLabels:
       app: {{ .gateway_name | quote }}

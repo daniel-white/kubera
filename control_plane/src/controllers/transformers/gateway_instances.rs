@@ -160,12 +160,18 @@ fn merge_deployment_overrides(
     let class_deployment_params = gateway_class_parameters
         .as_ref()
         .and_then(|p| p.spec.common.deployment.as_ref());
-    let class_gateway_params = gateway_class_parameters
-        .as_ref()
-        .and_then(|p| p.spec.common.gateway.as_ref());
     let deployment_params = gateway_parameters
         .and_then(|p| p.spec.common.as_ref())
         .and_then(|c| c.deployment.as_ref());
+
+    // Set replicas: gateway parameters > class parameters > default
+    spec.replicas = deployment_params
+        .and_then(|p| p.replicas)
+        .or_else(|| class_deployment_params.and_then(|p| p.replicas));
+
+    let class_gateway_params = gateway_class_parameters
+        .as_ref()
+        .and_then(|p| p.spec.common.gateway.as_ref());
     let gateway_params = gateway_parameters
         .and_then(|p| p.spec.common.as_ref())
         .and_then(|c| c.gateway.as_ref());

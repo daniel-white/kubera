@@ -1,21 +1,21 @@
 use crate::controllers::instances::InstanceRole;
 use crate::controllers::transformers::GatewayInstanceConfiguration;
-use crate::kubernetes::KubeClientCell;
 use crate::kubernetes::objects::{ObjectRef, SyncObjectAction};
+use crate::kubernetes::KubeClientCell;
 use crate::options::Options;
 use crate::{sync_objects, watch_objects};
 use gtmpl_derive::Gtmpl;
 use k8s_openapi::api::apps::v1::Deployment;
 use kube::runtime::watcher::Config;
-use vg_core::continue_after;
-use vg_core::sync::signal::Receiver;
-use vg_core::task::Builder as TaskBuilder;
-use vg_macros::await_ready;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use tokio::sync::broadcast::Sender;
 use tracing::warn;
 use typed_builder::TypedBuilder;
+use vg_core::continue_after;
+use vg_core::sync::signal::Receiver;
+use vg_core::task::Builder as TaskBuilder;
+use vg_macros::await_ready;
 
 const TEMPLATE: &str = include_str!("./templates/gateway_deployment.kubernetes-helm-yaml");
 
@@ -31,6 +31,7 @@ struct TemplateValues {
     image_repository: String,
     #[builder(setter(into))]
     image_tag: String,
+    replicas: u32,
 }
 
 pub fn sync_gateway_deployments(
@@ -81,6 +82,13 @@ fn generate_gateway_deployments(
                                     .name(gateway_ref.name())
                                     .build();
 
+                                let replicas = instance
+                                    .deployment_overrides()
+                                    .spec
+                                    .as_ref()
+                                    .and_then(|spec| spec.replicas)
+                                    .unwrap_or(1)
+                                    as u32;
                                 let template_values = TemplateValues::builder()
                                     .gateway_name(gateway_ref.name())
                                     .configmap_name(format!("{}-config", gateway_ref.name()))
@@ -89,6 +97,7 @@ fn generate_gateway_deployments(
                                     ))
                                     .image_repository(instance.image_repository().to_string())
                                     .image_tag(instance.image_tag().to_string())
+                                    .replicas(replicas)
                                     .build();
 
                                 (
@@ -127,13 +136,13 @@ fn generate_gateway_deployments(
                                 template_values,
                                 Some(deployment_overrides.clone()),
                             ))
-                                .inspect_err(|err| {
-                                    warn!(
+                            .inspect_err(|err| {
+                                warn!(
                                     "Failed to send upsert action for deployment {}: {}",
                                     deployment_ref, err
                                 );
-                                })
-                                .ok();
+                            })
+                            .ok();
                         }
                     })
                     .run()

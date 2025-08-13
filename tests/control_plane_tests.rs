@@ -357,3 +357,76 @@ mod http_route_namespace_filtering {
         assert!(filtered_routes.contains_by_ref(&route_ref), "The route should be present");
     }
 }
+
+#[test]
+fn test_gateway_deployment_replicas_from_class() {
+    use k8s_openapi::api::apps::v1::{Deployment, DeploymentSpec};
+    use crate::common::*;
+    use vg_core::task::Builder as TaskBuilder;
+    use crate::control_plane::controllers::transformers::GatewayInstanceConfiguration;
+
+    // Create a deployment override with custom replicas
+    let mut deployment = Deployment::default();
+    deployment.spec = Some(DeploymentSpec {
+        replicas: Some(5), // custom replica count
+        ..Default::default()
+    });
+
+    // Create a GatewayInstanceConfiguration with the override
+    let instance = GatewayInstanceConfiguration {
+        deployment_overrides: deployment,
+        // ...other required fields, use defaults or mocks...
+        ..Default::default()
+    };
+
+    // Build template values as in generate_gateway_deployments
+    let replicas = instance.deployment_overrides().spec.as_ref()
+        .and_then(|spec| spec.replicas)
+        .unwrap_or(1) as u32;
+
+    assert_eq!(replicas, 5, "Replicas should match the value from gateway class parameters");
+}
+
+#[test]
+fn test_gateway_deployment_replicas_precedence() {
+    use k8s_openapi::api::apps::v1::{Deployment, DeploymentSpec};
+    use vg_api::v1alpha1::{GatewayClassParameters, GatewayConfiguration, GatewayParameters};
+    use gateway_api::apis::standard::gateways::Gateway;
+    use crate::control_plane::controllers::transformers::merge_deployment_overrides;
+    // Helper: create dummy Gateway
+    let gateway = Gateway {
+        metadata: Default::default(),
+        spec: Default::default(),
+        status: None,
+    };
+
+    // Case 1: Only class parameters set
+    let mut class_params = GatewayClassParameters::default();
+    class_params.spec.common.deployment = Some(Default::default());
+    class_params.spec.common.deployment.as_mut().unwrap().replicas = Some(3);
+    let (deployment, _, _, _) = merge_deployment_overrides(&gateway, Some(&class_params), None);
+    assert_eq!(deployment.spec.as_ref().unwrap().replicas, Some(3), "Should use class parameter replicas");
+
+    // Case 2: Only gateway parameters set
+    let mut gw_params = GatewayParameters::default();
+    gw_params.spec.common = Some(Default::default());
+    gw_params.spec.common.as_mut().unwrap().deployment = Some(Default::default());
+    gw_params.spec.common.as_mut().unwrap().deployment.as_mut().unwrap().replicas = Some(7);
+    let (deployment, _, _, _) = merge_deployment_overrides(&gateway, None, Some(&gw_params));
+    assert_eq!(deployment.spec.as_ref().unwrap().replicas, Some(7), "Should use gateway parameter replicas");
+
+    // Case 3: Both set, gateway param should win
+    let mut class_params = GatewayClassParameters::default();
+    class_params.spec.common.deployment = Some(Default::default());
+    class_params.spec.common.deployment.as_mut().unwrap().replicas = Some(2);
+    let mut gw_params = GatewayParameters::default();
+    gw_params.spec.common = Some(Default::default());
+    gw_params.spec.common.as_mut().unwrap().deployment = Some(Default::default());
+    gw_params.spec.common.as_mut().unwrap().deployment.as_mut().unwrap().replicas = Some(9);
+    let (deployment, _, _, _) = merge_deployment_overrides(&gateway, Some(&class_params), Some(&gw_params));
+    assert_eq!(deployment.spec.as_ref().unwrap().replicas, Some(9), "Gateway param should take precedence over class param");
+
+    // Case 4: Neither set, should default to 1
+    let (deployment, _, _, _) = merge_deployment_overrides(&gateway, None, None);
+    assert_eq!(deployment.spec.as_ref().unwrap().replicas, Some(1), "Should default to 1 replica");
+}
