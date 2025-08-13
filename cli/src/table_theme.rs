@@ -23,6 +23,7 @@ impl EmojiFormatter {
             // Status states
             "ready" => "✅ Ready".to_string(),
             "not ready" => "❌ Not Ready".to_string(),
+            "available" => "✅ Available".to_string(),
             "running" => "🟢 Running".to_string(),
             "pending" => "🟡 Pending".to_string(),
             "succeeded" => "✅ Succeeded".to_string(),
@@ -30,6 +31,7 @@ impl EmojiFormatter {
             "error" => "❌ Error".to_string(),
             "terminating" => "🟠 Terminating".to_string(),
             "unknown" => "❓ Unknown".to_string(),
+            "not found" => "❓ Not Found".to_string(),
 
             // Gateway/Route specific statuses
             "accepted" => "✅ Accepted".to_string(),
@@ -40,6 +42,12 @@ impl EmojiFormatter {
             "not resolved" => "❌ Not Resolved".to_string(),
             "attached" => "🔗 Attached".to_string(),
             "not attached" => "🔓 Not Attached".to_string(),
+
+            // Service types
+            s if s.starts_with("clusterip") => format!("🔒 {}", s),
+            s if s.starts_with("nodeport") => format!("🌐 {}", s),
+            s if s.starts_with("loadbalancer") => format!("⚖️ {}", s),
+            s if s.starts_with("externalname") => format!("🔗 {}", s),
 
             // Pod readiness patterns (e.g., "1/1", "2/3")
             s if s.contains('/') && s.chars().all(|c| c.is_numeric() || c == '/') => {
@@ -97,12 +105,13 @@ impl EmojiFormatter {
     pub fn apply_to_column(mut table: Table, column_index: usize) -> Table {
         table.with(
             Modify::new(Columns::new(column_index..=column_index))
-                .with(Format::content(|s| Self::format_value(s))),
+                .with(Format::content(Self::format_value)),
         );
         table
     }
 
     /// Apply emoji formatting to specific columns by name for common status fields
+    #[allow(dead_code)]
     pub fn apply_to_status_columns(table: Table) -> Table {
         // This would ideally work with column names, but tabled works with indices
         // For now, we'll provide helper methods for specific table types

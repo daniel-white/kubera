@@ -4,6 +4,8 @@ use anyhow::{Context, Result};
 use gateway_api::apis::standard::gatewayclasses::GatewayClass;
 use gateway_api::apis::standard::gateways::Gateway;
 use gateway_api::apis::standard::httproutes::HTTPRoute;
+use k8s_openapi::api::apps::v1::Deployment;
+use k8s_openapi::api::core::v1::Service;
 use kube::{Api, Client};
 use tabled::{Table, Tabled};
 use vg_api::v1alpha1::StaticResponseFilter;
@@ -39,44 +41,77 @@ impl std::str::FromStr for StatusResourceType {
 
 #[derive(Tabled)]
 struct GatewayStatusRow {
+    #[tabled(rename = "NAME")]
     name: String,
+    #[tabled(rename = "NAMESPACE")]
     namespace: String,
+    #[tabled(rename = "ACCEPTED")]
     accepted: String,
+    #[tabled(rename = "PROGRAMMED")]
     programmed: String,
+    #[tabled(rename = "DEPLOYMENT")]
+    deployment_status: String,
+    #[tabled(rename = "SERVICE")]
+    service_status: String,
+    #[tabled(rename = "ADDRESSES")]
     addresses: String,
+    #[tabled(rename = "PORTS/PROTOCOLS")]
+    ports_protocols: String,
+    #[tabled(rename = "LISTENERS")]
     listeners: String,
+    #[tabled(rename = "AGE")]
     age: String,
 }
 
 #[derive(Tabled)]
 struct HTTPRouteStatusRow {
+    #[tabled(rename = "NAME")]
     name: String,
+    #[tabled(rename = "NAMESPACE")]
     namespace: String,
+    #[tabled(rename = "PARENTS")]
     parents: String,
+    #[tabled(rename = "ACCEPTED")]
     accepted: String,
+    #[tabled(rename = "RESOLVED REFS")]
     resolved_refs: String,
+    #[tabled(rename = "REASON")]
     reason: String,
+    #[tabled(rename = "AGE")]
     age: String,
 }
 
 #[derive(Tabled)]
 struct GatewayClassStatusRow {
+    #[tabled(rename = "NAME")]
     name: String,
+    #[tabled(rename = "ACCEPTED")]
     accepted: String,
+    #[tabled(rename = "CONTROLLER")]
     controller: String,
+    #[tabled(rename = "DESCRIPTION")]
     description: String,
+    #[tabled(rename = "AGE")]
     age: String,
 }
 
 #[derive(Tabled)]
 struct StaticResponseFilterStatusRow {
+    #[tabled(rename = "NAME")]
     name: String,
+    #[tabled(rename = "NAMESPACE")]
     namespace: String,
+    #[tabled(rename = "ACCEPTED")]
     accepted: String,
+    #[tabled(rename = "READY")]
     ready: String,
+    #[tabled(rename = "ATTACHED")]
     attached: String,
+    #[tabled(rename = "ATTACHED ROUTES")]
     attached_routes: String,
+    #[tabled(rename = "STATUS CODE")]
     status_code: String,
+    #[tabled(rename = "AGE")]
     age: String,
 }
 
@@ -139,69 +174,75 @@ async fn show_gateway_status(client: &Client, name: Option<&str>, cli: &Cli) -> 
         return Ok(());
     }
 
-    let rows: Vec<GatewayStatusRow> = gateways
-        .into_iter()
-        .map(|gw| {
-            let name = gw.metadata.name.unwrap_or_default();
-            let namespace = gw.metadata.namespace.unwrap_or_default();
-            let age = format_age(gw.metadata.creation_timestamp.as_ref());
+    let mut rows: Vec<GatewayStatusRow> = Vec::new();
 
-            let (accepted, programmed, addresses, listeners) = if let Some(status) = &gw.status {
-                let accepted = status
-                    .conditions
-                    .as_ref()
-                    .and_then(|conditions| conditions.iter().find(|c| c.type_ == "Accepted"))
-                    .map(|c| if c.status == "True" { "True" } else { "False" })
-                    .unwrap_or("Unknown")
-                    .to_string();
+    for gw in gateways {
+        let name = gw.metadata.name.unwrap_or_default();
+        let namespace = gw.metadata.namespace.unwrap_or_default();
+        let age = format_age(gw.metadata.creation_timestamp.as_ref());
 
-                let programmed = status
-                    .conditions
-                    .as_ref()
-                    .and_then(|conditions| conditions.iter().find(|c| c.type_ == "Programmed"))
-                    .map(|c| if c.status == "True" { "True" } else { "False" })
-                    .unwrap_or("Unknown")
-                    .to_string();
+        let (accepted, programmed, addresses, listeners) = if let Some(status) = &gw.status {
+            let accepted = status
+                .conditions
+                .as_ref()
+                .and_then(|conditions| conditions.iter().find(|c| c.type_ == "Accepted"))
+                .map(|c| if c.status == "True" { "True" } else { "False" })
+                .unwrap_or("Unknown")
+                .to_string();
 
-                let addresses = status
-                    .addresses
-                    .as_ref()
-                    .map(|addrs| {
-                        addrs
-                            .iter()
-                            .map(|addr| addr.value.clone())
-                            .collect::<Vec<_>>()
-                            .join(",")
-                    })
-                    .unwrap_or_else(|| "None".to_string());
+            let programmed = status
+                .conditions
+                .as_ref()
+                .and_then(|conditions| conditions.iter().find(|c| c.type_ == "Programmed"))
+                .map(|c| if c.status == "True" { "True" } else { "False" })
+                .unwrap_or("Unknown")
+                .to_string();
 
-                let listeners = status
-                    .listeners
-                    .as_ref()
-                    .map(|listeners| listeners.len().to_string())
-                    .unwrap_or_else(|| "0".to_string());
+            let addresses = status
+                .addresses
+                .as_ref()
+                .map(|addrs| {
+                    addrs
+                        .iter()
+                        .map(|addr| addr.value.clone())
+                        .collect::<Vec<_>>()
+                        .join(",")
+                })
+                .unwrap_or_else(|| "None".to_string());
 
-                (accepted, programmed, addresses, listeners)
-            } else {
-                (
-                    "Unknown".to_string(),
-                    "Unknown".to_string(),
-                    "None".to_string(),
-                    "0".to_string(),
-                )
-            };
+            let listeners = status
+                .listeners
+                .as_ref()
+                .map(|listeners| listeners.len().to_string())
+                .unwrap_or_else(|| "0".to_string());
 
-            GatewayStatusRow {
-                name,
-                namespace,
-                accepted,
-                programmed,
-                addresses,
-                listeners,
-                age,
-            }
-        })
-        .collect();
+            (accepted, programmed, addresses, listeners)
+        } else {
+            (
+                "Unknown".to_string(),
+                "Unknown".to_string(),
+                "None".to_string(),
+                "0".to_string(),
+            )
+        };
+
+        // Get deployment and service status
+        let deployment_status = get_deployment_status(client, &name, &namespace).await;
+        let (service_status, ports_protocols) = get_service_info(client, &name, &namespace).await;
+
+        rows.push(GatewayStatusRow {
+            name,
+            namespace,
+            accepted,
+            programmed,
+            deployment_status,
+            service_status,
+            addresses,
+            ports_protocols,
+            listeners,
+            age,
+        });
+    }
 
     let mut table = if cli.emoji {
         TableTheme::apply_status_with_emoji(Table::new(rows))
@@ -211,9 +252,11 @@ async fn show_gateway_status(client: &Client, name: Option<&str>, cli: &Cli) -> 
 
     // Apply emoji formatting to specific columns when enabled
     if cli.emoji {
-        // Accepted column (index 2), Programmed column (index 3)
+        // Updated column indices after reordering:
+        // ACCEPTED (index 2), PROGRAMMED (index 3), DEPLOYMENT (index 4)
         table = EmojiFormatter::apply_to_column(table, 2); // Accepted (True/False)
         table = EmojiFormatter::apply_to_column(table, 3); // Programmed (True/False)
+        table = EmojiFormatter::apply_to_column(table, 4); // Deployment status
     }
 
     println!("{}", table);
@@ -425,9 +468,9 @@ async fn show_staticresponsefilter_status(
 
     let filters = if let Some(ns) = namespace {
         let api: Api<StaticResponseFilter> = Api::namespaced(client.clone(), ns);
-        if let Some(name) = name {
+        if let Some(_filter_name) = name {
             vec![api
-                .get(name)
+                .get(_filter_name)
                 .await
                 .context("Failed to get StaticResponseFilter")?]
         } else {
@@ -438,7 +481,7 @@ async fn show_staticresponsefilter_status(
         }
     } else {
         let api: Api<StaticResponseFilter> = Api::all(client.clone());
-        if let Some(name) = name {
+        if let Some(filter_name) = name {
             return Err(anyhow::anyhow!(
                 "Specify namespace when getting a specific StaticResponseFilter"
             ));
@@ -553,5 +596,89 @@ fn format_age(
             }
         }
         None => "Unknown".to_string(),
+    }
+}
+
+async fn get_deployment_status(client: &Client, name: &str, namespace: &str) -> String {
+    let api: Api<Deployment> = Api::namespaced(client.clone(), namespace);
+    match api.get(name).await {
+        Ok(deployment) => {
+            let conditions = deployment
+                .status
+                .as_ref()
+                .and_then(|status| status.conditions.as_ref());
+            let desired_replicas = deployment
+                .spec
+                .as_ref()
+                .and_then(|s| s.replicas)
+                .unwrap_or(0);
+            let ready_replicas = deployment
+                .status
+                .as_ref()
+                .map_or(0, |s| s.ready_replicas.unwrap_or(0));
+
+            format!("{}/{}", ready_replicas, desired_replicas)
+        }
+        Err(_) => "Not Found".to_string(),
+    }
+}
+
+async fn get_service_info(client: &Client, name: &str, namespace: &str) -> (String, String) {
+    let api: Api<Service> = Api::namespaced(client.clone(), namespace);
+    match api.get(name).await {
+        Ok(service) => {
+            let service_type = service
+                .spec
+                .as_ref()
+                .and_then(|spec| spec.type_.as_deref())
+                .unwrap_or("ClusterIP");
+
+            let ports_info = service
+                .spec
+                .as_ref()
+                .and_then(|spec| spec.ports.as_ref())
+                .map(|ports| {
+                    ports
+                        .iter()
+                        .map(|port| {
+                            let name = port.name.as_deref().unwrap_or("unnamed");
+                            let protocol = port.protocol.as_deref().unwrap_or("TCP");
+                            format!("{}:{}/{}", name, port.port, protocol)
+                        })
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                })
+                .unwrap_or_else(|| "No ports".to_string());
+
+            let service_status = match service_type {
+                "LoadBalancer" => {
+                    let load_balancer_status = service
+                        .status
+                        .as_ref()
+                        .and_then(|s| s.load_balancer.as_ref())
+                        .and_then(|lb| lb.ingress.as_ref());
+
+                    if let Some(ingress) = load_balancer_status {
+                        if ingress.is_empty() {
+                            format!("{} (Pending)", service_type)
+                        } else {
+                            format!("{} (Ready)", service_type)
+                        }
+                    } else {
+                        format!("{} (Pending)", service_type)
+                    }
+                }
+                _ => service_type.to_string(),
+            };
+
+            let ports_protocols = if ports_info == "No ports" {
+                "None".to_string()
+            } else {
+                ports_info.clone()
+            };
+
+            (service_status, ports_protocols)
+        }
+        Err(_) => ("Not Found".to_string(), "None".to_string()),
     }
 }

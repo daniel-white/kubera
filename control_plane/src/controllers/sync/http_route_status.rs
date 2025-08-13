@@ -114,18 +114,18 @@ pub fn sync_http_route_status(
                 .run()
                 .await;
 
-                continue_after!(
-                    Duration::from_secs(30),
+                    http_routes_rx.changed(),
+async fn build_http_route_status(
                     kube_client_rx.changed(),
                     instance_role_rx.changed(),
-                    http_routes_rx.changed(),
+                    http_route_rx.changed(),
                     route_attachment_states.changed()
                 );
             }
         });
 }
 
-async fn build_http_route_status(
+                    http_route_rx.changed(),
     route: &HTTPRoute,
     attachment_state: RouteAttachmentState,
 ) -> HTTPRouteStatus {
