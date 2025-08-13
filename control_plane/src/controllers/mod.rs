@@ -10,7 +10,7 @@ use self::filters::{
 };
 use self::sync::{
     sync_gateway_class_status, sync_gateway_configmaps, sync_gateway_deployments,
-    sync_gateway_services, RouteAttachmentState, SyncGatewayConfigmapsParams,
+    sync_gateway_services, sync_gateway_status, SyncGatewayConfigmapsParams,
 };
 use self::transformers::{
     bind_static_responses_cache, collect_extension_filters_by_gateway, collect_gateway_instances,
@@ -109,7 +109,13 @@ pub fn spawn_controllers(task_builder: &TaskBuilder, params: SpawnControllersPar
     );
     let http_routes_rx = filter_http_routes(task_builder, &gateways_rx, &http_routes_rx);
 
-    // TODO: Add Gateway and HTTPRoute status controllers once Gateway API struct issues are resolved
+    // Add Gateway status controller
+    sync_gateway_status(
+        task_builder,
+        &kube_client_rx,
+        &instance_role_rx,
+        &gateways_rx,
+    );
 
     let http_routes_by_gateway_rx = collect_http_routes_by_gateway(task_builder, &http_routes_rx);
     let service_backends_rx = collect_http_route_backends(task_builder, &http_routes_rx);

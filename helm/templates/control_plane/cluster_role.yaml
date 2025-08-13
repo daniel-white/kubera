@@ -18,3 +18,6 @@ rules:
   - apiGroups: [ "gateway.networking.k8s.io" ]
     resources: [ "gatewayclasses/status", "gateways/status", "httproutes/status", "tcproutes/status", "udproutes/status" ]
     verbs: [ "get", "update", "patch" ]
+  - apiGroups: [ "vale-gateway.whitefamily.in" ]
+    resources: [ "staticresponsefilter/status" ]
+    verbs: [ "get", "update", "patch" ]

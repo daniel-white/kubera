@@ -10,7 +10,7 @@ pub fn init_instrumentation() {
         };
 
         // Check if we should use console subscriber (for tokio-console debugging)
-        // This is determined by the TOKIO_CONSOLE_BIND environment variable
+
         if std::env::var("TOKIO_CONSOLE_BIND").is_ok() {
             console_subscriber::init();
         } else {
