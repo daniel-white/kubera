@@ -26,14 +26,6 @@ pub struct Cli {
     /// Enable verbose logging
     #[arg(short, long, global = true)]
     pub verbose: bool,
-
-    /// Use emojis in table output for better visual representation
-    #[arg(long, global = true)]
-    pub emoji: bool,
-
-    /// Use kubectl-style table formatting (minimal borders, space-separated columns)
-    #[arg(long, global = true)]
-    pub kubectl: bool,
 }
 
 #[derive(Clone, clap::ValueEnum)]
@@ -42,6 +34,12 @@ pub enum OutputFormat {
     Json,
     Yaml,
     Wide,
+    /// kubectl-style table formatting with minimal borders
+    Kubectl,
+    /// Table with emoji status indicators
+    TableEmoji,
+    /// Wide table with emoji status indicators
+    WideEmoji,
 }
 
 #[derive(Subcommand)]

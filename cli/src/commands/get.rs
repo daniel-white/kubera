@@ -297,7 +297,7 @@ struct DeploymentTableRow {
 }
 
 /// Output formatting functions
-fn output_gateways(gateways: &[GatewayInfo], format: &OutputFormat, cli: &Cli) -> Result<()> {
+fn output_gateways(gateways: &[GatewayInfo], format: &OutputFormat, _cli: &Cli) -> Result<()> {
     match format {
         OutputFormat::Table => {
             let rows: Vec<GatewayTableRow> = gateways
@@ -320,22 +320,60 @@ fn output_gateways(gateways: &[GatewayInfo], format: &OutputFormat, cli: &Cli) -
                 })
                 .collect();
 
-            let mut table = match (cli.kubectl, cli.emoji) {
-                (true, true) => TableTheme::apply_default_kubectl_with_emoji(Table::new(rows)),
-                (true, false) => TableTheme::apply_default_kubectl(Table::new(rows)),
-                (false, true) => TableTheme::apply_default_with_emoji(Table::new(rows)),
-                (false, false) => TableTheme::apply_default(Table::new(rows)),
-            };
-
-            // Apply emoji formatting to relevant columns when enabled
-            if cli.emoji {
-                // Address column (index 3) might contain status-like values
-                table = EmojiFormatter::apply_to_column(table, 3);
-            }
-
+            let table = TableTheme::apply_default(Table::new(rows));
             println!("{}", table);
         }
-        OutputFormat::Wide => {
+        OutputFormat::TableEmoji => {
+            let rows: Vec<GatewayTableRow> = gateways
+                .iter()
+                .map(|gateway| {
+                    let address = gateway
+                        .addresses
+                        .first()
+                        .cloned()
+                        .unwrap_or_else(|| "<none>".to_string());
+                    let age = format_age_from_option(gateway.age);
+
+                    GatewayTableRow {
+                        name: gateway.name.clone(),
+                        namespace: gateway.namespace.clone(),
+                        class: gateway.gateway_class.clone(),
+                        address,
+                        age,
+                    }
+                })
+                .collect();
+
+            let mut table = TableTheme::apply_default_with_emoji(Table::new(rows));
+            // Apply emoji formatting to relevant columns
+            table = EmojiFormatter::apply_to_column(table, 3); // Address column
+            println!("{}", table);
+        }
+        OutputFormat::Kubectl => {
+            let rows: Vec<GatewayTableRow> = gateways
+                .iter()
+                .map(|gateway| {
+                    let address = gateway
+                        .addresses
+                        .first()
+                        .cloned()
+                        .unwrap_or_else(|| "<none>".to_string());
+                    let age = format_age_from_option(gateway.age);
+
+                    GatewayTableRow {
+                        name: gateway.name.clone(),
+                        namespace: gateway.namespace.clone(),
+                        class: gateway.gateway_class.clone(),
+                        address,
+                        age,
+                    }
+                })
+                .collect();
+
+            let table = TableTheme::apply_kubectl(Table::new(rows));
+            println!("{}", table);
+        }
+        OutputFormat::Wide | OutputFormat::WideEmoji => {
             let rows: Vec<GatewayWideTableRow> = gateways
                 .iter()
                 .map(|gateway| {
@@ -363,12 +401,16 @@ fn output_gateways(gateways: &[GatewayInfo], format: &OutputFormat, cli: &Cli) -
                 })
                 .collect();
 
-            let table = match (cli.kubectl, cli.emoji) {
-                (true, true) => TableTheme::apply_wide_kubectl_with_emoji(Table::new(rows)),
-                (true, false) => TableTheme::apply_wide_kubectl(Table::new(rows)),
-                (false, true) => TableTheme::apply_wide_with_emoji(Table::new(rows)),
-                (false, false) => TableTheme::apply_wide(Table::new(rows)),
+            let mut table = if matches!(format, OutputFormat::WideEmoji) {
+                TableTheme::apply_wide_with_emoji(Table::new(rows))
+            } else {
+                TableTheme::apply_wide(Table::new(rows))
             };
+
+            if matches!(format, OutputFormat::WideEmoji) {
+                table = EmojiFormatter::apply_to_column(table, 3); // Address column
+            }
+
             println!("{}", table);
         }
         OutputFormat::Json => {
@@ -381,7 +423,7 @@ fn output_gateways(gateways: &[GatewayInfo], format: &OutputFormat, cli: &Cli) -
     Ok(())
 }
 
-fn output_pods(pods: &[PodInfo], format: &OutputFormat, cli: &Cli) -> Result<()> {
+fn output_pods(pods: &[PodInfo], format: &OutputFormat, _cli: &Cli) -> Result<()> {
     match format {
         OutputFormat::Table => {
             let rows: Vec<PodTableRow> = pods
@@ -400,24 +442,54 @@ fn output_pods(pods: &[PodInfo], format: &OutputFormat, cli: &Cli) -> Result<()>
                 })
                 .collect();
 
-            let mut table = match (cli.kubectl, cli.emoji) {
-                (true, true) => TableTheme::apply_default_kubectl_with_emoji(Table::new(rows)),
-                (true, false) => TableTheme::apply_default_kubectl(Table::new(rows)),
-                (false, true) => TableTheme::apply_default_with_emoji(Table::new(rows)),
-                (false, false) => TableTheme::apply_default(Table::new(rows)),
-            };
-
-            // Apply emoji formatting to relevant columns when enabled
-            if cli.emoji {
-                // Ready column (index 2), Status column (index 3), Restarts column (index 4)
-                table = EmojiFormatter::apply_to_column(table, 2); // Ready (e.g., "1/1")
-                table = EmojiFormatter::apply_to_column(table, 3); // Status (e.g., "Running")
-                table = EmojiFormatter::apply_to_column(table, 4); // Restarts (numeric)
-            }
-
+            let table = TableTheme::apply_default(Table::new(rows));
             println!("{}", table);
         }
-        OutputFormat::Wide => {
+        OutputFormat::TableEmoji => {
+            let rows: Vec<PodTableRow> = pods
+                .iter()
+                .map(|pod| {
+                    let age = format_age_from_option(pod.age);
+
+                    PodTableRow {
+                        name: pod.name.clone(),
+                        namespace: pod.namespace.clone(),
+                        ready: pod.ready.clone(),
+                        status: pod.status.clone(),
+                        restarts: pod.restarts,
+                        age,
+                    }
+                })
+                .collect();
+
+            let mut table = TableTheme::apply_default_with_emoji(Table::new(rows));
+            // Apply emoji formatting to relevant columns
+            table = EmojiFormatter::apply_to_column(table, 2); // Ready (e.g., "1/1")
+            table = EmojiFormatter::apply_to_column(table, 3); // Status (e.g., "Running")
+            table = EmojiFormatter::apply_to_column(table, 4); // Restarts (numeric)
+            println!("{}", table);
+        }
+        OutputFormat::Kubectl => {
+            let rows: Vec<PodTableRow> = pods
+                .iter()
+                .map(|pod| {
+                    let age = format_age_from_option(pod.age);
+
+                    PodTableRow {
+                        name: pod.name.clone(),
+                        namespace: pod.namespace.clone(),
+                        ready: pod.ready.clone(),
+                        status: pod.status.clone(),
+                        restarts: pod.restarts,
+                        age,
+                    }
+                })
+                .collect();
+
+            let table = TableTheme::apply_kubectl(Table::new(rows));
+            println!("{}", table);
+        }
+        OutputFormat::Wide | OutputFormat::WideEmoji => {
             let rows: Vec<PodWideTableRow> = pods
                 .iter()
                 .map(|pod| {
@@ -436,16 +508,13 @@ fn output_pods(pods: &[PodInfo], format: &OutputFormat, cli: &Cli) -> Result<()>
                 })
                 .collect();
 
-            let mut table = match (cli.kubectl, cli.emoji) {
-                (true, true) => TableTheme::apply_wide_kubectl_with_emoji(Table::new(rows)),
-                (true, false) => TableTheme::apply_wide_kubectl(Table::new(rows)),
-                (false, true) => TableTheme::apply_wide_with_emoji(Table::new(rows)),
-                (false, false) => TableTheme::apply_wide(Table::new(rows)),
+            let mut table = if matches!(format, OutputFormat::WideEmoji) {
+                TableTheme::apply_wide_with_emoji(Table::new(rows))
+            } else {
+                TableTheme::apply_wide(Table::new(rows))
             };
 
-            // Apply emoji formatting to relevant columns when enabled
-            if cli.emoji {
-                // Ready column (index 2), Status column (index 3), Restarts column (index 4)
+            if matches!(format, OutputFormat::WideEmoji) {
                 table = EmojiFormatter::apply_to_column(table, 2); // Ready
                 table = EmojiFormatter::apply_to_column(table, 3); // Status
                 table = EmojiFormatter::apply_to_column(table, 4); // Restarts
@@ -463,7 +532,7 @@ fn output_pods(pods: &[PodInfo], format: &OutputFormat, cli: &Cli) -> Result<()>
     Ok(())
 }
 
-fn output_services(services: &[ServiceInfo], format: &OutputFormat, cli: &Cli) -> Result<()> {
+fn output_services(services: &[ServiceInfo], format: &OutputFormat, _cli: &Cli) -> Result<()> {
     match format {
         OutputFormat::Table => {
             let rows: Vec<ServiceTableRow> = services
@@ -488,16 +557,62 @@ fn output_services(services: &[ServiceInfo], format: &OutputFormat, cli: &Cli) -
                 })
                 .collect();
 
-            let table = match (cli.kubectl, cli.emoji) {
-                (true, true) => TableTheme::apply_default_kubectl_with_emoji(Table::new(rows)),
-                (true, false) => TableTheme::apply_default_kubectl(Table::new(rows)),
-                (false, true) => TableTheme::apply_default_with_emoji(Table::new(rows)),
-                (false, false) => TableTheme::apply_default(Table::new(rows)),
-            };
-
+            let table = TableTheme::apply_default(Table::new(rows));
             println!("{}", table);
         }
-        OutputFormat::Wide => {
+        OutputFormat::TableEmoji => {
+            let rows: Vec<ServiceTableRow> = services
+                .iter()
+                .map(|service| {
+                    let ports = service.ports.join(",");
+                    let age = format_age_from_option(service.age);
+                    let cluster_ip = service
+                        .cluster_ip
+                        .as_deref()
+                        .unwrap_or("<none>")
+                        .to_string();
+
+                    ServiceTableRow {
+                        name: service.name.clone(),
+                        namespace: service.namespace.clone(),
+                        r#type: service.service_type.clone(),
+                        cluster_ip,
+                        ports,
+                        age,
+                    }
+                })
+                .collect();
+
+            let table = TableTheme::apply_default_with_emoji(Table::new(rows));
+            println!("{}", table);
+        }
+        OutputFormat::Kubectl => {
+            let rows: Vec<ServiceTableRow> = services
+                .iter()
+                .map(|service| {
+                    let ports = service.ports.join(",");
+                    let age = format_age_from_option(service.age);
+                    let cluster_ip = service
+                        .cluster_ip
+                        .as_deref()
+                        .unwrap_or("<none>")
+                        .to_string();
+
+                    ServiceTableRow {
+                        name: service.name.clone(),
+                        namespace: service.namespace.clone(),
+                        r#type: service.service_type.clone(),
+                        cluster_ip,
+                        ports,
+                        age,
+                    }
+                })
+                .collect();
+
+            let table = TableTheme::apply_kubectl(Table::new(rows));
+            println!("{}", table);
+        }
+        OutputFormat::Wide | OutputFormat::WideEmoji => {
             let rows: Vec<ServiceWideTableRow> = services
                 .iter()
                 .map(|service| {
@@ -526,11 +641,10 @@ fn output_services(services: &[ServiceInfo], format: &OutputFormat, cli: &Cli) -
                 })
                 .collect();
 
-            let table = match (cli.kubectl, cli.emoji) {
-                (true, true) => TableTheme::apply_wide_kubectl_with_emoji(Table::new(rows)),
-                (true, false) => TableTheme::apply_wide_kubectl(Table::new(rows)),
-                (false, true) => TableTheme::apply_wide_with_emoji(Table::new(rows)),
-                (false, false) => TableTheme::apply_wide(Table::new(rows)),
+            let table = if matches!(format, OutputFormat::WideEmoji) {
+                TableTheme::apply_wide_with_emoji(Table::new(rows))
+            } else {
+                TableTheme::apply_wide(Table::new(rows))
             };
             println!("{}", table);
         }
@@ -547,7 +661,7 @@ fn output_services(services: &[ServiceInfo], format: &OutputFormat, cli: &Cli) -
 fn output_deployments(
     deployments: &[DeploymentInfo],
     format: &OutputFormat,
-    cli: &Cli,
+    _cli: &Cli,
 ) -> Result<()> {
     match format {
         OutputFormat::Table => {
@@ -567,22 +681,54 @@ fn output_deployments(
                 })
                 .collect();
 
-            let mut table = match (cli.kubectl, cli.emoji) {
-                (true, true) => TableTheme::apply_default_kubectl_with_emoji(Table::new(rows)),
-                (true, false) => TableTheme::apply_default_kubectl(Table::new(rows)),
-                (false, true) => TableTheme::apply_default_with_emoji(Table::new(rows)),
-                (false, false) => TableTheme::apply_default(Table::new(rows)),
-            };
-
-            // Apply emoji formatting to relevant columns when enabled
-            if cli.emoji {
-                // Ready column (index 2) shows replica ratios like "2/3"
-                table = EmojiFormatter::apply_to_column(table, 2); // Ready
-            }
-
+            let table = TableTheme::apply_default(Table::new(rows));
             println!("{}", table);
         }
-        OutputFormat::Wide => output_deployments(deployments, &OutputFormat::Table, cli)?,
+        OutputFormat::TableEmoji => {
+            let rows: Vec<DeploymentTableRow> = deployments
+                .iter()
+                .map(|deployment| {
+                    let age = format_age_from_option(deployment.age);
+
+                    DeploymentTableRow {
+                        name: deployment.name.clone(),
+                        namespace: deployment.namespace.clone(),
+                        ready: deployment.ready.clone(),
+                        up_to_date: deployment.up_to_date,
+                        available: deployment.available,
+                        age,
+                    }
+                })
+                .collect();
+
+            let mut table = TableTheme::apply_default_with_emoji(Table::new(rows));
+            // Apply emoji formatting to relevant columns
+            table = EmojiFormatter::apply_to_column(table, 2); // Ready column
+            println!("{}", table);
+        }
+        OutputFormat::Kubectl => {
+            let rows: Vec<DeploymentTableRow> = deployments
+                .iter()
+                .map(|deployment| {
+                    let age = format_age_from_option(deployment.age);
+
+                    DeploymentTableRow {
+                        name: deployment.name.clone(),
+                        namespace: deployment.namespace.clone(),
+                        ready: deployment.ready.clone(),
+                        up_to_date: deployment.up_to_date,
+                        available: deployment.available,
+                        age,
+                    }
+                })
+                .collect();
+
+            let table = TableTheme::apply_kubectl(Table::new(rows));
+            println!("{}", table);
+        }
+        OutputFormat::Wide | OutputFormat::WideEmoji => {
+            output_deployments(deployments, &OutputFormat::Table, _cli)?
+        }
         OutputFormat::Json => {
             println!("{}", serde_json::to_string_pretty(deployments)?);
         }

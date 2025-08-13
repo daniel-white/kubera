@@ -1,4 +1,4 @@
-use crate::cli::Cli;
+use crate::cli::{Cli, OutputFormat};
 use crate::table_theme::{EmojiFormatter, TableTheme};
 use anyhow::{Context, Result};
 use gateway_api::apis::standard::gatewayclasses::GatewayClass;
@@ -7,6 +7,7 @@ use gateway_api::apis::standard::httproutes::HTTPRoute;
 use k8s_openapi::api::apps::v1::Deployment;
 use k8s_openapi::api::core::v1::Service;
 use kube::{Api, Client};
+use serde::Serialize;
 use tabled::{Table, Tabled};
 use vg_api::v1alpha1::StaticResponseFilter;
 
@@ -39,7 +40,7 @@ impl std::str::FromStr for StatusResourceType {
     }
 }
 
-#[derive(Tabled)]
+#[derive(Tabled, Serialize)]
 struct GatewayStatusRow {
     #[tabled(rename = "NAME")]
     name: String,
@@ -63,7 +64,7 @@ struct GatewayStatusRow {
     age: String,
 }
 
-#[derive(Tabled)]
+#[derive(Tabled, Serialize)]
 struct HTTPRouteStatusRow {
     #[tabled(rename = "NAME")]
     name: String,
@@ -81,7 +82,7 @@ struct HTTPRouteStatusRow {
     age: String,
 }
 
-#[derive(Tabled)]
+#[derive(Tabled, Serialize)]
 struct GatewayClassStatusRow {
     #[tabled(rename = "NAME")]
     name: String,
@@ -95,7 +96,7 @@ struct GatewayClassStatusRow {
     age: String,
 }
 
-#[derive(Tabled)]
+#[derive(Tabled, Serialize)]
 struct StaticResponseFilterStatusRow {
     #[tabled(rename = "NAME")]
     name: String,
@@ -122,18 +123,24 @@ pub async fn handle_status_command(
     cli: &Cli,
 ) -> Result<()> {
     match resource_type {
-        StatusResourceType::Gateway => show_gateway_status(client, name, cli).await?,
-        StatusResourceType::HTTPRoute => show_httproute_status(client, name, cli).await?,
-        StatusResourceType::GatewayClass => show_gatewayclass_status(client, name, cli).await?,
+        StatusResourceType::Gateway => {
+            show_gateway_status(client, name, &cli.output, cli.namespace.as_deref()).await?
+        }
+        StatusResourceType::HTTPRoute => {
+            show_httproute_status(client, name, &cli.output, cli.namespace.as_deref()).await?
+        }
+        StatusResourceType::GatewayClass => {
+            show_gatewayclass_status(client, name, &cli.output).await?
+        }
         StatusResourceType::StaticResponseFilter => {
             show_staticresponsefilter_status(client, name, cli).await?
         }
         StatusResourceType::All => {
-            show_gateway_status(client, name, cli).await?;
+            show_gateway_status(client, name, &cli.output, cli.namespace.as_deref()).await?;
             println!();
-            show_httproute_status(client, name, cli).await?;
+            show_httproute_status(client, name, &cli.output, cli.namespace.as_deref()).await?;
             println!();
-            show_gatewayclass_status(client, name, cli).await?;
+            show_gatewayclass_status(client, name, &cli.output).await?;
             println!();
             show_staticresponsefilter_status(client, name, cli).await?;
         }
@@ -141,9 +148,12 @@ pub async fn handle_status_command(
     Ok(())
 }
 
-async fn show_gateway_status(client: &Client, name: Option<&str>, cli: &Cli) -> Result<()> {
-    let namespace = cli.namespace.as_deref();
-
+async fn show_gateway_status(
+    client: &Client,
+    name: Option<&str>,
+    format: &OutputFormat,
+    namespace: Option<&str>,
+) -> Result<()> {
     let gateways = if let Some(ns) = namespace {
         let api: Api<Gateway> = Api::namespaced(client.clone(), ns);
         if let Some(_name) = name {
@@ -226,7 +236,6 @@ async fn show_gateway_status(client: &Client, name: Option<&str>, cli: &Cli) -> 
             )
         };
 
-        // Get deployment and service status
         let deployment_status = get_deployment_status(client, &name, &namespace).await;
         let (service_status, ports_protocols) = get_service_info(client, &name, &namespace).await;
 
@@ -244,30 +253,38 @@ async fn show_gateway_status(client: &Client, name: Option<&str>, cli: &Cli) -> 
         });
     }
 
-    let mut table = match (cli.kubectl, cli.emoji) {
-        (true, true) => TableTheme::apply_status_kubectl_with_emoji(Table::new(rows)),
-        (true, false) => TableTheme::apply_status_kubectl(Table::new(rows)),
-        (false, true) => TableTheme::apply_status_with_emoji(Table::new(rows)),
-        (false, false) => TableTheme::apply_status(Table::new(rows)),
+    let mut table = match format {
+        OutputFormat::Table => TableTheme::apply_status(Table::new(rows)),
+        OutputFormat::TableEmoji => TableTheme::apply_status_with_emoji(Table::new(rows)),
+        OutputFormat::Kubectl => TableTheme::apply_kubectl(Table::new(rows)),
+        OutputFormat::Wide | OutputFormat::WideEmoji => TableTheme::apply_status(Table::new(rows)),
+        OutputFormat::Json => {
+            println!("{}", serde_json::to_string_pretty(&rows).unwrap());
+            return Ok(());
+        }
+        OutputFormat::Yaml => {
+            println!("{}", serde_yaml::to_string(&rows).unwrap());
+            return Ok(());
+        }
     };
 
-    // Apply emoji formatting to specific columns when enabled
-    if cli.emoji {
-        // Updated column indices after reordering:
-        // ACCEPTED (index 2), PROGRAMMED (index 3), DEPLOYMENT (index 4)
-        table = EmojiFormatter::apply_to_column(table, 2); // Accepted (True/False)
-        table = EmojiFormatter::apply_to_column(table, 3); // Programmed (True/False)
+    // Apply emoji formatting for emoji variants
+    if matches!(format, OutputFormat::TableEmoji | OutputFormat::WideEmoji) {
+        table = EmojiFormatter::apply_to_column(table, 2); // Accepted
+        table = EmojiFormatter::apply_to_column(table, 3); // Programmed
         table = EmojiFormatter::apply_to_column(table, 4); // Deployment status
     }
 
     println!("{}", table);
-
     Ok(())
 }
 
-async fn show_httproute_status(client: &Client, name: Option<&str>, cli: &Cli) -> Result<()> {
-    let namespace = cli.namespace.as_deref();
-
+async fn show_httproute_status(
+    client: &Client,
+    name: Option<&str>,
+    format: &OutputFormat,
+    namespace: Option<&str>,
+) -> Result<()> {
     let routes = if let Some(ns) = namespace {
         let api: Api<HTTPRoute> = Api::namespaced(client.clone(), ns);
         if let Some(name) = name {
@@ -308,7 +325,6 @@ async fn show_httproute_status(client: &Client, name: Option<&str>, cli: &Cli) -
                 let parent_count = status.parents.len();
                 let parents = parent_count.to_string();
 
-                // Get the overall status from the first parent (or aggregate if multiple)
                 let (accepted, resolved_refs, reason) = if let Some(parent_status) =
                     status.parents.first()
                 {
@@ -367,26 +383,36 @@ async fn show_httproute_status(client: &Client, name: Option<&str>, cli: &Cli) -
         })
         .collect();
 
-    let mut table = match (cli.kubectl, cli.emoji) {
-        (true, true) => TableTheme::apply_status_kubectl_with_emoji(Table::new(rows)),
-        (true, false) => TableTheme::apply_status_kubectl(Table::new(rows)),
-        (false, true) => TableTheme::apply_status_with_emoji(Table::new(rows)),
-        (false, false) => TableTheme::apply_status(Table::new(rows)),
+    let mut table = match format {
+        OutputFormat::Table => TableTheme::apply_status(Table::new(rows)),
+        OutputFormat::TableEmoji => TableTheme::apply_status_with_emoji(Table::new(rows)),
+        OutputFormat::Kubectl => TableTheme::apply_kubectl(Table::new(rows)),
+        OutputFormat::Wide | OutputFormat::WideEmoji => TableTheme::apply_status(Table::new(rows)),
+        OutputFormat::Json => {
+            println!("{}", serde_json::to_string_pretty(&rows).unwrap());
+            return Ok(());
+        }
+        OutputFormat::Yaml => {
+            println!("{}", serde_yaml::to_string(&rows).unwrap());
+            return Ok(());
+        }
     };
 
-    // Apply emoji formatting to specific columns when enabled
-    if cli.emoji {
-        // Accepted column (index 3), Resolved Refs column (index 4)
-        table = EmojiFormatter::apply_to_column(table, 3); // Accepted (True/False)
-        table = EmojiFormatter::apply_to_column(table, 4); // Resolved Refs (True/False)
+    // Apply emoji formatting for emoji variants
+    if matches!(format, OutputFormat::TableEmoji | OutputFormat::WideEmoji) {
+        table = EmojiFormatter::apply_to_column(table, 3); // Accepted
+        table = EmojiFormatter::apply_to_column(table, 4); // Resolved Refs
     }
 
     println!("{}", table);
-
     Ok(())
 }
 
-async fn show_gatewayclass_status(client: &Client, name: Option<&str>, cli: &Cli) -> Result<()> {
+async fn show_gatewayclass_status(
+    client: &Client,
+    name: Option<&str>,
+    format: &OutputFormat,
+) -> Result<()> {
     // GatewayClass is cluster-scoped, so we don't use namespace
     let api: Api<GatewayClass> = Api::all(client.clone());
 
@@ -444,21 +470,27 @@ async fn show_gatewayclass_status(client: &Client, name: Option<&str>, cli: &Cli
         })
         .collect();
 
-    let mut table = match (cli.kubectl, cli.emoji) {
-        (true, true) => TableTheme::apply_status_kubectl_with_emoji(Table::new(rows)),
-        (true, false) => TableTheme::apply_status_kubectl(Table::new(rows)),
-        (false, true) => TableTheme::apply_status_with_emoji(Table::new(rows)),
-        (false, false) => TableTheme::apply_status(Table::new(rows)),
+    let mut table = match format {
+        OutputFormat::Table => TableTheme::apply_status(Table::new(rows)),
+        OutputFormat::TableEmoji => TableTheme::apply_status_with_emoji(Table::new(rows)),
+        OutputFormat::Kubectl => TableTheme::apply_kubectl(Table::new(rows)),
+        OutputFormat::Wide | OutputFormat::WideEmoji => TableTheme::apply_status(Table::new(rows)),
+        OutputFormat::Json => {
+            println!("{}", serde_json::to_string_pretty(&rows).unwrap());
+            return Ok(());
+        }
+        OutputFormat::Yaml => {
+            println!("{}", serde_yaml::to_string(&rows).unwrap());
+            return Ok(());
+        }
     };
 
-    // Apply emoji formatting to specific columns when enabled
-    if cli.emoji {
-        // Accepted column (index 1)
-        table = EmojiFormatter::apply_to_column(table, 1); // Accepted (True/False)
+    // Apply emoji formatting for emoji variants
+    if matches!(format, OutputFormat::TableEmoji | OutputFormat::WideEmoji) {
+        table = EmojiFormatter::apply_to_column(table, 1); // Accepted
     }
 
     println!("{}", table);
-
     Ok(())
 }
 
@@ -559,21 +591,20 @@ async fn show_staticresponsefilter_status(
         })
         .collect();
 
-    let mut table = match (cli.kubectl, cli.emoji) {
-        (true, true) => TableTheme::apply_status_kubectl_with_emoji(Table::new(rows)),
-        (true, false) => TableTheme::apply_status_kubectl(Table::new(rows)),
-        (false, true) => TableTheme::apply_status_with_emoji(Table::new(rows)),
-        (false, false) => TableTheme::apply_status(Table::new(rows)),
+    let table = match &cli.output {
+        OutputFormat::Table => TableTheme::apply_status(Table::new(rows)),
+        OutputFormat::TableEmoji => TableTheme::apply_status_with_emoji(Table::new(rows)),
+        OutputFormat::Kubectl => TableTheme::apply_kubectl(Table::new(rows)),
+        OutputFormat::Wide | OutputFormat::WideEmoji => TableTheme::apply_status(Table::new(rows)),
+        OutputFormat::Json => {
+            println!("{}", serde_json::to_string_pretty(&rows).unwrap());
+            return Ok(());
+        }
+        OutputFormat::Yaml => {
+            println!("{}", serde_yaml::to_string(&rows).unwrap());
+            return Ok(());
+        }
     };
-
-    // Apply emoji formatting to specific columns when enabled
-    if cli.emoji {
-        // Accepted (index 2), Ready (index 3), Attached (index 4), Status Code (index 6)
-        table = EmojiFormatter::apply_to_column(table, 2); // Accepted (True/False)
-        table = EmojiFormatter::apply_to_column(table, 3); // Ready (True/False)
-        table = EmojiFormatter::apply_to_column(table, 4); // Attached (True/False)
-        table = EmojiFormatter::apply_to_column(table, 6); // Status Code (HTTP codes)
-    }
 
     println!("{}", table);
 
@@ -607,7 +638,7 @@ async fn get_deployment_status(client: &Client, name: &str, namespace: &str) -> 
     let api: Api<Deployment> = Api::namespaced(client.clone(), namespace);
     match api.get(name).await {
         Ok(deployment) => {
-            let conditions = deployment
+            let _conditions = deployment
                 .status
                 .as_ref()
                 .and_then(|status| status.conditions.as_ref());
