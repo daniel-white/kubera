@@ -10,7 +10,8 @@ use self::filters::{
 };
 use self::sync::{
     sync_gateway_class_status, sync_gateway_configmaps, sync_gateway_deployments,
-    sync_gateway_services, sync_gateway_status, SyncGatewayConfigmapsParams,
+    sync_gateway_services, sync_gateway_status, sync_static_response_filter_status,
+    SyncGatewayConfigmapsParams,
 };
 use self::transformers::{
     bind_static_responses_cache, collect_extension_filters_by_gateway, collect_gateway_instances,
@@ -115,6 +116,14 @@ pub fn spawn_controllers(task_builder: &TaskBuilder, params: SpawnControllersPar
         &kube_client_rx,
         &instance_role_rx,
         &gateways_rx,
+    );
+
+    // Add StaticResponseFilter status controller
+    sync_static_response_filter_status(
+        task_builder,
+        &kube_client_rx,
+        &static_response_filters_rx,
+        &http_routes_rx,
     );
 
     let http_routes_by_gateway_rx = collect_http_routes_by_gateway(task_builder, &http_routes_rx);

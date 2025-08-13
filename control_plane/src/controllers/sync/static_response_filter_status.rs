@@ -1,3 +1,4 @@
+use crate::kubernetes::objects::Objects;
 use crate::kubernetes::KubeClientCell;
 use anyhow::{Context, Result};
 use gateway_api::apis::standard::httproutes::HTTPRoute;
@@ -5,8 +6,6 @@ use k8s_openapi::apimachinery::pkg::apis::meta::v1::{Condition, Time};
 use k8s_openapi::chrono::Utc;
 use kube::api::PostParams;
 use kube::{Api, Client};
-use std::collections::HashMap;
-use std::sync::Arc;
 use tracing::{debug, info, warn};
 use vg_api::v1alpha1::{
     StaticResponseFilter, StaticResponseFilterConditionReason, StaticResponseFilterConditionType,
@@ -20,8 +19,8 @@ use vg_macros::await_ready;
 pub fn sync_static_response_filter_status(
     task_builder: &TaskBuilder,
     kube_client_rx: &Receiver<KubeClientCell>,
-    static_response_filters_rx: &Receiver<Arc<HashMap<String, Arc<StaticResponseFilter>>>>,
-    http_routes_rx: &Receiver<Arc<HashMap<String, Arc<HTTPRoute>>>>,
+    static_response_filters_rx: &Receiver<Objects<StaticResponseFilter>>,
+    http_routes_rx: &Receiver<Objects<HTTPRoute>>,
 ) {
     let kube_client_rx = kube_client_rx.clone();
     let static_response_filters_rx = static_response_filters_rx.clone();
@@ -35,19 +34,20 @@ pub fn sync_static_response_filter_status(
                     .and_then(async |kube_client, static_filters, http_routes| {
                         info!("Syncing status for StaticResponseFilters");
 
-                        for (filter_key, filter) in static_filters.as_ref() {
-                            debug!("Processing StaticResponseFilter: {}", filter_key);
+                        // Iterate through all static response filters
+                        for (filter_ref, _, filter) in static_filters.iter() {
+                            debug!("Processing StaticResponseFilter: {}", filter_ref);
 
-                            let attached_routes = count_attached_routes(filter, &http_routes);
+                            let attached_routes = count_attached_routes(&filter, &http_routes);
                             let status = create_filter_status(&filter.spec, attached_routes);
 
                             if let Err(e) =
-                                update_filter_status(&kube_client.clone().into(), filter, status)
+                                update_filter_status(&kube_client.clone().into(), &filter, status)
                                     .await
                             {
                                 warn!(
                                     "Failed to update status for StaticResponseFilter {}: {}",
-                                    filter_key, e
+                                    filter_ref, e
                                 );
                             }
                         }
@@ -65,10 +65,7 @@ pub fn sync_static_response_filter_status(
 }
 
 /// Count how many routes are using this static response filter
-fn count_attached_routes(
-    filter: &StaticResponseFilter,
-    http_routes: &HashMap<String, Arc<HTTPRoute>>,
-) -> i32 {
+fn count_attached_routes(filter: &StaticResponseFilter, http_routes: &Objects<HTTPRoute>) -> i32 {
     let default_name = String::new();
     let default_namespace = String::new();
     let filter_name = filter.metadata.name.as_ref().unwrap_or(&default_name);
@@ -79,8 +76,8 @@ fn count_attached_routes(
         .unwrap_or(&default_namespace);
 
     let mut count = 0;
-    for route in http_routes.values() {
-        if is_filter_attached_to_route(filter_name, filter_namespace, route) {
+    for (_, _, route) in http_routes.iter() {
+        if is_filter_attached_to_route(filter_name, filter_namespace, &route) {
             count += 1;
         }
     }
@@ -269,28 +266,83 @@ async fn update_filter_status(
         filter_namespace, filter_name
     );
 
-    // Get the current filter to update its status
-    let mut current_filter = api.get_status(filter_name).await.with_context(|| {
-        format!(
-            "Failed to get current status of StaticResponseFilter {filter_namespace}/{filter_name}"
-        )
-    })?;
+    // Retry mechanism to handle conflicts (optimistic concurrency control)
+    let max_retries = 5;
+    let mut attempt = 0;
 
-    current_filter.status = Some(status);
+    while attempt < max_retries {
+        attempt += 1;
 
-    api.replace_status(
-        filter_name,
-        &PostParams::default(),
-        serde_json::to_vec(&current_filter)?,
-    )
-    .await
-    .with_context(|| {
-        format!("Failed to update status of StaticResponseFilter {filter_namespace}/{filter_name}")
-    })?;
+        // Get the latest version of the filter
+        let current_filter = api.get_status(filter_name).await.with_context(|| {
+            format!(
+                "Failed to get current status of StaticResponseFilter {filter_namespace}/{filter_name}"
+            )
+        })?;
 
-    debug!(
-        "Successfully updated status for StaticResponseFilter {}/{}",
-        filter_namespace, filter_name
-    );
-    Ok(())
+        // Check if the status actually needs to be updated
+        if let Some(existing_status) = &current_filter.status {
+            if existing_status == &status {
+                debug!(
+                    "Status for StaticResponseFilter {}/{} is already up to date",
+                    filter_namespace, filter_name
+                );
+                return Ok(());
+            }
+        }
+
+        // Create a new version with updated status
+        let mut updated_filter = current_filter.clone();
+        updated_filter.status = Some(status.clone());
+
+        // Attempt to update the status
+        match api
+            .replace_status(
+                filter_name,
+                &PostParams::default(),
+                serde_json::to_vec(&updated_filter)?,
+            )
+            .await
+        {
+            Ok(_) => {
+                debug!(
+                    "Successfully updated status for StaticResponseFilter {}/{} on attempt {}",
+                    filter_namespace, filter_name, attempt
+                );
+                return Ok(());
+            }
+            Err(kube::Error::Api(api_error)) if api_error.code == 409 => {
+                // Conflict error - resource was modified, retry
+                warn!(
+                    "Conflict updating StaticResponseFilter {}/{} status on attempt {}, retrying...",
+                    filter_namespace, filter_name, attempt
+                );
+                if attempt >= max_retries {
+                    return Err(anyhow::anyhow!(
+                        "Failed to update status after {} attempts due to conflicts: {}",
+                        max_retries,
+                        api_error
+                    ));
+                }
+                // Brief delay before retry to avoid tight retry loops
+                tokio::time::sleep(tokio::time::Duration::from_millis(100 * attempt as u64)).await;
+                continue;
+            }
+            Err(e) => {
+                return Err(anyhow::anyhow!(
+                    "Failed to update status of StaticResponseFilter {}/{}: {}",
+                    filter_namespace,
+                    filter_name,
+                    e
+                ));
+            }
+        }
+    }
+
+    Err(anyhow::anyhow!(
+        "Exhausted all {} retry attempts for StaticResponseFilter {}/{}",
+        max_retries,
+        filter_namespace,
+        filter_name
+    ))
 }
