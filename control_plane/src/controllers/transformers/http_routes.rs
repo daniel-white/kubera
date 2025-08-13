@@ -1,18 +1,19 @@
+use crate::controllers::sync::RouteAttachmentState;
 use crate::kubernetes::objects::{ObjectRef, Objects};
 use gateway_api::apis::standard::gateways::Gateway;
 use gateway_api::apis::standard::httproutes::HTTPRoute;
 use getset::{CopyGetters, Getters};
 use k8s_openapi::api::core::v1::Service;
-use vg_core::continue_on;
-use vg_core::net::Port;
-use vg_core::sync::signal::{Receiver, signal};
-use vg_core::task::Builder as TaskBuilder;
-use vg_macros::await_ready;
-use std::collections::HashMap;
 use std::collections::hash_map::Entry;
+use std::collections::HashMap;
 use std::sync::Arc;
 use tracing::{debug, info, warn};
 use typed_builder::TypedBuilder;
+use vg_core::continue_on;
+use vg_core::net::Port;
+use vg_core::sync::signal::{signal, Receiver};
+use vg_core::task::Builder as TaskBuilder;
+use vg_macros::await_ready;
 
 #[derive(Debug, TypedBuilder, Getters, CopyGetters, Clone, Hash, PartialEq, Eq)]
 pub struct HttpRouteBackend {
@@ -148,6 +149,80 @@ pub fn collect_http_routes_by_gateway(
                 }
 
                 continue_on!(http_routes_rx.changed());
+            }
+        });
+
+    rx
+}
+
+pub fn determine_route_attachment_states(
+    task_builder: &TaskBuilder,
+    http_routes_rx: &Receiver<Objects<HTTPRoute>>,
+    gateways_rx: &Receiver<Objects<Gateway>>,
+) -> Receiver<HashMap<ObjectRef, RouteAttachmentState>> {
+    let (tx, rx) = signal();
+    let http_routes_rx = http_routes_rx.clone();
+    let gateways_rx = gateways_rx.clone();
+
+    task_builder
+        .new_task("determine_route_attachment_states")
+        .spawn(async move {
+            loop {
+                await_ready!(http_routes_rx, gateways_rx)
+                    .and_then(async |http_routes, gateways| {
+                        info!("Determining Route Attachment States");
+                        let mut states: HashMap<ObjectRef, RouteAttachmentState> = HashMap::new();
+
+                        for (http_route_ref, _, http_route) in http_routes.iter() {
+                            info!(
+                                "Determining state for HTTPRoute: object.ref={}",
+                                http_route_ref
+                            );
+
+                            // Default to attached - we'll implement more sophisticated logic later
+                            let state = if http_route.spec.parent_refs.is_some() {
+                                // Check if any parent gateways exist
+                                let mut has_valid_parent = false;
+                                for parent_ref in http_route.spec.parent_refs.iter().flatten() {
+                                    let gateway_ref = ObjectRef::of_kind::<Gateway>()
+                                        .namespace(
+                                            parent_ref
+                                                .namespace
+                                                .clone()
+                                                .or_else(|| http_route_ref.namespace().clone()),
+                                        )
+                                        .name(&parent_ref.name)
+                                        .build();
+
+                                    if gateways.iter().any(|(gw_ref, _, _)| gw_ref == gateway_ref)
+                                    {
+                                        has_valid_parent = true;
+                                        break;
+                                    }
+                                }
+
+                                if has_valid_parent {
+                                    RouteAttachmentState::Attached
+                                } else {
+                                    RouteAttachmentState::NoMatchingListener {
+                                        reason: "No matching parent Gateway found".to_string(),
+                                    }
+                                }
+                            } else {
+                                RouteAttachmentState::NotAttached {
+                                    reason: "No parent references specified".to_string(),
+                                }
+                            };
+
+                            states.insert(http_route_ref.clone(), state);
+                        }
+
+                        tx.set(states).await;
+                    })
+                    .run()
+                    .await;
+
+                continue_on!(http_routes_rx.changed(), gateways_rx.changed());
             }
         });
 

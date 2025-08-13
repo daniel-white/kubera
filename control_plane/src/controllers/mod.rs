@@ -10,12 +10,13 @@ use self::filters::{
 };
 use self::sync::{
     sync_gateway_class_status, sync_gateway_configmaps, sync_gateway_deployments,
-    sync_gateway_services, sync_gateway_status, sync_static_response_filter_status,
-    SyncGatewayConfigmapsParams,
+    sync_gateway_services, sync_gateway_status, sync_http_route_status, sync_static_response_filter_status,
+    RouteAttachmentState, SyncGatewayConfigmapsParams,
 };
 use self::transformers::{
     bind_static_responses_cache, collect_extension_filters_by_gateway, collect_gateway_instances,
     collect_http_route_backends, collect_http_routes_by_gateway, collect_service_backends,
+    determine_route_attachment_states,
 };
 use crate::controllers::instances::{determine_instance_role, watch_leader_instance_ip_addr};
 use crate::ipc::IpcServices;
@@ -110,12 +111,25 @@ pub fn spawn_controllers(task_builder: &TaskBuilder, params: SpawnControllersPar
     );
     let http_routes_rx = filter_http_routes(task_builder, &gateways_rx, &http_routes_rx);
 
+    // Determine route attachment states for status reporting
+    let route_attachment_states_rx =
+        determine_route_attachment_states(task_builder, &http_routes_rx, &gateways_rx);
+
     // Add Gateway status controller
     sync_gateway_status(
         task_builder,
         &kube_client_rx,
         &instance_role_rx,
         &gateways_rx,
+    );
+
+    // Add HTTPRoute status controller
+    sync_http_route_status(
+        task_builder,
+        &kube_client_rx,
+        &instance_role_rx,
+        &http_routes_rx,
+        &route_attachment_states_rx,
     );
 
     // Add StaticResponseFilter status controller
