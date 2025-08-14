@@ -11,7 +11,7 @@ macro_rules! sync_objects {
         use std::collections::BTreeMap;
         use tokio::select;
         use tokio::signal::ctrl_c;
-        use tokio::sync::broadcast::{channel, error::RecvError};
+        use tokio::sync::mpsc::unbounded_channel;
         use tracing::{debug, info, trace, warn};
         use vg_core::{continue_after, continue_on};
         use vg_core::sync::signal::{signal, Receiver};
@@ -19,7 +19,7 @@ macro_rules! sync_objects {
         use $crate::options::Options;
         use vg_core::task::Builder as TaskBuilder;
 
-        let (tx, mut rx) = channel::<SyncObjectAction<$template_value_type, $object_type>>(50);
+        let (tx, mut rx) = unbounded_channel::<SyncObjectAction<$template_value_type, $object_type>>();
 
         let options: Arc<Options> = $options.clone();
         let kube_client_rx: Receiver<KubeClientCell> = $kube_client_rx.clone();
@@ -174,14 +174,12 @@ macro_rules! sync_objects {
                         (Some(kube_client), Some(instance_role)) => {
                             let _ = select! {
                                 action = rx.recv() => match action {
-                                    Ok(action) if instance_role.is_primary() => apply_action(kube_client.clone().into(), &template, action).await,
-                                    Ok(_) => debug!("Skipping action for {} objects, not primary instance", stringify!($object_type)),
-                                    Err(RecvError::Lagged(_)) => {
-                                        debug!("Queue lagged for {} objects", stringify!($object_type));
-                                        continue;
+                                    Some(action) if instance_role.is_primary() => apply_action(kube_client.clone().into(), &template, action).await,
+                                    Some(action) => {
+                                        debug!("Skipping action {:?} for {} objects as instance is not primary", action, stringify!($object_type));
                                     }
-                                    Err(err) => {
-                                        debug!("Queue closed, shutting down controller for {} objects: {}", stringify!($object_type), err);
+                                    None => {
+                                        debug!("Channel closed, shutting down controller for {} objects", stringify!($object_type));
                                         break;
                                     }
                                 },

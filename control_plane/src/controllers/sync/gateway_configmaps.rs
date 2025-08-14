@@ -22,7 +22,7 @@ use std::collections::{HashMap, HashSet};
 use std::net::IpAddr;
 use std::sync::Arc;
 use tokio::select;
-use tokio::sync::broadcast::Sender;
+use tokio::sync::mpsc::{Sender, UnboundedSender};
 use tracing::{debug, error, info, warn};
 use typed_builder::TypedBuilder;
 use vg_api::v1alpha1::{
@@ -113,7 +113,7 @@ struct GenerateGatewayConfigmapsParams {
     #[getset(get_clone = "pub")]
     options: Arc<Options>,
     #[getset(get_clone = "pub")]
-    sync_tx: Sender<SyncObjectAction<TemplateValues, ConfigMap>>,
+    sync_tx: UnboundedSender<SyncObjectAction<TemplateValues, ConfigMap>>,
     #[getset(get_clone = "pub")]
     ipc_services: Arc<IpcServices>,
     #[getset(get_clone = "pub")]

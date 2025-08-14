@@ -9,7 +9,7 @@ use k8s_openapi::api::apps::v1::Deployment;
 use kube::runtime::watcher::Config;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
-use tokio::sync::broadcast::Sender;
+use tokio::sync::mpsc::UnboundedSender;
 use tracing::warn;
 use typed_builder::TypedBuilder;
 use vg_core::continue_after;
@@ -62,7 +62,7 @@ pub fn sync_gateway_deployments(
 fn generate_gateway_deployments(
     options: Arc<Options>,
     task_builder: &TaskBuilder,
-    tx: Sender<SyncObjectAction<TemplateValues, Deployment>>,
+    tx: UnboundedSender<SyncObjectAction<TemplateValues, Deployment>>,
     current_service_refs_rx: Receiver<HashSet<ObjectRef>>,
     gateway_instances_rx: &Receiver<HashMap<ObjectRef, GatewayInstanceConfiguration>>,
 ) {
@@ -117,14 +117,14 @@ fn generate_gateway_deployments(
                         let deleted_refs =
                             current_service_refs.difference(&desired_deployments_ref);
                         for deleted_ref in deleted_refs {
-                            tx.send(SyncObjectAction::Delete(deleted_ref.clone()))
+                            let _ = tx
+                                .send(SyncObjectAction::Delete(deleted_ref.clone()))
                                 .inspect_err(|err| {
                                     warn!(
                                         "Failed to send delete action for deployment {}: {}",
                                         deleted_ref, err
                                     );
-                                })
-                                .ok();
+                                });
                         }
 
                         for (deployment_ref, gateway_ref, template_values, deployment_overrides) in

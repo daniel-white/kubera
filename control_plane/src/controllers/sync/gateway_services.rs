@@ -1,21 +1,21 @@
 use crate::controllers::instances::InstanceRole;
 use crate::controllers::transformers::GatewayInstanceConfiguration;
-use crate::kubernetes::KubeClientCell;
 use crate::kubernetes::objects::{ObjectRef, SyncObjectAction};
+use crate::kubernetes::KubeClientCell;
 use crate::options::Options;
 use crate::{sync_objects, watch_objects};
 use gtmpl_derive::Gtmpl;
 use k8s_openapi::api::core::v1::Service;
 use kube::runtime::watcher::Config;
+use std::collections::{HashMap, HashSet};
+use std::sync::Arc;
+use tokio::sync::mpsc::UnboundedSender;
+use tracing::{debug, warn};
+use typed_builder::TypedBuilder;
 use vg_core::continue_after;
 use vg_core::sync::signal::Receiver;
 use vg_core::task::Builder as TaskBuilder;
 use vg_macros::await_ready;
-use std::collections::{HashMap, HashSet};
-use std::sync::Arc;
-use tokio::sync::broadcast::Sender;
-use tracing::{debug, warn};
-use typed_builder::TypedBuilder;
 
 const TEMPLATE: &str = include_str!("./templates/gateway_service.kubernetes-helm-yaml");
 
@@ -53,7 +53,7 @@ pub fn sync_gateway_services(
 fn generate_gateway_services(
     options: Arc<Options>,
     task_builder: &TaskBuilder,
-    tx: Sender<SyncObjectAction<TemplateValues, Service>>,
+    tx: UnboundedSender<SyncObjectAction<TemplateValues, Service>>,
     service_refs_rx: Receiver<HashSet<ObjectRef>>,
     gateway_instances_rx: &Receiver<HashMap<ObjectRef, GatewayInstanceConfiguration>>,
 ) {
@@ -93,22 +93,22 @@ fn generate_gateway_services(
 
                         let deleted_refs = service_refs.difference(&desired_service_refs);
                         for deleted_ref in deleted_refs {
-                            tx.send(SyncObjectAction::Delete(deleted_ref.clone()))
-                                .inspect_err(|err| warn!("Failed to send delete action: {}", err))
-                                .ok();
+                            let _ = tx
+                                .send(SyncObjectAction::Delete(deleted_ref.clone()))
+                                .inspect_err(|err| warn!("Failed to send delete action: {}", err));
                         }
 
                         for (service_ref, gateway_ref, template_values, service_overrides) in
                             desired_services
                         {
-                            tx.send(SyncObjectAction::Upsert(
-                                service_ref,
-                                gateway_ref.clone(),
-                                template_values,
-                                Some(service_overrides.clone()),
-                            ))
-                                .inspect_err(|err| warn!("Failed to send upsert action: {}", err))
-                                .ok();
+                            let _ = tx
+                                .send(SyncObjectAction::Upsert(
+                                    service_ref,
+                                    gateway_ref.clone(),
+                                    template_values,
+                                    Some(service_overrides.clone()),
+                                ))
+                                .inspect_err(|err| warn!("Failed to send upsert action: {}", err));
                         }
                     })
                     .run()
