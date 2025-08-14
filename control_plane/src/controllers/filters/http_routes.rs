@@ -102,7 +102,7 @@ pub fn filter_http_routes(
     gateways_rx: &Receiver<Objects<Gateway>>,
     http_routes_rx: &Receiver<Objects<HTTPRoute>>,
 ) -> Receiver<Objects<HTTPRoute>> {
-    let (tx, rx) = signal();
+    let (tx, rx) = signal("filtered_http_routes");
     let gateways_rx = gateways_rx.clone();
     let http_routes_rx = http_routes_rx.clone();
 

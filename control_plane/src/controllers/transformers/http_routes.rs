@@ -31,7 +31,7 @@ pub fn collect_http_route_backends(
     task_builder: &TaskBuilder,
     http_routes_rx: &Receiver<Objects<HTTPRoute>>,
 ) -> Receiver<HashMap<ObjectRef, HttpRouteBackend>> {
-    let (tx, rx) = signal();
+    let (tx, rx) = signal("collected_http_route_backends");
     let http_routes_rx = http_routes_rx.clone();
 
     task_builder.new_task(stringify!(collect_http_route_backends)).spawn(async move {
@@ -109,7 +109,7 @@ pub fn collect_http_routes_by_gateway(
     task_builder: &TaskBuilder,
     http_routes_rx: &Receiver<Objects<HTTPRoute>>,
 ) -> Receiver<HashMap<ObjectRef, Vec<Arc<HTTPRoute>>>> {
-    let (tx, rx) = signal();
+    let (tx, rx) = signal("collected_http_routes_by_gateway");
     let http_routes_rx = http_routes_rx.clone();
 
     task_builder
@@ -160,7 +160,7 @@ pub fn determine_route_attachment_states(
     http_routes_rx: &Receiver<Objects<HTTPRoute>>,
     gateways_rx: &Receiver<Objects<Gateway>>,
 ) -> Receiver<HashMap<ObjectRef, RouteAttachmentState>> {
-    let (tx, rx) = signal();
+    let (tx, rx) = signal("determined_route_attachment_states");
     let http_routes_rx = http_routes_rx.clone();
     let gateways_rx = gateways_rx.clone();
 
@@ -194,8 +194,7 @@ pub fn determine_route_attachment_states(
                                         .name(&parent_ref.name)
                                         .build();
 
-                                    if gateways.iter().any(|(gw_ref, _, _)| gw_ref == gateway_ref)
-                                    {
+                                    if gateways.iter().any(|(gw_ref, _, _)| gw_ref == gateway_ref) {
                                         has_valid_parent = true;
                                         break;
                                     }

@@ -19,22 +19,23 @@ mod cli;
 mod controllers;
 
 mod health;
+mod instrumentation;
 pub mod ipc;
 pub mod kubernetes;
 mod options;
 
-use crate::controllers::{SpawnControllersParams, StaticResponsesCache, spawn_controllers};
-use crate::ipc::{SpawnIpcError, SpawnIpcParameters, spawn_ipc};
+use crate::controllers::{spawn_controllers, SpawnControllersParams, StaticResponsesCache};
+use crate::ipc::{spawn_ipc, SpawnIpcError, SpawnIpcParameters};
 use crate::kubernetes::start_kubernetes_client;
 use crate::options::Options;
 use clap::Parser;
 use cli::Cli;
-use vg_core::crypto::init_crypto;
-use vg_core::instrumentation::init_instrumentation;
-use vg_core::task::Builder as TaskBuilder;
 use std::sync::Arc;
 use thiserror::Error;
 use tracing::error;
+use vg_core::crypto::init_crypto;
+use vg_core::instrumentation::init_instrumentation;
+use vg_core::task::Builder as TaskBuilder;
 
 #[derive(Debug, Error)]
 pub enum MainError {
@@ -47,17 +48,14 @@ pub enum MainError {
 }
 
 #[tokio::main(flavor = "multi_thread")]
-#[allow(
-    clippy::expect_used
-)] // Expect is used here to ensure that the application fails fast if the parameters are invalid
+#[allow(clippy::expect_used)] // Expect is used here to ensure that the application fails fast if the parameters are invalid
 async fn main() -> Result<(), MainError> {
+    let task_builder = TaskBuilder::default();
     let args = Cli::parse();
     let options = Arc::new(Options::default());
 
     init_crypto();
-    init_instrumentation();
-
-    let task_builder = TaskBuilder::default();
+    init_instrumentation(&task_builder, "vg-control-plane");
 
     let kube_client_rx = start_kubernetes_client(&task_builder);
     let static_responses_cache = StaticResponsesCache::default();

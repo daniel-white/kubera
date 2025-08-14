@@ -1,11 +1,11 @@
 use crate::kubernetes::objects::Objects;
 use gateway_api::apis::standard::gateways::Gateway;
+use tracing::debug;
 use vg_api::v1alpha1::GatewayParameters;
 use vg_core::continue_on;
-use vg_core::sync::signal::{Receiver, signal};
+use vg_core::sync::signal::{signal, Receiver};
 use vg_core::task::Builder as TaskBuilder;
 use vg_macros::await_ready;
-use tracing::debug;
 
 // Note: GatewayClassParametersReferenceState is defined in gateway_classes.rs
 
@@ -14,7 +14,7 @@ pub fn filter_gateway_parameters(
     gateways_rx: &Receiver<Objects<Gateway>>,
     gateway_parameters_rx: &Receiver<Objects<GatewayParameters>>,
 ) -> Receiver<Objects<GatewayParameters>> {
-    let (tx, rx) = signal();
+    let (tx, rx) = signal("filtered_gateway_parameters");
     let gateways_rx = gateways_rx.clone();
     let gateway_parameters_rx = gateway_parameters_rx.clone();
 

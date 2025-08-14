@@ -321,12 +321,11 @@ impl URLRewriteFilter {
     }
 }
 
-#[allow(dead_code)] // Public API for future configuration watching
 pub fn create_url_rewrite_filter_receiver(
     task_builder: &TaskBuilder,
     initial_rewrite: Option<URLRewrite>,
 ) -> Receiver<Option<URLRewriteFilter>> {
-    let (sender, receiver) = signal();
+    let (tx, rx) = signal("url_rewrite_filter");
 
     task_builder
         .new_task("url_rewrite_filter_config_watcher")
@@ -334,16 +333,16 @@ pub fn create_url_rewrite_filter_receiver(
             // Send initial configuration
             if let Some(rewrite) = &initial_rewrite {
                 let filter = Some(URLRewriteFilter::new(rewrite.clone()));
-                sender.set(filter).await;
+                tx.set(filter).await;
             } else {
-                sender.set(None).await;
+                tx.set(None).await;
             }
 
             // In a real implementation, this would watch for configuration changes
             // For now, we'll just send the initial configuration once and exit
         });
 
-    receiver
+    rx
 }
 
 #[cfg(test)]

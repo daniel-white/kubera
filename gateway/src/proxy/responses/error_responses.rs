@@ -16,7 +16,7 @@ pub fn error_responses(
     task_builder: &TaskBuilder,
     gateway_configuration_rx: &Receiver<GatewayConfiguration>,
 ) -> Receiver<ErrorResponseGenerators> {
-    let (tx, rx) = signal::<ErrorResponseGenerators>();
+    let (tx, rx) = signal("error_responses");
 
     let gateway_configuration_rx = gateway_configuration_rx.clone();
 
@@ -46,7 +46,8 @@ pub fn error_responses(
                                         "http://vale-gateway.whitefamily.in/problems/".into()
                                     });
                                 let authority = Url::parse(&authority).unwrap_or_else(|_| {
-                                    Url::parse("http://vale-gateway.whitefamily.in/problems/").unwrap()
+                                    Url::parse("http://vale-gateway.whitefamily.in/problems/")
+                                        .unwrap()
                                 });
                                 ErrorResponseGenerators::ProblemDetail(
                                     ProblemDetailErrorResponseGenerator::new(authority),

@@ -175,7 +175,7 @@ pub fn static_responses(
     task_builder: &TaskBuilder,
     gateway_configuration_rx: &Receiver<GatewayConfiguration>,
 ) -> Receiver<Arc<HashMap<String, StaticResponse>>> {
-    let (tx, rx) = signal();
+    let (tx, rx) = signal("static_responses");
     let gateway_configuration_rx = gateway_configuration_rx.clone();
 
     task_builder

@@ -1,13 +1,14 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 use tokio::task::JoinSet;
+use tokio_shutdown::Shutdown;
 use tracing::error;
 
 type MutableJoinSet = Rc<RefCell<JoinSet<()>>>;
 
-#[derive(Default)]
 pub struct Builder {
     join_set: MutableJoinSet,
+    shutdown: Shutdown,
 }
 
 impl Builder {
@@ -15,6 +16,7 @@ impl Builder {
         Spawner {
             name,
             join_set: self.join_set.clone(),
+            shutdown: self.shutdown.clone(),
         }
     }
 
@@ -24,9 +26,19 @@ impl Builder {
     }
 }
 
+impl Default for Builder {
+    fn default() -> Self {
+        Self {
+            join_set: MutableJoinSet::default(),
+            shutdown: Shutdown::new().expect("Failed to create shutdown handle"),
+        }
+    }
+}
+
 pub struct Spawner {
     name: &'static str,
     join_set: MutableJoinSet,
+    shutdown: Shutdown,
 }
 
 impl Spawner {
@@ -63,5 +75,18 @@ impl Spawner {
         if let Err(err) = result {
             error!("Failed to spawn blocking task '{}': {}", self.name, err);
         }
+    }
+
+    #[track_caller]
+    pub fn spawn_on_shutdown<F>(self, task: F)
+    where
+        F: Future<Output = ()>,
+        F: Send + 'static,
+    {
+        let shutdown = self.shutdown.clone();
+        self.spawn(async move {
+            let _ = shutdown.handle().await;
+            task.await;
+        });
     }
 }

@@ -30,7 +30,7 @@ pub fn fetch_configuration(
     task_builder: &TaskBuilder,
     params: FetchConfigurationParams,
 ) -> Receiver<(Instant, GatewayConfiguration)> {
-    let (tx, rx) = signal();
+    let (tx, rx) = signal("fetched_configuration");
 
     task_builder
         .new_task(stringify!(fetch_configuration))

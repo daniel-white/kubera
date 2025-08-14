@@ -20,6 +20,14 @@ use vg_macros::await_ready;
 const TEMPLATE: &str = include_str!("./templates/gateway_deployment.kubernetes-helm-yaml");
 
 #[derive(Clone, TypedBuilder, Debug, Gtmpl)]
+struct OpenTelemetryTemplateValues {
+    #[builder(setter(into))]
+    collector_name: String,
+    #[builder(setter(into))]
+    exporter_endpoint: String,
+}
+
+#[derive(Clone, TypedBuilder, Debug, Gtmpl)]
 struct TemplateValues {
     #[builder(setter(into))]
     gateway_name: String,
@@ -31,7 +39,8 @@ struct TemplateValues {
     image_repository: String,
     #[builder(setter(into))]
     image_tag: String,
-    replicas: u32,
+    replicas: i32,
+    open_telemetry: OpenTelemetryTemplateValues,
 }
 
 pub fn sync_gateway_deployments(
@@ -87,8 +96,12 @@ fn generate_gateway_deployments(
                                     .spec
                                     .as_ref()
                                     .and_then(|spec| spec.replicas)
-                                    .unwrap_or(1)
-                                    as u32;
+                                    .unwrap_or(1);
+
+                                let open_telemetry = OpenTelemetryTemplateValues::builder()
+                                    .collector_name("TODO COLLECTOR")
+                                    .exporter_endpoint("TODO EXPORTER ENDPOINT")
+                                    .build();
                                 let template_values = TemplateValues::builder()
                                     .gateway_name(gateway_ref.name())
                                     .configmap_name(format!("{}-config", gateway_ref.name()))
@@ -98,6 +111,7 @@ fn generate_gateway_deployments(
                                     .image_repository(instance.image_repository().to_string())
                                     .image_tag(instance.image_tag().to_string())
                                     .replicas(replicas)
+                                    .open_telemetry(open_telemetry)
                                     .build();
 
                                 (

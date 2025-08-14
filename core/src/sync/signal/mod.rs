@@ -1,24 +1,28 @@
+mod instrumentation;
+
+use crate::sync::signal::instrumentation::{record_set_applied, record_set_skipped};
 use anyhow::Result;
 use atomic_refcell::AtomicRefCell;
 use std::sync::Arc;
 use thiserror::Error;
+use tokio::sync::broadcast::{channel, Receiver as BroadcastReceiver, Sender as BroadcastSender};
 use tokio::sync::RwLock;
-use tokio::sync::broadcast::{Receiver as BroadcastReceiver, Sender as BroadcastSender, channel};
 use tracing::trace;
 
 #[derive(Debug, Error)]
 #[error("Receiver error")]
 pub struct RecvError;
-
-pub fn signal<T: PartialEq + Clone>() -> (Sender<T>, Receiver<T>) {
+pub fn signal<T: PartialEq + Clone>(name: &'static str) -> (Sender<T>, Receiver<T>) {
     let data = Arc::new(RwLock::new(None));
     let (tx, rx) = channel(10);
     (
         Sender {
+            name,
             data: data.clone(),
             tx: tx.clone(),
         },
         Receiver {
+            name,
             tx,
             rx: AtomicRefCell::new(rx),
             data,
@@ -28,6 +32,7 @@ pub fn signal<T: PartialEq + Clone>() -> (Sender<T>, Receiver<T>) {
 
 #[derive(Clone, Debug)]
 pub struct Sender<T: PartialEq + Clone> {
+    name: &'static str,
     data: Arc<RwLock<Option<T>>>,
     tx: BroadcastSender<()>,
 }
@@ -40,15 +45,15 @@ impl<T: PartialEq + Clone> Sender<T> {
     pub async fn set(&self, value: T) {
         let value = match self.data.read().await.as_ref() {
             Some(old_value) if old_value != &value => {
-                trace!("Replacing value in signal");
+                record_set_applied(self.name);
                 Some(value)
             }
             None => {
-                trace!("Setting value in signal");
+                record_set_applied(self.name);
                 Some(value)
             }
             _ => {
-                trace!("No change in value, not updating signal");
+                record_set_skipped(self.name);
                 None
             }
         };
@@ -86,6 +91,7 @@ impl<T: PartialEq + Clone> Sender<T> {
 
 #[derive(Debug)]
 pub struct Receiver<T: PartialEq + Clone> {
+    name: &'static str,
     tx: BroadcastSender<()>,
     rx: AtomicRefCell<BroadcastReceiver<()>>,
     data: Arc<RwLock<Option<T>>>,
@@ -95,6 +101,7 @@ impl<T: PartialEq + Clone> Clone for Receiver<T> {
     fn clone(&self) -> Self {
         let rx = self.tx.subscribe();
         Receiver {
+            name: self.name,
             tx: self.tx.clone(),
             rx: AtomicRefCell::new(rx),
             data: self.data.clone(),
@@ -120,14 +127,14 @@ mod tests {
     use super::*;
     use assertables::assert_ok;
     use proptest::prelude::*;
-    use std::sync::Arc;
     use std::sync::atomic::{AtomicUsize, Ordering};
-    use tokio::time::{Duration, timeout};
+    use std::sync::Arc;
+    use tokio::time::{timeout, Duration};
     use tokio_test::{assert_pending, assert_ready};
 
     #[tokio::test]
     async fn test_signal_channel() {
-        let (tx, rx) = signal();
+        let (tx, rx) = signal("test_signal");
         assert_eq!(rx.get().await, None);
 
         tx.set(43).await;
@@ -145,7 +152,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_signal_notification() {
-        let (tx, rx) = signal();
+        let (tx, rx) = signal("test_signal_notification");
 
         // Should not block when no value is set
         let mut changed_future = std::pin::pin!(rx.changed());
@@ -161,7 +168,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_multiple_receivers() {
-        let (tx, rx1) = signal();
+        let (tx, rx1) = signal("test_signal_multiple");
         let rx2 = rx1.clone();
         let rx3 = rx1.clone();
 
@@ -174,7 +181,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_receiver_notifications_multiple() {
-        let (tx, rx) = signal();
+        let (tx, rx) = signal("test_signal_multiple_notifications");
         let rx2 = rx.clone();
 
         let notify_count = Arc::new(AtomicUsize::new(0));
@@ -213,7 +220,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_sender_dropped() {
-        let (tx, rx) = signal();
+        let (tx, rx) = signal("test_signal_sender_dropped");
 
         tx.set(100).await;
         assert_eq!(rx.get().await, Some(100));
@@ -236,7 +243,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_clear_functionality() {
-        let (tx, rx) = signal();
+        let (tx, rx) = signal("test_signal_clear");
 
         tx.set(42).await;
         assert_eq!(rx.get().await, Some(42));
@@ -251,7 +258,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_concurrent_access() {
-        let (tx, rx) = signal();
+        let (tx, rx) = signal("test_signal_concurrent");
         let tx_clone = tx.clone();
 
         let handles = (0..10)
@@ -278,7 +285,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_timeout_on_changed() {
-        let (_tx, rx) = signal::<i32>();
+        let (_tx, rx) = signal::<i32>("test_signal_timeout");
 
         // Should timeout since no value is ever set
         let result = timeout(Duration::from_millis(10), rx.changed()).await;
@@ -290,7 +297,7 @@ mod tests {
         fn test_signal_properties(values in prop::collection::vec(any::<i32>(), 0..20)) {
             let runtime = assert_ok!(tokio::runtime::Runtime::new());
             runtime.block_on(async {
-                let (tx, rx) = signal();
+                let (tx, rx) = signal("test_signal_properties");
 
                 let mut last_value = None;
                 for value in &values {

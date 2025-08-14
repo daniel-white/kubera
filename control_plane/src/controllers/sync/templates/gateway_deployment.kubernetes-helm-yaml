@@ -34,8 +34,6 @@ spec:
               name: config
               readOnly: true
           env:
-            - name: ECHO_INCLUDE_ENV_VARS
-              value: "1"
             - name: POD_NAMESPACE
               valueFrom:
                 fieldRef:
@@ -44,6 +42,10 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.name
+            - name: POD_UID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.uid
             - name: GATEWAY_NAME
               value: {{ .gateway_name | quote }}
             - name: NODE_NAME
@@ -54,6 +56,12 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.labels['topology.kubernetes.io/zone']
+            - name: OTEL_RESOURCE_ATTRIBUTES
+              value: 'service.name={{ .gateway_name }},service.namespace=$(POD_NAMESPACE),service.instance.id=$(POD_UID)'
+            - name: OTEL_COLLECTOR_NAME
+              value: {{ .open_telemetry.collector_name }}
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: {{ .open_telemetry.exporter_endpoint }}
 {{/*          ports:*/}}
 {{/*            - name: http*/}}
 {{/*              containerPort: 8080*/}}

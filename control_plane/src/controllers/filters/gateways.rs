@@ -1,21 +1,21 @@
 use crate::kubernetes::objects::{ObjectRef, Objects};
 use gateway_api::apis::standard::gatewayclasses::GatewayClass;
 use gateway_api::apis::standard::gateways::Gateway;
-use vg_api::v1alpha1::GatewayParameters;
-use vg_core::continue_on;
-use vg_core::sync::signal::{Receiver, signal};
-use vg_core::task::Builder as TaskBuilder;
-use vg_macros::await_ready;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tracing::{debug, info};
+use vg_api::v1alpha1::GatewayParameters;
+use vg_core::continue_on;
+use vg_core::sync::signal::{signal, Receiver};
+use vg_core::task::Builder as TaskBuilder;
+use vg_macros::await_ready;
 
 pub fn filter_gateways(
     task_builder: &TaskBuilder,
     gateway_class_tx: &Receiver<(ObjectRef, Arc<GatewayClass>)>,
     gateways_rx: &Receiver<Objects<Gateway>>,
 ) -> Receiver<Objects<Gateway>> {
-    let (tx, rx) = signal();
+    let (tx, rx) = signal("filtered_gateways");
     let gateway_class_rx = gateway_class_tx.clone();
     let gateways_rx = gateways_rx.clone();
 
@@ -54,7 +54,7 @@ pub fn filter_gateway_parameters(
     gateways_rx: &Receiver<Objects<Gateway>>,
     gateway_parameters_rx: &Receiver<Objects<GatewayParameters>>,
 ) -> Receiver<HashMap<ObjectRef, Arc<GatewayParameters>>> {
-    let (tx, rx) = signal();
+    let (tx, rx) = signal("filtered_gateway_parameters");
     let gateways_rx = gateways_rx.clone();
     let gateway_parameters_tx = gateway_parameters_rx.clone();
 

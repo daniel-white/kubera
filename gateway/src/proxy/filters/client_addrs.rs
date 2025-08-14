@@ -18,7 +18,7 @@ pub fn client_addr_filter(
     task_builder: &TaskBuilder,
     gateway_configuration_rx: &Receiver<GatewayConfiguration>,
 ) -> Receiver<ClientAddrFilter> {
-    let (tx, rx) = signal();
+    let (tx, rx) = signal("client_addr_filter");
     let gateway_configuration_rx = gateway_configuration_rx.clone();
 
     task_builder
@@ -185,7 +185,7 @@ impl ClientAddrExtractor for TrustedProxiesClientAddrExtractor {
             &session.req_header().as_owned_parts(),
             &self.config,
         )
-            .ip();
+        .ip();
         Some(trusted_ip)
     }
 }

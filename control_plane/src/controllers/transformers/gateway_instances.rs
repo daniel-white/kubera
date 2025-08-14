@@ -2,10 +2,10 @@ use crate::controllers::filters::GatewayClassParametersReferenceState;
 use crate::kubernetes::objects::{ObjectRef, Objects};
 use gateway_api::apis::standard::gateways::Gateway;
 use getset::Getters;
-use k8s_openapi::DeepMerge;
 use k8s_openapi::api::apps::v1::{Deployment, DeploymentSpec, DeploymentStrategy};
 use k8s_openapi::api::core::v1::{Service, ServiceSpec};
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
+use k8s_openapi::DeepMerge;
 use serde_json::{from_value, json};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -16,7 +16,7 @@ use vg_api::v1alpha1::{
     ImagePullPolicy as ApiImagePullPolicy,
 };
 use vg_core::continue_on;
-use vg_core::sync::signal::{Receiver, signal};
+use vg_core::sync::signal::{signal, Receiver};
 use vg_core::task::Builder as TaskBuilder;
 use vg_macros::await_ready;
 
@@ -69,7 +69,7 @@ pub fn collect_gateway_instances(
     gateway_class_parameters_rx: &Receiver<GatewayClassParametersReferenceState>,
     gateway_parameters_rx: &Receiver<Objects<GatewayParameters>>,
 ) -> Receiver<HashMap<ObjectRef, GatewayInstanceConfiguration>> {
-    let (tx, rx) = signal();
+    let (tx, rx) = signal("collected_gateway_instances");
 
     let gateways_rx = gateways_rx.clone();
     let gateway_class_parameters_rx = gateway_class_parameters_rx.clone();
@@ -84,60 +84,60 @@ pub fn collect_gateway_instances(
                     gateway_class_parameters_rx,
                     gateway_parameters_rx,
                 )
-                    .and_then(
-                        async |gateways, gateway_class_parameters, gateway_parameters| {
-                            info!("Collecting gateway instances");
-                            let gateway_class_parameters: Option<Arc<GatewayClassParameters>> =
-                                gateway_class_parameters.into();
-                            let gateway_class_parameters = gateway_class_parameters.as_deref();
+                .and_then(
+                    async |gateways, gateway_class_parameters, gateway_parameters| {
+                        info!("Collecting gateway instances");
+                        let gateway_class_parameters: Option<Arc<GatewayClassParameters>> =
+                            gateway_class_parameters.into();
+                        let gateway_class_parameters = gateway_class_parameters.as_deref();
 
-                            let instances = gateways
-                                .iter()
-                                .map(|(gateway_ref, _, gateway)| {
-                                    info!("Processing gateway instance: {}", gateway_ref);
-                                    let gateway_parameters =
-                                        gateway_parameters.get_by_ref(&gateway_ref);
-                                    let gateway_parameters = gateway_parameters.as_deref();
-                                    let (
+                        let instances = gateways
+                            .iter()
+                            .map(|(gateway_ref, _, gateway)| {
+                                info!("Processing gateway instance: {}", gateway_ref);
+                                let gateway_parameters =
+                                    gateway_parameters.get_by_ref(&gateway_ref);
+                                let gateway_parameters = gateway_parameters.as_deref();
+                                let (
+                                    deployment_overrides,
+                                    image_pull_policy,
+                                    image_repository,
+                                    image_tag,
+                                ) = merge_deployment_overrides(
+                                    &gateway,
+                                    gateway_class_parameters,
+                                    gateway_parameters,
+                                );
+                                let service_overrides = merge_service_overrides(
+                                    &gateway,
+                                    gateway_class_parameters,
+                                    gateway_parameters,
+                                );
+                                let configuration = merge_gateway_configuration(
+                                    &gateway,
+                                    gateway_class_parameters,
+                                    gateway_parameters,
+                                );
+                                (
+                                    gateway_ref,
+                                    GatewayInstanceConfiguration {
+                                        gateway,
+                                        service_overrides,
                                         deployment_overrides,
                                         image_pull_policy,
                                         image_repository,
                                         image_tag,
-                                    ) = merge_deployment_overrides(
-                                        &gateway,
-                                        gateway_class_parameters,
-                                        gateway_parameters,
-                                    );
-                                    let service_overrides = merge_service_overrides(
-                                        &gateway,
-                                        gateway_class_parameters,
-                                        gateway_parameters,
-                                    );
-                                    let configuration = merge_gateway_configuration(
-                                        &gateway,
-                                        gateway_class_parameters,
-                                        gateway_parameters,
-                                    );
-                                    (
-                                        gateway_ref,
-                                        GatewayInstanceConfiguration {
-                                            gateway,
-                                            service_overrides,
-                                            deployment_overrides,
-                                            image_pull_policy,
-                                            image_repository,
-                                            image_tag,
-                                            configuration,
-                                        },
-                                    )
-                                })
-                                .collect();
+                                        configuration,
+                                    },
+                                )
+                            })
+                            .collect();
 
-                            tx.set(instances).await;
-                        },
-                    )
-                    .run()
-                    .await;
+                        tx.set(instances).await;
+                    },
+                )
+                .run()
+                .await;
 
                 continue_on!(
                     gateways_rx.changed(),

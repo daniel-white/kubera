@@ -38,12 +38,11 @@ impl ResponseHeaderFilter {
 }
 
 /// Create a reactive filter that responds to ResponseHeaderModifier configuration changes
-#[allow(dead_code)] // Public API for future configuration watching
 pub fn response_header_filter(
     task_builder: &TaskBuilder,
     modifier_rx: &Receiver<Option<ResponseHeaderModifier>>,
 ) -> Receiver<Option<ResponseHeaderFilter>> {
-    let (tx, rx) = signal();
+    let (tx, rx) = signal("response_header_filter");
     let modifier_rx = modifier_rx.clone();
 
     task_builder

@@ -1,8 +1,8 @@
 use kube::Client;
-use vg_core::sync::signal::{Receiver, signal};
-use vg_core::task::Builder as TaskBuilder;
 use std::ops::Deref;
 use tracing::error;
+use vg_core::sync::signal::{signal, Receiver};
+use vg_core::task::Builder as TaskBuilder;
 
 pub mod objects;
 
@@ -30,7 +30,7 @@ impl From<KubeClientCell> for Client {
 }
 
 pub fn start_kubernetes_client(task_builder: &TaskBuilder) -> Receiver<KubeClientCell> {
-    let (tx, rx) = signal();
+    let (tx, rx) = signal("kubernetes_client");
 
     task_builder
         .new_task("kubernetes_client")

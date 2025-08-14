@@ -267,7 +267,7 @@ fn generate_gateway_configurations(
     backends_rx: Receiver<HashMap<ObjectRef, Backend>>,
     extension_filters_rx: Receiver<HashMap<ObjectRef, ExtensionFilters>>,
 ) -> Receiver<HashMap<ObjectRef, Option<GatewayConfiguration>>> {
-    let (tx, rx) = signal();
+    let (tx, rx) = signal("generated_gateway_configurations");
 
     task_builder
         .new_task(stringify!(generate_gateway_configurations))

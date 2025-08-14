@@ -9,7 +9,7 @@ use tracing::debug;
 use typed_builder::TypedBuilder;
 use vg_core::continue_on;
 use vg_core::net::Port;
-use vg_core::sync::signal::{Receiver, signal};
+use vg_core::sync::signal::{signal, Receiver};
 use vg_core::task::Builder as TaskBuilder;
 use vg_macros::await_ready;
 
@@ -45,7 +45,7 @@ pub fn collect_service_backends(
     http_route_backends_rx: &Receiver<HashMap<ObjectRef, HttpRouteBackend>>,
     endpoint_slices_rx: &Receiver<Objects<EndpointSlice>>,
 ) -> Receiver<HashMap<ObjectRef, Backend>> {
-    let (tx, rx) = signal();
+    let (tx, rx) = signal("collected_service_backends");
     let http_route_backends_rx = http_route_backends_rx.clone();
     let endpoint_slices_rx = endpoint_slices_rx.clone();
 

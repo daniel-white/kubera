@@ -38,7 +38,7 @@ impl EventHandler for SignalEventHandler {
 }
 
 pub fn spawn_file_watcher<P: AsRef<std::path::Path>>(p: P) -> Result<Receiver<u64>> {
-    let (tx, rx) = signal();
+    let (tx, rx) = signal("file_watcher");
 
     let mut watcher = notify::recommended_watcher(SignalEventHandler::new(tx))?;
     watcher.watch(p.as_ref(), RecursiveMode::NonRecursive)?;

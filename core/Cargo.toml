@@ -19,6 +19,11 @@ http = { workspace = true }
 ipnet = { workspace = true }
 itertools = { workspace = true }
 notify = "8"
+opentelemetry = { workspace = true }
+opentelemetry_sdk = { version = "0.30", features = ["metrics", "trace", "logs"] }
+opentelemetry-appender-log = "0.30"
+opentelemetry-otlp = { version = "0.30", features = ["tonic", "metrics", "trace", "logs", "grpc-tonic"] }
+opentelemetry-appender-tracing = "0.30"
 rustls = { workspace = true }
 schemars = { workspace = true }
 serde = { workspace = true }
@@ -27,8 +32,10 @@ serde_yaml = { workspace = true }
 strum = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true }
+tokio-shutdown = "0.1"
 tracing = { workspace = true }
-tracing-subscriber = { workspace = true }
+tracing-subscriber = { workspace = true, version = "1.0.0", features = ["json"] }
+tracing-opentelemetry = "0.31"
 unicase = { workspace = true }
 typed-builder = { workspace = true }
 

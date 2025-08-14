@@ -134,10 +134,44 @@ pub struct GatewayConfiguration {
     pub log_level: Option<LogLevel>,
 
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub instrumentation: Option<GatewayInstrumentation>,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub error_responses: Option<ErrorResponses>,
 
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub client_addresses: Option<ClientAddresses>,
+}
+
+#[derive(Deserialize, Serialize, Clone, Debug, JsonSchema, Default, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct GatewayInstrumentation {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub open_telemetry: Option<GatewayInstrumentationOpenTelemetry>,
+}
+
+#[derive(Deserialize, Serialize, Clone, Debug, JsonSchema, Default, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct GatewayInstrumentationOpenTelemetry {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub collector: Option<GatewayInstrumentationOpenTelemetryCollector>,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub exporter: Option<GatewayInstrumentationOpenTelemetryExporter>,
+}
+
+#[derive(Deserialize, Serialize, Clone, Debug, JsonSchema, Default, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct GatewayInstrumentationOpenTelemetryCollector {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+}
+
+#[derive(Deserialize, Serialize, Clone, Debug, JsonSchema, Default, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct GatewayInstrumentationOpenTelemetryExporter {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub endpoint: Option<String>,
 }
 
 #[derive(Default, Deserialize, Serialize, Clone, Debug, PartialEq, JsonSchema, IntoStaticStr)]

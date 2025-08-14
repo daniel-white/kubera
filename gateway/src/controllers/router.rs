@@ -15,7 +15,7 @@ pub fn synthesize_http_router(
     gateway_configuration_rx: &Receiver<GatewayConfiguration>,
     current_location: TopologyLocation,
 ) -> Receiver<HttpRouter> {
-    let (tx, rx) = signal();
+    let (tx, rx) = signal("http_router");
 
     let gateway_configuration_rx = gateway_configuration_rx.clone();
 
@@ -100,7 +100,7 @@ fn build_router(
                                                 HeaderValue::from_str(
                                                     config_header.value().as_str(),
                                                 )
-                                                    .unwrap(),
+                                                .unwrap(),
                                             );
                                         }
                                         HttpHeaderMatchType::RegularExpression => {

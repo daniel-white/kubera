@@ -1,25 +1,30 @@
-use crate::kubernetes::KubeClientCell;
+use crate::instrumentation::METER;
 use crate::kubernetes::objects::ObjectRef;
+use crate::kubernetes::KubeClientCell;
 use crate::options::Options;
 use futures::StreamExt;
 use k8s_openapi::api::coordination::v1::Lease;
 use k8s_openapi::api::core::v1::Pod;
-use kube::runtime::Controller;
 use kube::runtime::controller::Action;
 use kube::runtime::watcher::Config;
+use kube::runtime::Controller;
 use kube::{Api, Client};
 use kube_leader_election::{LeaseLock, LeaseLockParams, LeaseLockResult};
-use vg_core::sync::signal::{Receiver, Sender, signal};
-use vg_core::task::Builder as TaskBuilder;
-use vg_core::{continue_after, continue_on};
+use opentelemetry::KeyValue;
+use std::cell::LazyCell;
 use std::future::ready;
 use std::net::IpAddr;
 use std::str::FromStr;
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
+use std::time::Duration;
 use thiserror::Error;
 use tokio::select;
 use tracing::log::warn;
 use tracing::{debug, info, instrument};
+use vg_core::sync::signal::{signal, Receiver, Sender};
+use vg_core::task::Builder as TaskBuilder;
+use vg_core::{continue_after, continue_on};
+use vg_macros::await_ready;
 
 pub fn watch_leader_instance_ip_addr(
     options: Arc<Options>,
@@ -54,7 +59,7 @@ pub fn watch_leader_instance_ip_addr(
     fn error_policy(_: Arc<Pod>, _: &ControllerError, ctx: Arc<ControllerContext>) -> Action {
         Action::requeue(ctx.options.controller_error_requeue_duration())
     }
-    let (tx, rx) = signal();
+    let (tx, rx) = signal("leader_instance_ip_addr");
     let kube_client_rx = kube_client_rx.clone();
     let instance_role_rx = instance_role_rx.clone();
 
@@ -132,7 +137,7 @@ pub fn determine_instance_role(
     instance_name: &str,
     pod_name: &str,
 ) -> Receiver<InstanceRole> {
-    let (tx, rx) = signal();
+    let (tx, rx) = signal("instance_role");
 
     let namespace = namespace.to_string();
     let instance_name = instance_name.to_string();
@@ -189,6 +194,8 @@ pub fn determine_instance_role(
             }
         });
 
+    report_instance_role(task_builder, rx.clone());
+
     rx
 }
 
@@ -202,4 +209,32 @@ fn get_pod_ref(namespace: &str, lease: &Lease) -> Option<ObjectRef> {
         .build();
 
     Some(object_ref)
+}
+
+fn report_instance_role(task_builder: &TaskBuilder, instance_role_rx: Receiver<InstanceRole>) {
+
+    task_builder
+        .new_task(stringify!(report_instance_role))
+        .spawn(async move {
+            let metric = METER.u64_gauge("vg_control_plane_instance_role").with_description("Indicates the current state of the instance").build();
+            loop {
+                await_ready!(instance_role_rx)
+                    .and_then(async |instance_role: InstanceRole| {
+                        let (primary_value, redundant_value, undetermined_value) =
+                            match instance_role {
+                                InstanceRole::Primary(_) => (1, 0, 0),
+                                InstanceRole::Redundant(_) => (0, 1, 0),
+                                InstanceRole::Undetermined => (0, 0, 1),
+                            };
+
+                        metric.record(primary_value, &[KeyValue::new("role", "primary")]);
+                        metric.record(redundant_value, &[KeyValue::new("role", "redundant")]);
+                        metric.record(undetermined_value, &[KeyValue::new("role", "undetermined")]);
+                    })
+                    .run()
+                    .await;
+
+                continue_after!(Duration::from_secs(10), instance_role_rx.changed());
+            }
+        });
 }

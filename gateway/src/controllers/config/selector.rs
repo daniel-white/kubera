@@ -17,7 +17,7 @@ pub fn select_configuration(
     task_builder: &TaskBuilder,
     params: SelectorParams,
 ) -> Receiver<GatewayConfiguration> {
-    let (tx, rx) = signal();
+    let (tx, rx) = signal("selected_configuration");
 
     let ipc_config_source_rx = params.ipc_configuration_source_rx.clone();
     let fs_config_source_rx = params.fs_configuration_source_rx.clone();
@@ -43,11 +43,11 @@ pub fn select_configuration(
                         Some(fs_config)
                     }
                     (Some((ipc_serial, ipc_config)), Some((fs_serial, _)))
-                    if fs_serial < ipc_serial =>
-                        {
-                            debug!("Using IPC configuration, newer");
-                            Some(ipc_config)
-                        }
+                        if fs_serial < ipc_serial =>
+                    {
+                        debug!("Using IPC configuration, newer");
+                        Some(ipc_config)
+                    }
                     (_, Some((_, fs_config))) => {
                         debug!("Using file-based configuration, newer");
                         Some(fs_config)

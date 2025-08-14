@@ -1,21 +1,21 @@
 use crate::kubernetes::objects::{ObjectRef, Objects};
 use gateway_api::apis::standard::gatewayclasses::GatewayClass;
 use itertools::Itertools;
-use vg_api::constants::GATEWAY_CLASS_CONTROLLER_NAME;
-use vg_api::v1alpha1::GatewayClassParameters;
-use vg_core::continue_on;
-use vg_core::sync::signal::{Receiver, signal};
-use vg_core::task::Builder as TaskBuilder;
-use vg_macros::await_ready;
 use std::sync::Arc;
 use strum::{EnumString, IntoStaticStr};
 use tracing::{debug, info, warn};
+use vg_api::constants::GATEWAY_CLASS_CONTROLLER_NAME;
+use vg_api::v1alpha1::GatewayClassParameters;
+use vg_core::continue_on;
+use vg_core::sync::signal::{signal, Receiver};
+use vg_core::task::Builder as TaskBuilder;
+use vg_macros::await_ready;
 
 pub fn filter_gateway_classes(
     task_builder: &TaskBuilder,
     gateway_classes_rx: &Receiver<Objects<GatewayClass>>,
 ) -> Receiver<(ObjectRef, Arc<GatewayClass>)> {
-    let (tx, rx) = signal();
+    let (tx, rx) = signal("filtered_gateway_classes");
     let gateway_classes_rx = gateway_classes_rx.clone();
 
     task_builder
@@ -95,7 +95,7 @@ pub fn filter_gateway_class_parameters(
     gateway_class_rx: &Receiver<(ObjectRef, Arc<GatewayClass>)>,
     gateway_class_parameters_rx: &Receiver<Objects<GatewayClassParameters>>,
 ) -> Receiver<GatewayClassParametersReferenceState> {
-    let (tx, rx) = signal();
+    let (tx, rx) = signal("filtered_gateway_class_parameters");
     let gateway_class_rx = gateway_class_rx.clone();
     let gateway_class_parameters_rx = gateway_class_parameters_rx.clone();
 
@@ -130,7 +130,7 @@ pub fn filter_gateway_class_parameters(
                                     tx.set(GatewayClassParametersReferenceState::Linked(
                                         parameters,
                                     ))
-                                        .await;
+                                    .await;
                                 } else {
                                     warn!(
                                         "GatewayClassParameters not found for reference: {}",

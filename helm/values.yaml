@@ -7,6 +7,13 @@ deployments:
     repository: vale-gateway
     tag: latest
 
+instrumentation:
+  openTelemetry:
+    collector:
+      name: otel-collector
+    exporter:
+      endpoint: http://otel-collector.otel.svc.cluster.local:4318
+
 gatewayClass:
   name: ""
 
@@ -23,6 +30,12 @@ controlPlane:
     image:
       repository: ""  # Will default to global image.repository
       tag: ""         # Will default to global image.tag
+  instrumentation:
+    openTelemetry:
+      collector:
+        name: ""
+      exporter:
+        endpoint: ""
   resources:
     limits:
       cpu: "500m"
@@ -30,6 +43,7 @@ controlPlane:
     requests:
       cpu: "500m"
       memory: "256Mi"
+
 
 gateways:
   logLevel: ""
@@ -46,7 +60,12 @@ gateways:
     image:
       repository: ""  # Will default to global image.repository
       tag: ""         # Will default to global image.tag
-
+  instrumentation:
+    openTelemetry:
+      collector:
+        name: ""
+      exporter:
+        endpoint: ""
 
 
 

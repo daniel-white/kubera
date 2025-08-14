@@ -27,5 +27,11 @@ spec:
       tag: {{ .Values.gateways.deployment.image.tag | default .Values.deployments.image.tag | default "latest" }}
   gateway:
     logLevel: {{ .Values.gateways.logLevel | default "Info" }}
+    instrumentation:
+      openTelemetry:
+        exporter:
+          endpoint: {{ .Values.gateways.instrumentation.openTelemetry.exporter.endpoint | default .Values.instrumentation.openTelemetry.exporter.endpoint | default "http://$(OTEL_COLLECTOR_NAME):4318" }}
+        collector:
+          name: {{ .Values.gateways.instrumentation.openTelemetry.collector.name | default .Values.instrumentation.openTelemetry.collector.name }}
     errorResponses:
       kind: ProblemDetail

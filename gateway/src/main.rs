@@ -31,7 +31,7 @@ async fn main() {
     let task_builder = TaskBuilder::default();
 
     init_crypto();
-    init_instrumentation();
+    init_instrumentation(&task_builder, "vg-gateway");
 
     let args = Cli::parse();
 
@@ -42,7 +42,7 @@ async fn main() {
         TopologyLocation::builder().zone(zone).node(node).build()
     };
 
-    let (ipc_endpoint_tx, ipc_endpoint_rx) = signal();
+    let (ipc_endpoint_tx, ipc_endpoint_rx) = signal("ipc_endpoint");
 
     let gateway_events_tx = {
         let params = PollGatewayEventsParams::builder()

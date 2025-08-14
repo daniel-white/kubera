@@ -27,7 +27,7 @@ macro_rules! sync_objects {
         let task_builder: &TaskBuilder = $task_builder;
 
         let current_object_refs_rx = {
-            let (tx, rx) = signal();
+            let (tx, rx) = signal(concat!("current_object_refs_", stringify!($object_type)));
             let current_objects_rx: Receiver<Objects<$object_type>> = watch_objects!(
                 $options,
                 task_builder,

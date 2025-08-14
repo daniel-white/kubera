@@ -200,8 +200,8 @@ mod http_route_namespace_filtering {
         http_routes.insert(route_ref.clone(), http_route.into());
 
         // Set up signal channels
-        let (gateways_tx, gateways_rx) = signal();
-        let (http_routes_tx, http_routes_rx) = signal();
+        let (gateways_tx, gateways_rx) = signal("gateways");
+        let (http_routes_tx, http_routes_rx) = signal("http_routes");
 
         gateways_tx.set(gateways).await;
         http_routes_tx.set(http_routes).await;
@@ -244,8 +244,8 @@ mod http_route_namespace_filtering {
         http_routes.insert(route_ref, http_route.into());
 
         // Set up signal channels
-        let (gateways_tx, gateways_rx) = signal();
-        let (http_routes_tx, http_routes_rx) = signal();
+        let (gateways_tx, gateways_rx) = signal("gateways");
+        let (http_routes_tx, http_routes_rx) = signal("http_routes");
 
         gateways_tx.set(gateways).await;
         http_routes_tx.set(http_routes).await;
@@ -294,8 +294,8 @@ mod http_route_namespace_filtering {
         http_routes.insert(route2_ref.clone(), route2.into());
 
         // Set up signal channels
-        let (gateways_tx, gateways_rx) = signal();
-        let (http_routes_tx, http_routes_rx) = signal();
+        let (gateways_tx, gateways_rx) = signal("gateways");
+        let (http_routes_tx, http_routes_rx) = signal("http_routes");
 
         gateways_tx.set(gateways).await;
         http_routes_tx.set(http_routes).await;
@@ -339,8 +339,8 @@ mod http_route_namespace_filtering {
         http_routes.insert(route_ref.clone(), http_route.into());
 
         // Set up signal channels
-        let (gateways_tx, gateways_rx) = signal();
-        let (http_routes_tx, http_routes_rx) = signal();
+        let (gateways_tx, gateways_rx) = signal("gateways");
+        let (http_routes_tx, http_routes_rx) = signal("http_routes");
 
         gateways_tx.set(gateways).await;
         http_routes_tx.set(http_routes).await;

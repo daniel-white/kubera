@@ -87,7 +87,7 @@ macro_rules! watch_objects {
         let kube_client_rx: Receiver<KubeClientCell> = $kube_client_rx.clone();
         let labels: Option<&'static str> = $labels;
         let task_builder: &TaskBuilder = $task_builder;
-        let (tx, rx) = signal();
+        let (tx, rx) = signal(concat!("watched_", stringify!($object_type)));
 
         debug!(
             "Spawning controller for watching {} objects",

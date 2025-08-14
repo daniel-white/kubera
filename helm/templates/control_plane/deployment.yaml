@@ -40,8 +40,20 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.name
+            - name: POD_UID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.uid
             - name: PORT
               value: "8080"
+            - name: OTEL_SERVICE_NAME
+              value: {{ include "controlPlane.name" . }}
+            - name: OTEL_RESOURCE_ATTRIBUTES
+              value: 'service.name={{ include "controlPlane.name" . }},service.namespace={{ .Release.Namespace }},service.instance.id=$(POD_UID)'
+            - name: OTEL_COLLECTOR_NAME
+              value: {{ .Values.controlPlane.instrumentation.openTelemetry.collector.name | default .Values.instrumentation.openTelemetry.collector.name }}
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: {{ .Values.controlPlane.instrumentation.openTelemetry.exporter.endpoint | default .Values.instrumentation.openTelemetry.exporter.endpoint | default "http://$(OTEL_COLLECTOR_NAME):4318" }}
           resources: {{ toYaml .Values.controlPlane.resources | nindent 12 }}
           livenessProbe:
             httpGet:

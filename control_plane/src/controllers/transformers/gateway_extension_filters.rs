@@ -27,7 +27,7 @@ pub fn collect_extension_filters_by_gateway(
     http_routes_by_gateway_rx: &Receiver<HashMap<ObjectRef, Vec<Arc<HTTPRoute>>>>,
     static_response_filters_rx: &Receiver<Objects<StaticResponseFilter>>,
 ) -> Receiver<HashMap<ObjectRef, ExtensionFilters>> {
-    let (tx, rx) = signal();
+    let (tx, rx) = signal("collected_extension_filters_by_gateway");
 
     let http_routes_by_gateway_rx = http_routes_by_gateway_rx.clone();
     let static_response_filters_rx = static_response_filters_rx.clone();

@@ -22,7 +22,7 @@ pub fn watch_configuration_file(
     task_builder: &TaskBuilder,
     params: WatchConfigurationFileParams,
 ) -> Receiver<(Instant, GatewayConfiguration)> {
-    let (tx, rx) = signal();
+    let (tx, rx) = signal("watched_configuration_file");
 
     task_builder
         .new_task(stringify!(watch_configuration_file))

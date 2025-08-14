@@ -364,12 +364,11 @@ pub struct RedirectResponse {
     pub status_code: StatusCode,
 }
 
-#[allow(dead_code)] // Public API for future configuration watching
 pub fn create_request_redirect_filter_receiver(
     task_builder: &TaskBuilder,
     initial_redirect: Option<RequestRedirect>,
 ) -> Receiver<Option<RequestRedirectFilter>> {
-    let (sender, receiver) = signal();
+    let (tx, rx) = signal("request_redirect_filter");
 
     task_builder
         .new_task("request_redirect_filter_config_watcher")
@@ -377,17 +376,17 @@ pub fn create_request_redirect_filter_receiver(
             // Send initial configuration
             if let Some(redirect) = &initial_redirect {
                 let filter = Some(RequestRedirectFilter::new(redirect.clone()));
-                sender.set(filter).await;
+                tx.set(filter).await;
                 debug!("RequestRedirectFilter configuration updated");
             } else {
-                sender.set(None).await;
+                tx.set(None).await;
             }
 
             // In a real implementation, this would watch for configuration changes
             // For now, we'll just send the initial configuration once and exit
         });
 
-    receiver
+    rx
 }
 
 #[cfg(test)]

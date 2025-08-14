@@ -43,7 +43,7 @@ pub fn request_header_filter(
     task_builder: &TaskBuilder,
     modifier_rx: &Receiver<Option<RequestHeaderModifier>>,
 ) -> Receiver<Option<RequestHeaderFilter>> {
-    let (tx, rx) = signal();
+    let (tx, rx) = signal("request_header_filter");
     let modifier_rx = modifier_rx.clone();
 
     task_builder
