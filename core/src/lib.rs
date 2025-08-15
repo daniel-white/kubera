@@ -28,7 +28,6 @@ pub mod crypto;
 pub mod instrumentation;
 pub mod io;
 pub mod ipc;
-mod metrics;
 pub mod net;
 pub mod sync;
 pub mod task;

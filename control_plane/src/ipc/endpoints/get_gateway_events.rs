@@ -5,13 +5,14 @@ use axum::http::StatusCode;
 use axum::response::sse::Event;
 use axum::{
     extract::State,
-    response::{IntoResponse, sse::Sse},
+    response::{sse::Sse, IntoResponse},
 };
 use futures::TryStreamExt;
 use gateway_api::apis::standard::gateways::Gateway;
 use problemdetails::Problem;
 use serde::Deserialize;
 use tracing::{debug, warn};
+use vg_core::instrumentation::trace_id;
 
 #[derive(Deserialize)]
 pub struct PathParams {
@@ -30,16 +31,28 @@ pub async fn get_gateway_events(
     Query(query_params): Query<QueryParams>,
 ) -> impl IntoResponse {
     if path_params.gateway_namespace.is_empty() {
-        return Problem::from(StatusCode::BAD_REQUEST)
+        let mut problem = Problem::from(StatusCode::BAD_REQUEST)
+            .with_value("status", StatusCode::BAD_GATEWAY.as_u16())
             .with_title("Invalid Namespace")
-            .with_detail("Gateway namespace cannot be empty")
-            .into_response();
+            .with_detail("Gateway namespace cannot be empty");
+
+        if let Some(trace_id) = trace_id() {
+            problem = problem.with_instance(trace_id);
+        }
+
+        return problem.into_response();
     }
     if path_params.gateway_name.is_empty() {
-        return Problem::from(StatusCode::BAD_REQUEST)
+        let mut problem = Problem::from(StatusCode::BAD_REQUEST)
+            .with_value("status", StatusCode::BAD_REQUEST.as_u16())
             .with_title("Invalid Name")
-            .with_detail("Gateway name cannot be empty")
-            .into_response();
+            .with_detail("Gateway name cannot be empty");
+
+        if let Some(trace_id) = trace_id() {
+            problem = problem.with_instance(trace_id);
+        }
+
+        return problem.into_response();
     }
 
     let gateway_ref = ObjectRef::of_kind::<Gateway>()
@@ -53,10 +66,16 @@ pub async fn get_gateway_events(
     );
 
     if !state.gateways.exists(&gateway_ref) {
-        return Problem::from(StatusCode::NOT_FOUND)
+        let mut problem = Problem::from(StatusCode::NOT_FOUND)
+            .with_value("status", StatusCode::NOT_FOUND.as_u16())
             .with_title("Gateway Not Found")
-            .with_detail(format!("Object {gateway_ref} not found"))
-            .into_response();
+            .with_detail(format!("Object {gateway_ref} not found"));
+
+        if let Some(trace_id) = trace_id() {
+            problem = problem.with_instance(trace_id);
+        }
+
+        return problem.into_response();
     }
 
     let stream = state

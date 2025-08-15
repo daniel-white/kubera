@@ -1,27 +1,26 @@
 use crate::instrumentation::METER;
-use crate::kubernetes::objects::ObjectRef;
 use crate::kubernetes::KubeClientCell;
+use crate::kubernetes::objects::ObjectRef;
 use crate::options::Options;
 use futures::StreamExt;
 use k8s_openapi::api::coordination::v1::Lease;
 use k8s_openapi::api::core::v1::Pod;
+use kube::runtime::Controller;
 use kube::runtime::controller::Action;
 use kube::runtime::watcher::Config;
-use kube::runtime::Controller;
 use kube::{Api, Client};
 use kube_leader_election::{LeaseLock, LeaseLockParams, LeaseLockResult};
 use opentelemetry::KeyValue;
-use std::cell::LazyCell;
 use std::future::ready;
 use std::net::IpAddr;
 use std::str::FromStr;
-use std::sync::{Arc, LazyLock};
+use std::sync::Arc;
 use std::time::Duration;
 use thiserror::Error;
 use tokio::select;
 use tracing::log::warn;
 use tracing::{debug, info, instrument};
-use vg_core::sync::signal::{signal, Receiver, Sender};
+use vg_core::sync::signal::{Receiver, Sender, signal};
 use vg_core::task::Builder as TaskBuilder;
 use vg_core::{continue_after, continue_on};
 use vg_macros::await_ready;
@@ -212,11 +211,13 @@ fn get_pod_ref(namespace: &str, lease: &Lease) -> Option<ObjectRef> {
 }
 
 fn report_instance_role(task_builder: &TaskBuilder, instance_role_rx: Receiver<InstanceRole>) {
-
     task_builder
         .new_task(stringify!(report_instance_role))
         .spawn(async move {
-            let metric = METER.u64_gauge("vg_control_plane_instance_role").with_description("Indicates the current state of the instance").build();
+            let metric = METER
+                .u64_gauge("vg_control_plane_instance_role")
+                .with_description("Indicates the current state of the instance")
+                .build();
             loop {
                 await_ready!(instance_role_rx)
                     .and_then(async |instance_role: InstanceRole| {

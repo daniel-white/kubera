@@ -18,6 +18,7 @@ use axum::response::IntoResponse;
 use axum::routing::get;
 use axum::Router;
 use axum_health::Health;
+use axum_tracing_opentelemetry::middleware::{OtelAxumLayer, OtelInResponseLayer};
 use getset::{CloneGetters, CopyGetters, Getters};
 use problemdetails::Problem;
 use std::net::SocketAddr;
@@ -27,6 +28,7 @@ use tokio::net::TcpListener;
 use tokio::select;
 use tracing::info;
 use typed_builder::TypedBuilder;
+use vg_core::instrumentation::trace_id;
 use vg_core::net::Port;
 use vg_core::sync::signal::Receiver;
 use vg_core::task::Builder as TaskBuilder;
@@ -129,18 +131,34 @@ fn router(state: IpcEndpointState, health: Health) -> Router {
         )
         .fallback(not_found)
         .method_not_allowed_fallback(method_not_allowed)
-        .layer(health)
         .with_state(state)
+        .layer(OtelAxumLayer::default())
+        .layer(OtelInResponseLayer::default())
+        .layer(health)
 }
 
 async fn not_found() -> impl IntoResponse {
-    Problem::from(StatusCode::NOT_FOUND)
+    let mut problem = Problem::from(StatusCode::NOT_FOUND)
+        .with_value("status", StatusCode::NOT_FOUND.as_u16())
         .with_title("Not Found")
-        .with_detail("The requested resource could not be found")
+        .with_detail("The requested resource could not be found");
+
+    if let Some(trace_id) = trace_id() {
+        problem = problem.with_instance(trace_id);
+    }
+
+    problem
 }
 
 async fn method_not_allowed() -> impl IntoResponse {
-    Problem::from(StatusCode::METHOD_NOT_ALLOWED)
+    let mut problem = Problem::from(StatusCode::METHOD_NOT_ALLOWED)
+        .with_value("status", StatusCode::METHOD_NOT_ALLOWED.as_u16())
         .with_title("Method Not Allowed")
-        .with_detail("The requested method is not allowed for this resource")
+        .with_detail("The requested method is not allowed for this resource");
+    
+    if let Some(trace_id) = trace_id() {
+        problem = problem.with_instance(trace_id);
+    }
+    
+    problem
 }

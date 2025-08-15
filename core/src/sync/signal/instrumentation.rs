@@ -1,6 +1,6 @@
 use crate::instrumentation::METER;
-use opentelemetry::metrics::Counter;
 use opentelemetry::KeyValue;
+use opentelemetry::metrics::Counter;
 use std::sync::LazyLock;
 use tracing::trace;
 
@@ -20,6 +20,6 @@ pub fn record_set_applied(name: &'static str) {
 
 #[track_caller]
 #[inline]
-pub fn record_set_skipped(name: &'static str) {
+pub fn record_set_skipped(_name: &'static str) {
     trace!("Skipped setting value in signal");
 }

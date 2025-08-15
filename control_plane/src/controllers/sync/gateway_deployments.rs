@@ -8,6 +8,7 @@ use gtmpl_derive::Gtmpl;
 use k8s_openapi::api::apps::v1::Deployment;
 use kube::runtime::watcher::Config;
 use std::collections::{HashMap, HashSet};
+use std::env;
 use std::sync::Arc;
 use tokio::sync::mpsc::UnboundedSender;
 use tracing::warn;
@@ -99,8 +100,12 @@ fn generate_gateway_deployments(
                                     .unwrap_or(1);
 
                                 let open_telemetry = OpenTelemetryTemplateValues::builder()
-                                    .collector_name("TODO COLLECTOR")
-                                    .exporter_endpoint("TODO EXPORTER ENDPOINT")
+                                    .collector_name(
+                                        env::var("OTEL_COLLECTOR_NAME").unwrap_or_default(),
+                                    )
+                                    .exporter_endpoint(
+                                        env::var("OTEL_EXPORTER_OTLP_ENDPOINT").unwrap_or_default(),
+                                    )
                                     .build();
                                 let template_values = TemplateValues::builder()
                                     .gateway_name(gateway_ref.name())

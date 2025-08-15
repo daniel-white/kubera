@@ -1,7 +1,8 @@
 use crate::task::Builder as TaskBuilder;
-use opentelemetry::global::{meter, set_meter_provider, set_tracer_provider, tracer_provider};
+use opentelemetry::Context;
+use opentelemetry::global::{meter, set_meter_provider, set_tracer_provider};
 use opentelemetry::metrics::Meter;
-use opentelemetry::trace::TracerProvider;
+use opentelemetry::trace::{TraceContextExt, TracerProvider};
 use opentelemetry_appender_log::OpenTelemetryLogBridge;
 use opentelemetry_appender_tracing::layer::OpenTelemetryTracingBridge;
 use opentelemetry_otlp::{LogExporterBuilder, MetricExporterBuilder, SpanExporterBuilder};
@@ -9,16 +10,13 @@ use opentelemetry_sdk::logs::LoggerProviderBuilder;
 use opentelemetry_sdk::metrics::MeterProviderBuilder;
 use opentelemetry_sdk::trace::TracerProviderBuilder;
 use std::sync::{LazyLock, Once};
-use std::time::Duration;
 use tracing::info;
-use tracing::log::{set_boxed_logger, set_logger, Log};
+use tracing::log::set_boxed_logger;
 use tracing::subscriber::set_global_default;
 use tracing_opentelemetry::OpenTelemetryLayer;
 use tracing_subscriber::fmt::layer;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::{EnvFilter, Registry};
-
-
 
 #[allow(clippy::expect_used)]
 #[track_caller]
@@ -87,12 +85,20 @@ pub fn init_instrumentation(task_builder: &TaskBuilder, name: &'static str) {
             .new_task("shutdown_instrumentation")
             .spawn_on_shutdown(async move {
                 info!("Shutting down instrumentation...");
-                let timeout = Duration::from_secs(10);
-                let _ = tracer_provider.shutdown_with_timeout(timeout);
-                let _ = meter_provider.shutdown_with_timeout(timeout);
-                let _ = logs_provider.shutdown_with_timeout(timeout);
+                let _ = tracer_provider.shutdown();
+                let _ = meter_provider.shutdown();
+                let _ = logs_provider.shutdown();
             });
     });
 }
 
 pub(crate) static METER: LazyLock<Meter> = LazyLock::new(|| meter("vg-core"));
+
+pub fn trace_id() -> Option<String> {
+    let context = Context::current();
+    if context.has_active_span() {
+        context.span().span_context().trace_id().to_string().into()
+    } else {
+        None
+    }
+}

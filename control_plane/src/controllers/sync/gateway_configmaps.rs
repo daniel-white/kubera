@@ -3,8 +3,8 @@ use crate::controllers::transformers::{
     Backend, ExtensionFilterKind, ExtensionFilters, GatewayInstanceConfiguration,
 };
 use crate::ipc::IpcServices;
-use crate::kubernetes::objects::{ObjectRef, SyncObjectAction};
 use crate::kubernetes::KubeClientCell;
+use crate::kubernetes::objects::{ObjectRef, SyncObjectAction};
 use crate::options::Options;
 use crate::{sync_objects, watch_objects};
 use gateway_api::apis::standard::httproutes::{
@@ -16,13 +16,13 @@ use gateway_api::httproutes::HTTPRouteRulesMatches;
 use getset::CloneGetters;
 use gtmpl_derive::Gtmpl;
 use k8s_openapi::api::core::v1::{ConfigMap, Service};
-use kube::runtime::watcher::Config;
 use kube::ResourceExt;
+use kube::runtime::watcher::Config;
 use std::collections::{HashMap, HashSet};
 use std::net::IpAddr;
 use std::sync::Arc;
 use tokio::select;
-use tokio::sync::mpsc::{Sender, UnboundedSender};
+use tokio::sync::mpsc::UnboundedSender;
 use tracing::{debug, error, info, warn};
 use typed_builder::TypedBuilder;
 use vg_api::v1alpha1::{
@@ -41,7 +41,7 @@ use vg_core::config::gateway::types::net::{
 };
 use vg_core::config::gateway::types::{GatewayConfiguration, GatewayConfigurationBuilder};
 use vg_core::net::{Hostname, Port};
-use vg_core::sync::signal::{signal, Receiver};
+use vg_core::sync::signal::{Receiver, signal};
 use vg_core::task::Builder as TaskBuilder;
 use vg_core::{continue_after, continue_on};
 use vg_macros::await_ready;
