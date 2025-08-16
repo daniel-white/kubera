@@ -50,7 +50,6 @@ notify = "8"
 once_cell = "1"
 opentelemetry = { version = "0.30", features = ["metrics", "logs", "tracing"] }
 opentelemetry-semantic-conventions = "0.30"
-pingora = { version = "0.6", features = ["pingora-proxy", "rustls"] }
 problemdetails = { version = "0.6" }
 prometheus = "0.14"
 proptest = "1"
