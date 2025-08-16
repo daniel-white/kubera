@@ -11,20 +11,21 @@ use futures::TryStreamExt;
 use gateway_api::apis::standard::gateways::Gateway;
 use problemdetails::Problem;
 use serde::Deserialize;
-use tracing::{debug, warn};
+use tracing::{debug, instrument, warn};
 use vg_core::instrumentation::trace_id;
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 pub struct PathParams {
     gateway_namespace: String,
     gateway_name: String,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 pub struct QueryParams {
     pod_name: String,
 }
 
+#[instrument(skip(state), name = "ipc::get_gateway_events")]
 pub async fn get_gateway_events(
     State(state): State<IpcEndpointState>,
     Path(path_params): Path<PathParams>,

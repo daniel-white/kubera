@@ -82,9 +82,13 @@ pub struct CommonGatewayParameterSpec {
 )]
 #[kube(derive = "Default")]
 #[kube(derive = "PartialEq")]
+#[serde(rename_all = "camelCase")]
 pub struct GatewayClassParametersSpec {
     #[serde(flatten)]
     pub common: CommonGatewayParameterSpec,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cluster_name: Option<String>,
 }
 
 #[derive(Default, CustomResource, Deserialize, Serialize, Clone, Debug, JsonSchema, PartialEq)]

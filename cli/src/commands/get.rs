@@ -246,7 +246,6 @@ struct GatewayTableRow {
 }
 
 #[derive(Tabled)]
-#[derive(Tabled)]
 struct PodTableRow {
     name: String,
     namespace: String,

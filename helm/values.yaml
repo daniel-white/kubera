@@ -1,5 +1,7 @@
 logLevel: Info
 
+clusterName: minikube
+
 deployments:
   imagePullPolicy: IfNotPresent
   # Global image configuration - serves as default for all components
@@ -10,9 +12,9 @@ deployments:
 instrumentation:
   openTelemetry:
     collector:
-      name: otel-collector
+      name: signoz-otel-collector
     exporter:
-      endpoint: http://otel-collector.otel.svc.cluster.local:4318
+      endpoint: http://signoz-otel-collector.signoz2.svc.cluster.local:4317
 
 gatewayClass:
   name: ""

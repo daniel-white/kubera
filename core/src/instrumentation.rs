@@ -1,8 +1,8 @@
 use crate::task::Builder as TaskBuilder;
-use opentelemetry::Context;
 use opentelemetry::global::{meter, set_meter_provider, set_tracer_provider};
 use opentelemetry::metrics::Meter;
 use opentelemetry::trace::{TraceContextExt, TracerProvider};
+use opentelemetry::{Context, Key, KeyValue, Value};
 use opentelemetry_appender_log::OpenTelemetryLogBridge;
 use opentelemetry_appender_tracing::layer::OpenTelemetryTracingBridge;
 use opentelemetry_otlp::{LogExporterBuilder, MetricExporterBuilder, SpanExporterBuilder};
@@ -101,4 +101,35 @@ pub fn trace_id() -> Option<String> {
     } else {
         None
     }
+}
+
+#[derive(Default)]
+pub struct KeyValueCollector {
+    vec: Vec<KeyValue>,
+}
+
+impl KeyValueCollector {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn add<K: Into<Key>, V: Into<Value>>(&mut self, key: K, value: V) {
+        self.vec.push(KeyValue::new(key, value));
+    }
+}
+
+impl From<KeyValueCollector> for Vec<KeyValue> {
+    fn from(collector: KeyValueCollector) -> Self {
+        collector.vec
+    }
+} 
+
+pub trait KeyValues {
+    fn key_values(&self) -> Vec<KeyValue> {
+        let mut collector = KeyValueCollector::new();
+        self.collect_key_values(&mut collector);
+        collector.into()
+    }
+
+    fn collect_key_values(&self, vec: &mut KeyValueCollector);
 }

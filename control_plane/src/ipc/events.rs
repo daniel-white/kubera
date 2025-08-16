@@ -1,10 +1,12 @@
 use crate::kubernetes::objects::ObjectRef;
-use vg_core::ipc::{Event, GatewayEvent};
 use std::fmt::Display;
+use std::sync::LazyLock;
 use thiserror::Error;
-use tokio::sync::broadcast::{Sender as BroadcastSender, channel as broadcast_channel};
+use tokio::sync::broadcast::{channel as broadcast_channel, Sender as BroadcastSender};
 use tokio_stream::wrappers::BroadcastStream;
 use tokio_stream::{Stream, StreamExt};
+use vg_core::instrumentation::KeyValues;
+use vg_core::ipc::{Event, GatewayEvent};
 
 #[derive(Debug, Error)]
 pub struct RecvError;
@@ -27,6 +29,7 @@ pub struct EventSender {
 
 impl EventSender {
     pub fn send(&self, event: Event) {
+        record_event(&event);
         let _ = self.tx.send(event);
     }
 }
@@ -37,7 +40,7 @@ pub struct EventStreamFactory {
 }
 
 impl EventStreamFactory {
-    pub fn all_events(&self) -> impl Stream<Item=Result<Event, RecvError>> + Send + use < > {
+    pub fn all_events(&self) -> impl Stream<Item = Result<Event, RecvError>> + Send + use<> {
         BroadcastStream::new(self.tx.subscribe()).filter_map(|event| match event {
             Ok(event) => Some(Ok(event)),
             Err(_) => Some(Err(RecvError)),
@@ -46,7 +49,7 @@ impl EventStreamFactory {
 
     pub fn gateway_events(
         &self,
-    ) -> impl Stream<Item=Result<GatewayEvent, RecvError>> + Send + use < > {
+    ) -> impl Stream<Item = Result<GatewayEvent, RecvError>> + Send + use<> {
         self.all_events().filter_map(|event| match event {
             Ok(Event::Gateway(event)) => Some(Ok(event)),
             Ok(_) => None,
@@ -57,7 +60,7 @@ impl EventStreamFactory {
     pub fn named_gateway_events(
         &self,
         gateway_ref: ObjectRef,
-    ) -> impl Stream<Item=Result<GatewayEvent, RecvError>> + Send + use < > {
+    ) -> impl Stream<Item = Result<GatewayEvent, RecvError>> + Send + use<> {
         self.gateway_events().filter(move |event| match event {
             Ok(GatewayEvent::ConfigurationUpdate(ref_)) => {
                 ref_.name() == gateway_ref.name()
@@ -66,4 +69,18 @@ impl EventStreamFactory {
             _ => false,
         })
     }
+}
+
+fn record_event(event: &Event) {
+    use crate::instrumentation::METER;
+    use opentelemetry::metrics::Counter;
+
+    static COUNTER: LazyLock<Counter<u64>> = LazyLock::new(|| {
+        METER
+            .u64_counter("vg_control_plane_events")
+            .with_description("Indicates the number of control plane events")
+            .build()
+    });
+
+    COUNTER.add(1, &event.key_values());
 }

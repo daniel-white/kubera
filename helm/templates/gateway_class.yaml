@@ -15,6 +15,7 @@ kind: GatewayClassParameters
 metadata:
   name: {{ include "gateway_class.name" . }}
 spec:
+  clusterName: {{ .Values.clusterName }}
   deployment:
     imagePullPolicy: {{ default .Values.gateways.deployment.imagePullPolicy .Values.deployments.imagePullPolicy "IfNotPresent" }}
     replicas: {{ .Values.gateways.deployment.replicas | default 2 }}

@@ -49,11 +49,19 @@ spec:
             - name: OTEL_SERVICE_NAME
               value: {{ include "controlPlane.name" . }}
             - name: OTEL_RESOURCE_ATTRIBUTES
-              value: 'service.name={{ include "controlPlane.name" . }},service.namespace={{ .Release.Namespace }},service.instance.id=$(POD_UID)'
+              value: >
+                service.name={{ include "controlPlane.name" . }},
+                service.namespace={{ .Release.Namespace }},
+                service.instance.id=$(POD_UID),
+                k8s.pod.name=$(POD_NAME),
+                k8s.namespace.name={{ .Release.Namespace }},
+                k8s.pod.uid=$(POD_UID),
+                k8s.cluster.name={{ .Values.clusterName }},
+                k8s.deployment.name={{ include "controlPlane.name" . }},
             - name: OTEL_COLLECTOR_NAME
-              value: {{ .Values.controlPlane.instrumentation.openTelemetry.collector.name | default .Values.instrumentation.openTelemetry.collector.name }}
+              value: {{ default .Values.controlPlane.instrumentation.openTelemetry.collector.name .Values.instrumentation.openTelemetry.collector.name }}
             - name: OTEL_EXPORTER_OTLP_ENDPOINT
-              value: {{ .Values.controlPlane.instrumentation.openTelemetry.exporter.endpoint | default .Values.instrumentation.openTelemetry.exporter.endpoint | default "http://$(OTEL_COLLECTOR_NAME):4318" }}
+              value: {{ default .Values.controlPlane.instrumentation.openTelemetry.exporter.endpoint .Values.instrumentation.openTelemetry.exporter.endpoint "http://$(OTEL_COLLECTOR_NAME):4318" }}
           resources: {{ toYaml .Values.controlPlane.resources | nindent 12 }}
           livenessProbe:
             httpGet:

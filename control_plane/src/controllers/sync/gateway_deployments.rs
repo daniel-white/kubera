@@ -33,6 +33,8 @@ struct TemplateValues {
     #[builder(setter(into))]
     gateway_name: String,
     #[builder(setter(into))]
+    cluster_name: String,
+    #[builder(setter(into))]
     configmap_name: String,
     #[builder(setter(into))]
     image_pull_policy: String,
@@ -109,6 +111,7 @@ fn generate_gateway_deployments(
                                     .build();
                                 let template_values = TemplateValues::builder()
                                     .gateway_name(gateway_ref.name())
+                                    .cluster_name("TBD")
                                     .configmap_name(format!("{}-config", gateway_ref.name()))
                                     .image_pull_policy(Into::<&'static str>::into(
                                         instance.image_pull_policy(),

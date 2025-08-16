@@ -1,26 +1,27 @@
 use crate::ipc::endpoints::IpcEndpointState;
 use crate::kubernetes::objects::ObjectRef;
 use axum::extract::{Path, Query};
+use axum::http::header::CONTENT_TYPE;
 use axum::http::StatusCode;
 use axum::{extract::State, response::IntoResponse};
-use axum::http::header::CONTENT_TYPE;
 use gateway_api::apis::standard::gateways::Gateway;
 use problemdetails::Problem;
 use serde::Deserialize;
-use tracing::debug;
+use tracing::{debug, instrument};
 use vg_core::instrumentation::trace_id;
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 pub struct PathParams {
     gateway_namespace: String,
     gateway_name: String,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 pub struct QueryParams {
     pod_name: String,
 }
 
+#[instrument(skip(state), name = "ipc::get_gateway_configuration")]
 pub async fn get_gateway_configuration(
     State(state): State<IpcEndpointState>,
     Path(path_params): Path<PathParams>,
@@ -35,7 +36,7 @@ pub async fn get_gateway_configuration(
         if let Some(trace_id) = trace_id() {
             problem = problem.with_instance(trace_id);
         }
-        
+
         return problem.into_response();
     }
     if path_params.gateway_name.is_empty() {
@@ -43,7 +44,7 @@ pub async fn get_gateway_configuration(
             .with_value("status", StatusCode::BAD_REQUEST.as_u16())
             .with_title("Invalid Name")
             .with_detail("Gateway name cannot be empty");
-        
+
         if let Some(trace_id) = trace_id() {
             problem = problem.with_instance(trace_id);
         }

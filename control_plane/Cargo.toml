@@ -23,6 +23,7 @@ itertools = { workspace = true }
 k8s-openapi = { workspace = true, features = ["v1_32"] }
 kube = { workspace = true }
 opentelemetry = { workspace = true }
+opentelemetry-semantic-conventions = { workspace = true }
 vg-api = { path = "../api" }
 vg-core = { path = "../core" }
 vg-build = { path = "../build" }
