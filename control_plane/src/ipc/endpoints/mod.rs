@@ -18,6 +18,7 @@ use axum::response::IntoResponse;
 use axum::routing::get;
 use axum::Router;
 use axum_health::Health;
+use axum_otel_metrics::HttpMetricsLayerBuilder;
 use axum_tracing_opentelemetry::middleware::{OtelAxumLayer, OtelInResponseLayer};
 use getset::{CloneGetters, CopyGetters, Getters};
 use problemdetails::Problem;
@@ -132,6 +133,7 @@ fn router(state: IpcEndpointState, health: Health) -> Router {
         .fallback(not_found)
         .method_not_allowed_fallback(method_not_allowed)
         .with_state(state)
+        .layer(HttpMetricsLayerBuilder::default().build())
         .layer(OtelAxumLayer::default())
         .layer(OtelInResponseLayer::default())
         .layer(health)
@@ -155,10 +157,10 @@ async fn method_not_allowed() -> impl IntoResponse {
         .with_value("status", StatusCode::METHOD_NOT_ALLOWED.as_u16())
         .with_title("Method Not Allowed")
         .with_detail("The requested method is not allowed for this resource");
-    
+
     if let Some(trace_id) = trace_id() {
         problem = problem.with_instance(trace_id);
     }
-    
+
     problem
 }
