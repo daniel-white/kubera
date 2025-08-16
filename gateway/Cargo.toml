@@ -27,11 +27,11 @@ thiserror = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }
 url = "2"
-prometheus = "0.14"
 rand = "0.9"
 rand_chacha = "0.9"
-reqwest = "0.12"
-serde = { workspace = true }
+reqwest = { workspace = true }
+reqwest-middleware = { workspace = true }
+reqwest-tracing = { workspace = true }
 serde_json = { workspace = true }
 strum = { workspace = true }
 trusted-proxies = "0.3"

@@ -1,8 +1,9 @@
 use http::StatusCode;
-use reqwest::Client;
 use std::io::BufReader;
 use std::net::SocketAddr;
+use std::sync::Arc;
 use std::time::Instant;
+use reqwest_middleware::ClientWithMiddleware;
 use tokio::sync::broadcast::Receiver as BroadcastReceiver;
 use tracing::{debug, info, warn};
 use typed_builder::TypedBuilder;
@@ -24,6 +25,7 @@ pub struct FetchConfigurationParams {
     gateway_namespace: String,
     #[builder(setter(into))]
     gateway_name: String,
+    client: Arc<ClientWithMiddleware>,
 }
 
 pub fn fetch_configuration(
@@ -36,7 +38,6 @@ pub fn fetch_configuration(
         .new_task(stringify!(fetch_configuration))
         .spawn(async move {
             let mut gateway_events = params.gateway_events_rx;
-            let client = Client::new();
             loop {
                 if let Some(ipc_endpoint_addr) = params.ipc_endpoint_rx.get().await
                     && let Ok(event) = gateway_events.recv().await
@@ -57,7 +58,7 @@ pub fn fetch_configuration(
 
                     let serial = Instant::now(); // capture the time before the request
 
-                    match client.get(url).send().await {
+                    match params.client.get(url).send().await {
                         Ok(response) if response.status() == StatusCode::OK => {
                             match response.bytes().await {
                                 Ok(bytes) => {

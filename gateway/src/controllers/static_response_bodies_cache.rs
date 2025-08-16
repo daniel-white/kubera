@@ -5,6 +5,7 @@ use http::StatusCode;
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
+use reqwest_middleware::ClientWithMiddleware;
 use tokio::sync::RwLock;
 use tracing::{debug, info, warn};
 use url::Url;
@@ -18,7 +19,7 @@ use vg_macros::await_ready;
 struct StaticResponseBodiesCacheState {
     cache: DashMap<String, (String, Arc<Bytes>)>,
     responses: HashMap<String, StaticResponse>,
-    client: reqwest::Client,
+    client: Arc<ClientWithMiddleware>,
     ipc_endpoint: SocketAddr,
     pod_name: String,
     gateway_namespace: String,
@@ -88,6 +89,7 @@ impl StaticResponseBodiesCache {
 
 pub fn static_response_bodies_cache(
     task_builder: &TaskBuilder,
+    client: Arc<ClientWithMiddleware>,
     static_responses_rx: &Receiver<Arc<HashMap<String, StaticResponse>>>,
     ipc_endpoint_rx: &Receiver<SocketAddr>,
     pod_name: String,
@@ -109,7 +111,7 @@ pub fn static_response_bodies_cache(
                         state.replace(StaticResponseBodiesCacheState {
                             cache: DashMap::new(),
                             responses: static_responses.as_ref().clone(),
-                            client: reqwest::Client::new(),
+                            client: client.clone(),
                             ipc_endpoint,
                             pod_name: pod_name.clone(),
                             gateway_namespace: gateway_namespace.clone(),

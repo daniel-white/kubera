@@ -6,7 +6,7 @@ use k8s_openapi::apimachinery::pkg::apis::meta::v1::{Condition, Time};
 use k8s_openapi::chrono::Utc;
 use kube::api::PostParams;
 use kube::{Api, Client};
-use tracing::{debug, info, warn};
+use tracing::{debug, info, info_span, warn, Instrument};
 use vg_api::v1alpha1::{
     StaticResponseFilter, StaticResponseFilterConditionReason, StaticResponseFilterConditionType,
     StaticResponseFilterStatus,
@@ -274,11 +274,15 @@ async fn update_filter_status(
         attempt += 1;
 
         // Get the latest version of the filter
-        let current_filter = api.get_status(filter_name).await.with_context(|| {
-            format!(
-                "Failed to get current status of StaticResponseFilter {filter_namespace}/{filter_name}"
-            )
-        })?;
+        let current_filter = api
+            .get_status(filter_name)
+            .instrument(info_span!("get_static_response_filter_status"))
+            .await
+            .with_context(|| {
+                format!(
+                    "Failed to get current status of StaticResponseFilter {filter_namespace}/{filter_name}"
+                )
+            })?;
 
         // Check if the status actually needs to be updated
         if let Some(existing_status) = &current_filter.status {
@@ -302,6 +306,7 @@ async fn update_filter_status(
                 &PostParams::default(),
                 serde_json::to_vec(&updated_filter)?,
             )
+            .instrument(info_span!("replace_static_response_filter_status"))
             .await
         {
             Ok(_) => {

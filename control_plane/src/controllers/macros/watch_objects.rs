@@ -17,8 +17,7 @@ macro_rules! watch_objects {
         use std::future::ready;
         use std::sync::Arc;
         use thiserror::Error;
-        use tracing::instrument;
-        use tracing::{debug, info, warn};
+        use tracing::{debug, info, info_span, instrument, Instrument, warn};
         use vg_core::continue_on;
         use tokio::select;
         use tokio::signal::ctrl_c;
@@ -119,7 +118,10 @@ macro_rules! watch_objects {
                         // Our reconcile wont get called if there are not objects and the signal won't get set.
                         // So if we have 0 items, from querying the API, we set the signal to an empty collection.
                         // PREVENT DELETING OF UNTRACKED OBJECTS!
-                        let current_objects = object_api.list_metadata(&list_params.clone()).await;
+                        let current_objects = object_api
+                            .list_metadata(&list_params.clone())
+                            .instrument(info_span!(concat!("list_", stringify!($object_type), "_metadata")))
+                            .await;
                         if let Ok(current_objects) = current_objects && current_objects.items.is_empty() {
                             info!("No {} objects found, setting empty collection", stringify!($object_type));
                             tx.set(Objects::default()).await;

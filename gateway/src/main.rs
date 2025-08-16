@@ -3,6 +3,7 @@ mod controllers;
 mod proxy;
 mod util;
 
+use std::sync::Arc;
 use crate::cli::Cli;
 use crate::controllers::config::fs::{watch_configuration_file, WatchConfigurationFileParams};
 use crate::controllers::config::ipc::{
@@ -16,11 +17,13 @@ use crate::proxy::filters::static_responses::static_responses;
 use crate::proxy::responses::error_responses::error_responses;
 use crate::proxy::Proxy;
 use clap::Parser;
-use pingora::prelude::*;
+use pingora::prelude::http_proxy_service;
 use pingora::server::Server;
 use pingora::services::listening::Service;
 use proxy::filters::client_addrs::client_addr_filter;
 use proxy::router::topology::TopologyLocation;
+use reqwest_middleware::{ClientBuilder, Extension};
+use reqwest_tracing::{OtelName, TracingMiddleware};
 use vg_core::crypto::init_crypto;
 use vg_core::instrumentation::init_instrumentation;
 use vg_core::sync::signal::signal;
@@ -32,6 +35,14 @@ async fn main() {
 
     init_crypto();
     init_instrumentation(&task_builder, "vg-gateway");
+    
+    let client = reqwest::ClientBuilder::new().build().expect("Failed to create HTTP client");
+
+    let client = Arc::new(ClientBuilder::new(client)
+        .with_init(Extension(OtelName("vg-gateway".into())))
+        // Makes use of that extension to specify the otel name
+        .with(TracingMiddleware::default())
+        .build());
 
     let args = Cli::parse();
 
@@ -46,6 +57,7 @@ async fn main() {
 
     let gateway_events_tx = {
         let params = PollGatewayEventsParams::builder()
+            .client(client.clone())
             .ipc_endpoint_rx(ipc_endpoint_rx.clone())
             .pod_name(args.pod_name())
             .gateway_namespace(args.pod_namespace())
@@ -57,6 +69,7 @@ async fn main() {
 
     let ipc_configuration_source_rx = {
         let params = FetchConfigurationParams::builder()
+            .client(client.clone())
             .ipc_endpoint_rx(ipc_endpoint_rx.clone())
             .gateway_events_rx(gateway_events_tx.subscribe())
             .pod_name(args.pod_name())
@@ -93,6 +106,7 @@ async fn main() {
     let static_responses_rx = static_responses(&task_builder, &gateway_configuration_rx);
     let static_response_bodies_cache = static_response_bodies_cache(
         &task_builder,
+        client.clone(),
         &static_responses_rx,
         &ipc_endpoint_rx,
         args.pod_name(),

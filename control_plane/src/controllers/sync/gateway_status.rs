@@ -1,13 +1,14 @@
 use crate::controllers::instances::InstanceRole;
-use crate::kubernetes::objects::Objects;
+use crate::kubernetes::objects::{ObjectRef, Objects};
 use crate::kubernetes::KubeClientCell;
 use gateway_api::apis::standard::gateways::{Gateway, GatewayStatus};
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::{Condition, Time};
 use k8s_openapi::chrono;
 use kube::api::PostParams;
 use kube::Api;
+use std::sync::Arc;
 use std::time::Duration;
-use tracing::{debug, info, warn};
+use tracing::{debug, info, info_span, instrument, warn, Instrument};
 use vg_core::continue_after;
 use vg_core::sync::signal::Receiver;
 use vg_core::task::Builder as TaskBuilder;
@@ -35,54 +36,7 @@ pub fn sync_gateway_status(
                         }
 
                         for (gateway_ref, _, gateway) in gateways.iter() {
-                            info!("Syncing status for Gateway: {:?}", gateway_ref);
-
-                            let status = build_gateway_status(&gateway).await;
-                            debug!("Gateway status to be updated: {:?}", status);
-
-                            let gateway_api = Api::<Gateway>::namespaced(
-                                kube_client.clone().into(),
-                                gateway_ref.namespace().as_deref().unwrap_or("default"),
-                            );
-
-                            let current_gateway = gateway_api
-                                .get_status(gateway_ref.name().as_str())
-                                .await
-                                .map_err(|err| {
-                                    warn!("Failed to get current Gateway status: {}", err);
-                                })
-                                .ok();
-
-                            match current_gateway {
-                                Some(mut current_gateway) => {
-                                    current_gateway.status = Some(status);
-                                    let patch = match serde_json::to_vec(&current_gateway) {
-                                        Ok(patch) => patch,
-                                        Err(err) => {
-                                            warn!("Failed to serialize Gateway status: {}", err);
-                                            continue;
-                                        }
-                                    };
-
-                                    gateway_api
-                                        .replace_status(
-                                            gateway_ref.name().as_str(),
-                                            &PostParams::default(),
-                                            patch,
-                                        )
-                                        .await
-                                        .map_err(|err| {
-                                            warn!("Failed to update Gateway status: {}", err);
-                                        })
-                                        .ok();
-                                }
-                                None => {
-                                    warn!(
-                                        "Failed to retrieve current Gateway status for: {}",
-                                        gateway_ref.name()
-                                    );
-                                }
-                            }
+                            sync_single_gateway_status(&kube_client, gateway_ref, &gateway).await;
                         }
                     })
                     .run()
@@ -98,7 +52,61 @@ pub fn sync_gateway_status(
         });
 }
 
-async fn build_gateway_status(gateway: &Gateway) -> GatewayStatus {
+#[instrument(skip(kube_client, gateway))]
+async fn sync_single_gateway_status(
+    kube_client: &KubeClientCell,
+    gateway_ref: ObjectRef,
+    gateway: &Arc<Gateway>,
+) {
+    info!("Syncing status for Gateway: {:?}", gateway_ref);
+
+    let status = build_gateway_status(&gateway);
+    debug!("Gateway status to be updated: {:?}", status);
+
+    let gateway_api = Api::<Gateway>::namespaced(
+        kube_client.clone().into(),
+        gateway_ref.namespace().as_deref().unwrap_or("default"),
+    );
+
+    let current_gateway = gateway_api
+        .get_status(gateway_ref.name().as_str())
+        .instrument(info_span!("get_gateway_status"))
+        .await
+        .map_err(|err| {
+            warn!("Failed to get current Gateway status: {}", err);
+        })
+        .ok();
+
+    match current_gateway {
+        Some(mut current_gateway) => {
+            current_gateway.status = Some(status);
+            let patch = match serde_json::to_vec(&current_gateway) {
+                Ok(patch) => patch,
+                Err(err) => {
+                    warn!("Failed to serialize Gateway status: {}", err);
+                    return;
+                }
+            };
+
+            gateway_api
+                .replace_status(gateway_ref.name().as_str(), &PostParams::default(), patch)
+                .instrument(info_span!("replace_gateway_status"))
+                .await
+                .map_err(|err| {
+                    warn!("Failed to update Gateway status: {}", err);
+                })
+                .ok();
+        }
+        None => {
+            warn!(
+                "Failed to retrieve current Gateway status for: {}",
+                gateway_ref.name()
+            );
+        }
+    }
+}
+
+fn build_gateway_status(gateway: &Gateway) -> GatewayStatus {
     let now = chrono::Utc::now();
     let spec = &gateway.spec;
 

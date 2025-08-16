@@ -23,7 +23,7 @@ opentelemetry = { workspace = true }
 opentelemetry_sdk = { version = "0.30", features = ["metrics", "trace", "logs"] }
 opentelemetry-appender-log = "0.30"
 opentelemetry-otlp = { version = "0.30", features = ["tonic", "metrics", "trace", "logs", "grpc-tonic"] }
-opentelemetry-appender-tracing = "0.30"
+opentelemetry-appender-tracing = { version =  "0.30", features = ["experimental_use_tracing_span_context"] }
 opentelemetry-semantic-conventions = { workspace = true }
 rustls = { workspace = true }
 schemars = { workspace = true }

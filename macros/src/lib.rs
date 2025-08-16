@@ -4,7 +4,7 @@ use quote::{format_ident, quote};
 use stringcase::pascal_case;
 use syn::parse::{Parse, ParseStream};
 use syn::punctuated::Punctuated;
-use syn::{Ident, Token, parse_macro_input};
+use syn::{parse_macro_input, Ident, Token};
 
 struct Receivers {
     receivers: Punctuated<Ident, Token![,]>,
@@ -87,7 +87,7 @@ pub fn await_ready(input: TokenStream) -> TokenStream {
 
     let block = quote! {{
         use std::future::Future;
-        use tracing::{debug, enabled, info, Level};
+        use tracing::{debug, enabled, info, Level, instrument};
         use vg_core::sync::signal::Receiver;
 
         struct Configurator<#(#gen_types), *>
@@ -130,6 +130,7 @@ pub fn await_ready(input: TokenStream) -> TokenStream {
             Fut: Future<Output = ()>,
             #(#gen_types: PartialEq + Clone), *
         {
+            #[instrument(skip(self))]
             pub async fn run(self) {
                 match (#(#awaited_gets), *) {
                     (#(#matched_values), *) => {

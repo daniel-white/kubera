@@ -1,10 +1,12 @@
 use eventsource_client::{Client, ClientBuilder, SSE};
 use futures::TryStreamExt;
 use getset::Getters;
+use reqwest_middleware::ClientWithMiddleware;
 use std::net::SocketAddr;
+use std::sync::Arc;
 use tokio::select;
 use tokio::signal::ctrl_c;
-use tokio::sync::broadcast::{Sender, channel};
+use tokio::sync::broadcast::{channel, Sender};
 use tracing::{debug, info};
 use typed_builder::TypedBuilder;
 use url::Url;
@@ -22,6 +24,7 @@ pub struct PollGatewayEventsParams {
     gateway_namespace: String,
     #[builder(setter(into))]
     gateway_name: String,
+    client: Arc<ClientWithMiddleware>,
 }
 
 pub fn poll_gateway_events(
