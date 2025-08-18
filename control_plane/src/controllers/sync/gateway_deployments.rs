@@ -1,7 +1,7 @@
 use crate::controllers::instances::InstanceRole;
 use crate::controllers::transformers::GatewayInstanceConfiguration;
-use crate::kubernetes::KubeClientCell;
 use crate::kubernetes::objects::{ObjectRef, SyncObjectAction};
+use crate::kubernetes::KubeClientCell;
 use crate::options::Options;
 use crate::{sync_objects, watch_objects};
 use gtmpl_derive::Gtmpl;
@@ -13,6 +13,10 @@ use std::sync::Arc;
 use tokio::sync::mpsc::UnboundedSender;
 use tracing::warn;
 use typed_builder::TypedBuilder;
+use vg_api::v1alpha1::{
+    GatewayInstrumentationOpenTelemetry, GatewayInstrumentationOpenTelemetryParentBasedType,
+    GatewayInstrumentationOpenTelemetrySamplingType,
+};
 use vg_core::continue_after;
 use vg_core::sync::signal::Receiver;
 use vg_core::task::Builder as TaskBuilder;
@@ -26,6 +30,10 @@ struct OpenTelemetryTemplateValues {
     collector_name: String,
     #[builder(setter(into))]
     exporter_endpoint: String,
+    #[builder(setter(into))]
+    traces_sampler: String,
+    #[builder(setter(into))]
+    traces_sampler_arg: String,
 }
 
 #[derive(Clone, TypedBuilder, Debug, Gtmpl)]
@@ -71,6 +79,66 @@ pub fn sync_gateway_deployments(
     );
 }
 
+fn extract_traces_sampler_config(
+    open_telemetry: Option<&GatewayInstrumentationOpenTelemetry>,
+) -> (Option<String>, Option<String>) {
+    if let Some(otel) = open_telemetry {
+        if let Some(sampling) = otel.sampling.as_ref() {
+            let sampler = match sampling.sampling_type {
+                Some(GatewayInstrumentationOpenTelemetrySamplingType::TraceIdRatioBased) => {
+                    Some("traceidratio".to_string())
+                }
+                Some(GatewayInstrumentationOpenTelemetrySamplingType::ParentBased) => {
+                    if let Some(pb) = sampling.parent_based.as_ref() {
+                        if pb.parent_type == Some(GatewayInstrumentationOpenTelemetryParentBasedType::TraceIdRatioBased) {
+                            Some("parentbased_traceidratio".to_string())
+                        } else if pb.parent_type == Some(GatewayInstrumentationOpenTelemetryParentBasedType::AlwaysOff) {
+                            Some("parentbased_always_off".to_string())
+                        } else {
+                            Some("parentbased_always_on".to_string())
+                        }
+                    } else {
+                        Some("parentbased_always_on".to_string())
+                    }
+                }
+                Some(GatewayInstrumentationOpenTelemetrySamplingType::AlwaysOn) => {
+                    Some("always_on".to_string())
+                }
+                Some(GatewayInstrumentationOpenTelemetrySamplingType::AlwaysOff) => {
+                    Some("always_off".to_string())
+                }
+                _ => None,
+            };
+            let arg = match sampling.sampling_type {
+                Some(GatewayInstrumentationOpenTelemetrySamplingType::TraceIdRatioBased) => {
+                    sampling
+                        .trace_id_ratio_based
+                        .as_ref()
+                        .and_then(|r| r.ratio)
+                        .map(|r| r.to_string())
+                }
+                Some(GatewayInstrumentationOpenTelemetrySamplingType::ParentBased) => {
+                    if let Some(pb) = sampling.parent_based.as_ref() {
+                        if pb.parent_type == Some(GatewayInstrumentationOpenTelemetryParentBasedType::TraceIdRatioBased) {
+                            pb.trace_id_ratio_based.as_ref().and_then(|r| r.ratio).map(|r| r.to_string())
+                        } else {
+                            None
+                        }
+                    } else {
+                        None
+                    }
+                }
+                _ => None,
+            };
+            (sampler, arg)
+        } else {
+            (None, None)
+        }
+    } else {
+        (None, None)
+    }
+}
+
 fn generate_gateway_deployments(
     options: Arc<Options>,
     task_builder: &TaskBuilder,
@@ -101,12 +169,20 @@ fn generate_gateway_deployments(
                                     .and_then(|spec| spec.replicas)
                                     .unwrap_or(1);
 
+                                let (traces_sampler, traces_sampler_arg) =
+                                    extract_traces_sampler_config(
+                                        instance.merged_open_telemetry().as_ref(),
+                                    );
                                 let open_telemetry = OpenTelemetryTemplateValues::builder()
                                     .collector_name(
                                         env::var("OTEL_COLLECTOR_NAME").unwrap_or_default(),
                                     )
                                     .exporter_endpoint(
                                         env::var("OTEL_EXPORTER_OTLP_ENDPOINT").unwrap_or_default(),
+                                    )
+                                    .traces_sampler(traces_sampler.clone().unwrap_or_default())
+                                    .traces_sampler_arg(
+                                        traces_sampler_arg.clone().unwrap_or_default(),
                                     )
                                     .build();
                                 let template_values = TemplateValues::builder()
@@ -177,4 +253,128 @@ fn generate_gateway_deployments(
                 );
             }
         });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use vg_api::v1alpha1::{
+        GatewayInstrumentationOpenTelemetry, GatewayInstrumentationOpenTelemetryParentBased,
+        GatewayInstrumentationOpenTelemetryParentBasedType,
+        GatewayInstrumentationOpenTelemetrySampling,
+        GatewayInstrumentationOpenTelemetrySamplingType,
+        GatewayInstrumentationOpenTelemetryTraceIdRatioBased,
+    };
+
+    #[test]
+    fn test_extract_traces_sampler_config_table() {
+        struct Case {
+            name: &'static str,
+            input: Option<GatewayInstrumentationOpenTelemetry>,
+            expected: (Option<String>, Option<String>),
+        }
+        let cases = vec![
+            Case {
+                name: "TraceIdRatioBased with ratio",
+                input: Some(GatewayInstrumentationOpenTelemetry {
+                    collector: None,
+                    exporter: None,
+                    sampling: Some(GatewayInstrumentationOpenTelemetrySampling {
+                        sampling_type: Some(GatewayInstrumentationOpenTelemetrySamplingType::TraceIdRatioBased),
+                        trace_id_ratio_based: Some(GatewayInstrumentationOpenTelemetryTraceIdRatioBased { ratio: Some(0.42) }),
+                        parent_based: None,
+                    }),
+                }),
+                expected: (Some("traceidratio".to_string()), Some("0.42".to_string())),
+            },
+            Case {
+                name: "ParentBased TraceIdRatioBased with ratio",
+                input: Some(GatewayInstrumentationOpenTelemetry {
+                    collector: None,
+                    exporter: None,
+                    sampling: Some(GatewayInstrumentationOpenTelemetrySampling {
+                        sampling_type: Some(GatewayInstrumentationOpenTelemetrySamplingType::ParentBased),
+                        trace_id_ratio_based: None,
+                        parent_based: Some(GatewayInstrumentationOpenTelemetryParentBased {
+                            parent_type: Some(GatewayInstrumentationOpenTelemetryParentBasedType::TraceIdRatioBased),
+                            trace_id_ratio_based: Some(GatewayInstrumentationOpenTelemetryTraceIdRatioBased { ratio: Some(0.99) }),
+                        }),
+                    }),
+                }),
+                expected: (Some("parentbased_traceidratio".to_string()), Some("0.99".to_string())),
+            },
+            Case {
+                name: "ParentBased AlwaysOff",
+                input: Some(GatewayInstrumentationOpenTelemetry {
+                    collector: None,
+                    exporter: None,
+                    sampling: Some(GatewayInstrumentationOpenTelemetrySampling {
+                        sampling_type: Some(GatewayInstrumentationOpenTelemetrySamplingType::ParentBased),
+                        trace_id_ratio_based: None,
+                        parent_based: Some(GatewayInstrumentationOpenTelemetryParentBased {
+                            parent_type: Some(GatewayInstrumentationOpenTelemetryParentBasedType::AlwaysOff),
+                            trace_id_ratio_based: None,
+                        }),
+                    }),
+                }),
+                expected: (Some("parentbased_always_off".to_string()), None),
+            },
+            Case {
+                name: "ParentBased AlwaysOn (default)",
+                input: Some(GatewayInstrumentationOpenTelemetry {
+                    collector: None,
+                    exporter: None,
+                    sampling: Some(GatewayInstrumentationOpenTelemetrySampling {
+                        sampling_type: Some(GatewayInstrumentationOpenTelemetrySamplingType::ParentBased),
+                        trace_id_ratio_based: None,
+                        parent_based: Some(GatewayInstrumentationOpenTelemetryParentBased {
+                            parent_type: None,
+                            trace_id_ratio_based: None,
+                        }),
+                    }),
+                }),
+                expected: (Some("parentbased_always_on".to_string()), None),
+            },
+            Case {
+                name: "AlwaysOn",
+                input: Some(GatewayInstrumentationOpenTelemetry {
+                    collector: None,
+                    exporter: None,
+                    sampling: Some(GatewayInstrumentationOpenTelemetrySampling {
+                        sampling_type: Some(GatewayInstrumentationOpenTelemetrySamplingType::AlwaysOn),
+                        trace_id_ratio_based: None,
+                        parent_based: None,
+                    }),
+                }),
+                expected: (Some("always_on".to_string()), None),
+            },
+            Case {
+                name: "AlwaysOff",
+                input: Some(GatewayInstrumentationOpenTelemetry {
+                    collector: None,
+                    exporter: None,
+                    sampling: Some(GatewayInstrumentationOpenTelemetrySampling {
+                        sampling_type: Some(GatewayInstrumentationOpenTelemetrySamplingType::AlwaysOff),
+                        trace_id_ratio_based: None,
+                        parent_based: None,
+                    }),
+                }),
+                expected: (Some("always_off".to_string()), None),
+            },
+            Case {
+                name: "None config",
+                input: None,
+                expected: (None, None),
+            },
+            Case {
+                name: "No sampling field",
+                input: Some(GatewayInstrumentationOpenTelemetry { collector: None, exporter: None, sampling: None }),
+                expected: (None, None),
+            },
+        ];
+        for case in cases {
+            let got = super::extract_traces_sampler_config(case.input.as_ref());
+            assert_eq!(got, case.expected, "case: {}", case.name);
+        }
+    }
 }

@@ -62,6 +62,64 @@ spec:
               value: {{ default .Values.controlPlane.instrumentation.openTelemetry.collector.name .Values.instrumentation.openTelemetry.collector.name }}
             - name: OTEL_EXPORTER_OTLP_ENDPOINT
               value: {{ default .Values.controlPlane.instrumentation.openTelemetry.exporter.endpoint .Values.instrumentation.openTelemetry.exporter.endpoint "http://$(OTEL_COLLECTOR_NAME):4318" }}
+            - name: OTEL_TRACES_SAMPLER
+              value: >-
+                {{- /* Priority: controlPlane > global instrumentation > default always_off */ -}}
+                {{- $samplerType := (or .Values.controlPlane.instrumentation.openTelemetry.tracing.sampling.type .Values.instrumentation.openTelemetry.tracing.sampling.type) }}
+                {{- if eq $samplerType "AlwaysOn" }}
+                always_on
+                {{- else if eq $samplerType "AlwaysOff" }}
+                always_off
+                {{- else if eq $samplerType "TraceIdRatioBased" }}
+                traceidratio
+                {{- else if eq $samplerType "ParentBased" }}
+                  {{- with .Values.controlPlane.instrumentation.openTelemetry.tracing.sampling.parentBased }}
+                    {{- if .type }}
+                      {{- if eq .type "AlwaysOn" }}
+                        parentbased_always_on
+                      {{- else if eq .type "AlwaysOff" }}
+                        parentbased_always_off
+                      {{- else if eq .type "TraceIdRatioBased" }}
+                        parentbased_traceidratio
+                      {{- else }}
+                        parentbased_always_off
+                      {{- end }}
+                    {{- else }}
+                      parentbased_always_off
+                    {{- end }}
+                  {{- else }}
+                    parentbased_always_off
+                  {{- end }}
+                {{- else }}
+                always_off
+                {{- end }}
+            - name: OTEL_TRACES_SAMPLER_ARG
+              value: >-
+                {{- /* Only set for traceidratio and parentbased_traceidratio */ -}}
+                {{- $samplerType := (or .Values.controlPlane.instrumentation.openTelemetry.tracing.sampling.type .Values.instrumentation.openTelemetry.tracing.sampling.type) }}
+                {{- if eq $samplerType "TraceIdRatioBased" }}
+                  {{- with .Values.controlPlane.instrumentation.openTelemetry.tracing.sampling.traceIdRatioBased }}
+                    {{ .ratio | default "0.0" }}
+                  {{- else }}
+                0.0
+                  {{- end }}
+                {{- else if eq $samplerType "ParentBased" }}
+                  {{- with .Values.controlPlane.instrumentation.openTelemetry.tracing.sampling.parentBased }}
+                    {{- if eq .type "TraceIdRatioBased" }}
+                      {{- with .traceIdRatioBased }}
+                        {{ .ratio | default "0.0" }}
+                      {{- else }}
+                    0.0
+                      {{- end }}
+                    {{- else }}
+                  0.0
+                    {{- end }}
+                  {{- else }}
+                0.0
+                  {{- end }}
+                {{- else }}
+                0.0
+                {{- end }}
           resources: {{ toYaml .Values.controlPlane.resources | nindent 12 }}
           livenessProbe:
             httpGet:

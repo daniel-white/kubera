@@ -2,21 +2,21 @@ use crate::controllers::filters::GatewayClassParametersReferenceState;
 use crate::kubernetes::objects::{ObjectRef, Objects};
 use gateway_api::apis::standard::gateways::Gateway;
 use getset::Getters;
-use k8s_openapi::DeepMerge;
 use k8s_openapi::api::apps::v1::{Deployment, DeploymentSpec, DeploymentStrategy};
 use k8s_openapi::api::core::v1::{Service, ServiceSpec};
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
+use k8s_openapi::DeepMerge;
 use serde_json::{from_value, json};
 use std::collections::HashMap;
 use std::sync::Arc;
 use strum::IntoStaticStr;
 use tracing::{info, warn};
 use vg_api::v1alpha1::{
-    GatewayClassParameters, GatewayConfiguration, GatewayParameters,
-    ImagePullPolicy as ApiImagePullPolicy,
+    GatewayClassParameters, GatewayConfiguration, GatewayInstrumentationOpenTelemetry,
+    GatewayParameters, ImagePullPolicy as ApiImagePullPolicy,
 };
 use vg_core::continue_on;
-use vg_core::sync::signal::{Receiver, signal};
+use vg_core::sync::signal::{signal, Receiver};
 use vg_core::task::Builder as TaskBuilder;
 use vg_macros::await_ready;
 
@@ -61,6 +61,9 @@ pub struct GatewayInstanceConfiguration {
 
     #[getset(get = "pub")]
     configuration: GatewayConfiguration,
+
+    #[getset(get = "pub")]
+    merged_open_telemetry: Option<GatewayInstrumentationOpenTelemetry>,
 }
 
 pub fn collect_gateway_instances(
@@ -118,6 +121,17 @@ pub fn collect_gateway_instances(
                                     gateway_class_parameters,
                                     gateway_parameters,
                                 );
+                                let merged_open_telemetry = gateway_parameters
+                                    .and_then(|p| p.spec.common.as_ref())
+                                    .and_then(|c| c.gateway.as_ref())
+                                    .and_then(|g| g.instrumentation.as_ref())
+                                    .and_then(|inst| inst.open_telemetry.clone())
+                                    .or_else(|| {
+                                        gateway_class_parameters
+                                            .and_then(|p| p.spec.common.gateway.as_ref())
+                                            .and_then(|g| g.instrumentation.as_ref())
+                                            .and_then(|inst| inst.open_telemetry.clone())
+                                    });
                                 (
                                     gateway_ref,
                                     GatewayInstanceConfiguration {
@@ -128,6 +142,7 @@ pub fn collect_gateway_instances(
                                         image_repository,
                                         image_tag,
                                         configuration,
+                                        merged_open_telemetry,
                                     },
                                 )
                             })
@@ -296,9 +311,23 @@ fn merge_gateway_configuration(
         "Using gateway configuration: {:?} {:?}",
         gateway_class, gateway
     );
-    match (gateway_class, gateway) {
+    let mut config = match (gateway_class, gateway) {
         (_, Some(gateway)) => gateway.clone(),
         (Some(gateway_class), _) => gateway_class.clone(),
         _ => GatewayConfiguration::default(),
-    }
+    };
+
+    // Merge instrumentation: gateway > class > none
+    let gateway_instrumentation = gateway_parameters
+        .and_then(|p| p.spec.common.as_ref())
+        .and_then(|c| c.gateway.as_ref())
+        .and_then(|g| g.instrumentation.as_ref());
+    let class_instrumentation = gateway_class_parameters
+        .and_then(|p| p.spec.common.gateway.as_ref())
+        .and_then(|g| g.instrumentation.as_ref());
+    config.instrumentation = gateway_instrumentation
+        .cloned()
+        .or_else(|| class_instrumentation.cloned());
+
+    config
 }

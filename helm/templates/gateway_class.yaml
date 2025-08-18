@@ -28,11 +28,75 @@ spec:
       tag: {{ .Values.gateways.deployment.image.tag | default .Values.deployments.image.tag | default "latest" }}
   gateway:
     logLevel: {{ .Values.gateways.logLevel | default "Info" }}
-    instrumentation:
-      openTelemetry:
-        exporter:
-          endpoint: {{ .Values.gateways.instrumentation.openTelemetry.exporter.endpoint | default .Values.instrumentation.openTelemetry.exporter.endpoint | default "http://$(OTEL_COLLECTOR_NAME):4318" }}
-        collector:
-          name: {{ .Values.gateways.instrumentation.openTelemetry.collector.name | default .Values.instrumentation.openTelemetry.collector.name }}
+    # instrumentation:
+    #   openTelemetry:
+    #     exporter:
+    #       endpoint: {{ .Values.gateways.instrumentation.openTelemetry.exporter.endpoint | default .Values.instrumentation.openTelemetry.exporter.endpoint | default "http://$(OTEL_COLLECTOR_NAME):4318" }}
+    #     collector:
+    #       name: {{ .Values.gateways.instrumentation.openTelemetry.collector.name | default .Values.instrumentation.openTelemetry.collector.name }}
+    #     tracing:
+    #       sampling:
+    #         type: >-
+    #           {{- /* Priority: gateway > global instrumentation > default AlwaysOff */ -}}
+    #           {{- if .Values.gateways.instrumentation.openTelemetry.tracing.sampling.type }}
+    #             {{ .Values.gateways.instrumentation.openTelemetry.tracing.sampling.type }}
+    #           {{- else if .Values.instrumentation.openTelemetry.tracing.sampling.type }}
+    #             {{ .Values.instrumentation.openTelemetry.tracing.sampling.type }}
+    #           {{- else }}
+    #           AlwaysOff
+    #           {{- end }}
+    #         {{- /* Only include parentBased if type is ParentBased */ -}}
+    #         {{- if or (and (.Values.gateways.instrumentation.openTelemetry.tracing.sampling.type) (eq .Values.gateways.instrumentation.openTelemetry.tracing.sampling.type "ParentBased")) (and (.Values.instrumentation.openTelemetry.tracing.sampling.type) (eq .Values.instrumentation.openTelemetry.tracing.sampling.type "ParentBased")) }}
+    #         parentBased:
+    #           {{- with .Values.gateways.instrumentation.openTelemetry.tracing.sampling.parentBased }}
+    #           type: >-
+    #             {{- if .type }}
+    #               {{ .type | default "AlwaysOff" }}
+    #             {{- else }}
+    #             "AlwaysOff"
+    #             {{- end }}
+    #             {{- if and .type (eq .type "TraceIdRatioBased") }}
+    #           traceIdRatioBased:
+    #             ratio: >-
+    #               {{- with .traceIdRatioBased }}
+    #                 {{ .ratio | default "0.0" }}
+    #               {{- else }}
+    #               "0.0"
+    #               {{- end }}
+    #             {{- end }}
+    #           {{- end }}
+    #           {{- with .Values.instrumentation.openTelemetry.tracing.sampling.parentBased }}
+    #           type: >-
+    #             {{- if .type }}
+    #               {{ .type | default "AlwaysOff" }}
+    #             {{- else }}
+    #             "AlwaysOff"
+    #             {{- end }}
+    #             {{- if and .type (eq .type "TraceIdRatioBased") }}
+    #           traceIdRatioBased:
+    #             ratio: >-
+    #               {{- with .traceIdRatioBased }}
+    #                 {{ .ratio | default "0.0" }}
+    #               {{- else }}
+    #               "0.0"
+    #               {{- end }}
+    #             {{- end }}
+    #           {{- end }}
+    #         {{- end }}
+    #         {{- /* Only include traceIdRatioBased if type is TraceIdRatioBased */ -}}
+    #         {{- if or (and (.Values.gateways.instrumentation.openTelemetry.tracing.sampling.type) (eq .Values.gateways.instrumentation.openTelemetry.tracing.sampling.type "TraceIdRatioBased")) (and (.Values.instrumentation.openTelemetry.tracing.sampling.type) (eq .Values.instrumentation.openTelemetry.tracing.sampling.type "TraceIdRatioBased")) }}
+    #         traceIdRatioBased:
+    #           ratio: >-
+    #             {{- with .Values.gateways.instrumentation.openTelemetry.tracing.sampling.traceIdRatioBased }}
+    #               {{ .ratio | default "0.0" }}
+    #             {{- else }}
+    #             "0.0"
+    #             {{- end }}
+    #             {{- with .Values.instrumentation.openTelemetry.tracing.sampling.traceIdRatioBased }}
+    #               {{ .ratio | default "0.0" }}
+    #             {{- else }}
+    #             "0.0"
+    #             {{- end }}
+    #         {{- end }}
     errorResponses:
       kind: ProblemDetail

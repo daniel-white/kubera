@@ -70,6 +70,10 @@ spec:
               value: {{ .open_telemetry.collector_name }}
             - name: OTEL_EXPORTER_OTLP_ENDPOINT
               value: {{ .open_telemetry.exporter_endpoint }}
+            - name: OTEL_TRACES_SAMPLER
+              value: {{ .open_telemetry.traces_sampler }}
+            - name: OTEL_TRACES_SAMPLER_ARG
+              value: {{ .open_telemetry.traces_sampler_arg }}
 {{/*          ports:*/}}
 {{/*            - name: http*/}}
 {{/*              containerPort: 8080*/}}

@@ -15,6 +15,13 @@ instrumentation:
       name: signoz-otel-collector
     exporter:
       endpoint: http://signoz-otel-collector.signoz2.svc.cluster.local:4317
+    tracing:
+      sampling:
+        type: ParentBased # ParentBased | AlwaysOn | AlwaysOff | TraceIdRatioBased
+        parentBased:
+          type: AlwaysOn # AlwaysOn | AlwaysOff | TraceIdRatioBased
+          traceIdRatioBased:
+            ration: 0.0 # Sampling rate between 0.0 and 1.0
 
 gatewayClass:
   name: ""
@@ -38,6 +45,15 @@ controlPlane:
         name: ""
       exporter:
         endpoint: ""
+      tracing:
+        sampling:
+          type: AlwaysOn # ParentBased | AlwaysOn | AlwaysOff | TraceIdRatioBased
+          parentBased:
+            type: AlwaysOn # AlwaysOn | AlwaysOff | TraceIdRatioBased
+            traceIdRatioBased:
+              ratio: 0.0 # Sampling rate between 0.0 and 1.0
+          traceIdRatioBased:
+            ratio: 0.0 # Sampling rate between 0.0 and 1.0
   resources:
     limits:
       cpu: "500m"
@@ -68,6 +84,15 @@ gateways:
         name: ""
       exporter:
         endpoint: ""
+      tracing:
+        sampling:
+          type: AlwaysOn # ParentBased | AlwaysOn | AlwaysOff | TraceIdRatioBased
+          parentBased:
+            type: AlwaysOn # AlwaysOn | AlwaysOff | TraceIdRatioBased
+            traceIdRatioBased:
+              ratio: 1.0 # Sampling rate between 0.0 and 1.0
+          traceIdRatioBased:
+            ratio: 1.0 # Sampling rate between 0.0 and 1.0
 
 
 

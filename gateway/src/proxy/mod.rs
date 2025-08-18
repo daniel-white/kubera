@@ -88,11 +88,6 @@ impl ProxyHttp for Proxy {
             .span_builder(http_method.to_ascii_uppercase())
             .with_kind(SpanKind::Server)
             .with_attributes(attributes)
-            .with_sampling_result(SamplingResult {
-                decision: opentelemetry::trace::SamplingDecision::RecordAndSample,
-                attributes: vec![],
-                trace_state: TraceState::NONE,
-            })
             .start_with_context(&*TRACER, &context);
 
         ctx.set_tracing_context(context);
