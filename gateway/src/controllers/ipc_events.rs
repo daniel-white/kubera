@@ -6,7 +6,7 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::select;
 use tokio::signal::ctrl_c;
-use tokio::sync::broadcast::{channel, Sender};
+use tokio::sync::broadcast::{Sender, channel};
 use tracing::{debug, info};
 use typed_builder::TypedBuilder;
 use url::Url;

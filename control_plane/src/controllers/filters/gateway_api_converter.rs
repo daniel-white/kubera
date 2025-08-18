@@ -4,7 +4,10 @@ use gateway_api::apis::standard::httproutes::{
 };
 use thiserror::Error;
 use tracing::debug;
-use vg_core::config::gateway::types::http::filters::{PathRewrite, PathRewriteType, RequestHeaderModifier, RequestHeaderModifierBuilder, RequestRedirect};
+use vg_core::config::gateway::types::http::filters::{
+    PathRewrite, PathRewriteType, RequestHeaderModifier, RequestHeaderModifierBuilder,
+    RequestRedirect,
+};
 
 #[derive(Debug, Error)]
 pub enum FilterConversionError {

@@ -9,9 +9,9 @@ use self::filters::{
     filter_gateways, filter_http_routes,
 };
 use self::sync::{
-    sync_gateway_class_status, sync_gateway_configmaps, sync_gateway_deployments,
-    sync_gateway_services, sync_gateway_status, sync_http_route_status, sync_static_response_filter_status,
-    SyncGatewayConfigmapsParams,
+    SyncGatewayConfigmapsParams, sync_gateway_class_status, sync_gateway_configmaps,
+    sync_gateway_deployments, sync_gateway_services, sync_gateway_status, sync_http_route_status,
+    sync_static_response_filter_status,
 };
 use self::transformers::{
     bind_static_responses_cache, collect_extension_filters_by_gateway, collect_gateway_instances,

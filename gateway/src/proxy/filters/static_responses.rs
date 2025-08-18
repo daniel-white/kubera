@@ -1,18 +1,18 @@
 use crate::controllers::static_response_bodies_cache::StaticResponseBodiesCache;
 use bytes::Bytes;
 use getset::{CloneGetters, CopyGetters, Getters};
-use http::header::{CONTENT_LENGTH, CONTENT_TYPE, SERVER};
 use http::StatusCode;
+use http::header::{CONTENT_LENGTH, CONTENT_TYPE, SERVER};
 use pingora::http::ResponseHeader;
 use pingora::prelude::*;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tracing::{debug, warn};
 use typed_builder::TypedBuilder;
-pub(crate) use vg_core::config::gateway::types::net::StaticResponse;
 use vg_core::config::gateway::types::GatewayConfiguration;
+pub(crate) use vg_core::config::gateway::types::net::StaticResponse;
 use vg_core::continue_on;
-use vg_core::sync::signal::{signal, Receiver};
+use vg_core::sync::signal::{Receiver, signal};
 use vg_core::task::Builder as TaskBuilder;
 use vg_macros::await_ready;
 
@@ -129,7 +129,7 @@ impl StaticResponseFilter {
     /// * `Ok(true)` if a static response was applied successfully
     /// * `Ok(false)` if no matching static response configuration was found
     /// * `Err(...)` if there was an error writing the response
-    pub async fn apply_to_session(&self, session: &mut Session, key: &str) -> Result<bool> {
+    pub async fn apply_to_session(&self, session: &mut Session, key: &str) -> Result<Option<StatusCode>> {
         if let Some(static_response) = self.get_full_response(key).await {
             debug!(
                 "Applying static response for key: {} with status: {}",
@@ -159,10 +159,10 @@ impl StaticResponseFilter {
                 .await?;
             session.write_response_body(body, true).await?;
 
-            Ok(true)
+            Ok(Some(static_response.status_code()))
         } else {
             warn!("Static response key '{}' not found in configuration", key);
-            Ok(false)
+            Ok(None)
         }
     }
 }

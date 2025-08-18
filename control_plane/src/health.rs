@@ -1,10 +1,10 @@
 use crate::kubernetes::KubeClientCell;
 use async_trait::async_trait;
 use axum_health::{HealthDetail, HealthIndicator};
-use kube::api::ListParams;
 use kube::Api;
+use kube::api::ListParams;
 use std::ops::Deref;
-use tracing::{info_span, Instrument};
+use tracing::{Instrument, info_span};
 use vg_api::v1alpha1::GatewayClassParameters;
 use vg_core::sync::signal::Receiver;
 

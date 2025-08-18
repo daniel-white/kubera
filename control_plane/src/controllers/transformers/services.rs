@@ -9,7 +9,7 @@ use tracing::debug;
 use typed_builder::TypedBuilder;
 use vg_core::continue_on;
 use vg_core::net::Port;
-use vg_core::sync::signal::{signal, Receiver};
+use vg_core::sync::signal::{Receiver, signal};
 use vg_core::task::Builder as TaskBuilder;
 use vg_macros::await_ready;
 

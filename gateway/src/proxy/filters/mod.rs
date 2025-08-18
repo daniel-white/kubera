@@ -1,5 +1,7 @@
 pub mod client_addrs;
+pub mod downstream_request_context_injector;
 pub mod headers;
+pub mod request_context_extractor;
 pub mod request_headers;
 pub mod request_redirect;
 pub mod response_headers;

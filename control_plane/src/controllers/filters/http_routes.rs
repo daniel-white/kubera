@@ -3,7 +3,7 @@ use gateway_api::apis::standard::gateways::Gateway;
 use gateway_api::apis::standard::httproutes::HTTPRoute;
 use tracing::{debug, debug_span, info, warn};
 use vg_core::continue_on;
-use vg_core::sync::signal::{signal, Receiver};
+use vg_core::sync::signal::{Receiver, signal};
 use vg_core::task::Builder as TaskBuilder;
 use vg_macros::await_ready;
 

@@ -1,14 +1,14 @@
 use crate::controllers::instances::InstanceRole;
-use crate::kubernetes::objects::{ObjectRef, Objects};
 use crate::kubernetes::KubeClientCell;
+use crate::kubernetes::objects::{ObjectRef, Objects};
 use gateway_api::apis::standard::gateways::{Gateway, GatewayStatus};
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::{Condition, Time};
 use k8s_openapi::chrono;
-use kube::api::PostParams;
 use kube::Api;
+use kube::api::PostParams;
 use std::sync::Arc;
 use std::time::Duration;
-use tracing::{debug, info, info_span, instrument, warn, Instrument};
+use tracing::{Instrument, debug, info, info_span, instrument, warn};
 use vg_core::continue_after;
 use vg_core::sync::signal::Receiver;
 use vg_core::task::Builder as TaskBuilder;

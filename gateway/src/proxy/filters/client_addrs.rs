@@ -6,10 +6,10 @@ use std::str::FromStr;
 use std::sync::Arc;
 use tracing::{debug, warn};
 use trusted_proxies::{Config, Trusted};
-use vg_core::config::gateway::types::net::{ClientAddrsSource, ProxyHeaders};
 use vg_core::config::gateway::types::GatewayConfiguration;
+use vg_core::config::gateway::types::net::{ClientAddrsSource, ProxyHeaders};
 use vg_core::continue_on;
-use vg_core::sync::signal::{signal, Receiver};
+use vg_core::sync::signal::{Receiver, signal};
 use vg_core::task::Builder as TaskBuilder;
 
 const VALE_GATEWAY_CLIENT_IP_HEADER: HeaderName = HeaderName::from_static("vale-gateway-client-ip");

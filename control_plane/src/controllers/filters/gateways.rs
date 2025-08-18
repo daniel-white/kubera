@@ -6,7 +6,7 @@ use std::sync::Arc;
 use tracing::{debug, info};
 use vg_api::v1alpha1::GatewayParameters;
 use vg_core::continue_on;
-use vg_core::sync::signal::{signal, Receiver};
+use vg_core::sync::signal::{Receiver, signal};
 use vg_core::task::Builder as TaskBuilder;
 use vg_macros::await_ready;
 

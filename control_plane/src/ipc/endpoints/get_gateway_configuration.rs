@@ -1,8 +1,8 @@
 use crate::ipc::endpoints::IpcEndpointState;
 use crate::kubernetes::objects::ObjectRef;
 use axum::extract::{Path, Query};
-use axum::http::header::CONTENT_TYPE;
 use axum::http::StatusCode;
+use axum::http::header::CONTENT_TYPE;
 use axum::{extract::State, response::IntoResponse};
 use gateway_api::apis::standard::gateways::Gateway;
 use problemdetails::Problem;

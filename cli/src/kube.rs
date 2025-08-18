@@ -10,7 +10,6 @@ use tracing::{debug, info};
 /// Re-export ContextInfo from the context module
 pub use crate::commands::context::ContextInfo;
 
-
 /// Create a Kubernetes client with optional kubeconfig path
 pub async fn create_kube_client(kubeconfig_path: Option<&str>) -> Result<Client> {
     let config = match kubeconfig_path {

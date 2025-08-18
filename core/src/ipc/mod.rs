@@ -1,10 +1,10 @@
+use crate::instrumentation::{KeyValueCollector, KeyValues};
 use getset::Getters;
 use opentelemetry::{StringValue, Value};
 use schemars::_private::serde_json;
 use serde::{Deserialize, Serialize};
 use strum::{AsRefStr, IntoStaticStr};
 use typed_builder::TypedBuilder;
-use crate::instrumentation::{KeyValueCollector, KeyValues};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[non_exhaustive]
@@ -16,7 +16,7 @@ impl KeyValues for Event {
     fn collect_key_values(&self, collector: &mut KeyValueCollector) {
         match self {
             Event::Gateway(event) => {
-               event.collect_key_values(collector);
+                event.collect_key_values(collector);
             }
         }
     }
@@ -53,9 +53,9 @@ pub enum GatewayEvent {
 impl KeyValues for GatewayEvent {
     fn collect_key_values(&self, collector: &mut KeyValueCollector) {
         match self {
-            GatewayEvent::ConfigurationUpdate(ref_) =>{
-               collector.add("event_type", "Gateway::ConfigurationUpdate");
-               collector.add("gateway_ref", ref_);
+            GatewayEvent::ConfigurationUpdate(ref_) => {
+                collector.add("event_type", "Gateway::ConfigurationUpdate");
+                collector.add("gateway_ref", ref_);
             }
             GatewayEvent::Deleted(ref_) => {
                 collector.add("event_type", "Gateway::Deleted");

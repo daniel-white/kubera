@@ -1,15 +1,15 @@
 use crate::kubernetes::objects::{ObjectRef, Objects};
 use gateway_api::httproutes::{HTTPRoute, HTTPRouteRulesFiltersType};
 use getset::Getters;
+use std::collections::HashMap;
+use std::sync::Arc;
+use strum::{EnumString, IntoStaticStr};
+use tracing::{debug, info};
 use vg_api::v1alpha1::StaticResponseFilter;
 use vg_core::continue_on;
 use vg_core::sync::signal::{Receiver, signal};
 use vg_core::task::Builder as TaskBuilder;
 use vg_macros::await_ready;
-use std::collections::HashMap;
-use std::sync::Arc;
-use strum::{EnumString, IntoStaticStr};
-use tracing::{debug, info};
 
 #[derive(Debug, Clone, PartialEq, Eq, EnumString, IntoStaticStr)]
 pub enum ExtensionFilterKind {
@@ -46,9 +46,7 @@ pub fn collect_extension_filters_by_gateway(
                                 gateway_ref
                             );
 
-                            let extension_filters = filters
-                                .entry(gateway_ref.clone())
-                                .or_default();
+                            let extension_filters = filters.entry(gateway_ref.clone()).or_default();
 
                             for filter in http_routes
                                 .iter()

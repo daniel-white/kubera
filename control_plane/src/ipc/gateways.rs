@@ -1,15 +1,15 @@
 use crate::kubernetes::objects::ObjectRef;
 use dashmap::DashMap;
 use dashmap::mapref::one::Ref;
-use vg_core::config::gateway::serde::{WriteError, write_configuration};
-use vg_core::config::gateway::types::GatewayConfiguration;
 use std::io::{BufWriter, IntoInnerError};
 use std::string::FromUtf8Error;
 use std::sync::Arc;
 use thiserror::Error;
+use vg_core::config::gateway::serde::{WriteError, write_configuration};
+use vg_core::config::gateway::types::GatewayConfiguration;
 
 pub fn create_gateway_configuration_services()
-    -> (GatewayConfigurationReader, GatewayConfigurationManager) {
+-> (GatewayConfigurationReader, GatewayConfigurationManager) {
     let configurations = Arc::new(DashMap::new());
     (
         GatewayConfigurationReader {

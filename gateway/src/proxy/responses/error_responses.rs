@@ -5,10 +5,10 @@ use problemdetails::Problem;
 use std::borrow::Cow;
 use strum::IntoStaticStr;
 use url::Url;
-use vg_core::config::gateway::types::net::ErrorResponseKind;
 use vg_core::config::gateway::types::GatewayConfiguration;
+use vg_core::config::gateway::types::net::ErrorResponseKind;
 use vg_core::continue_on;
-use vg_core::sync::signal::{signal, Receiver};
+use vg_core::sync::signal::{Receiver, signal};
 use vg_core::task::Builder as TaskBuilder;
 use vg_macros::await_ready;
 

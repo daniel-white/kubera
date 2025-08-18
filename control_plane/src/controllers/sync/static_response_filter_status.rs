@@ -1,12 +1,12 @@
-use crate::kubernetes::objects::Objects;
 use crate::kubernetes::KubeClientCell;
+use crate::kubernetes::objects::Objects;
 use anyhow::{Context, Result};
 use gateway_api::apis::standard::httproutes::HTTPRoute;
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::{Condition, Time};
 use k8s_openapi::chrono::Utc;
 use kube::api::PostParams;
 use kube::{Api, Client};
-use tracing::{debug, info, info_span, warn, Instrument};
+use tracing::{Instrument, debug, info, info_span, warn};
 use vg_api::v1alpha1::{
     StaticResponseFilter, StaticResponseFilterConditionReason, StaticResponseFilterConditionType,
     StaticResponseFilterStatus,

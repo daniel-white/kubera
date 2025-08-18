@@ -2,7 +2,7 @@ use crate::kubernetes::objects::ObjectRef;
 use std::fmt::Display;
 use std::sync::LazyLock;
 use thiserror::Error;
-use tokio::sync::broadcast::{channel as broadcast_channel, Sender as BroadcastSender};
+use tokio::sync::broadcast::{Sender as BroadcastSender, channel as broadcast_channel};
 use tokio_stream::wrappers::BroadcastStream;
 use tokio_stream::{Stream, StreamExt};
 use vg_core::instrumentation::KeyValues;

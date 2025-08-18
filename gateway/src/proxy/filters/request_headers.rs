@@ -1,10 +1,10 @@
 use std::sync::Arc;
 use vg_core::config::gateway::types::http::filters::RequestHeaderModifier;
 use vg_core::continue_on;
-use vg_core::sync::signal::{signal, Receiver};
+use vg_core::sync::signal::{Receiver, signal};
 use vg_core::task::Builder as TaskBuilder;
 
-use super::headers::{apply_header_modifications, HeaderOperations};
+use super::headers::{HeaderOperations, apply_header_modifications};
 
 /// Filter for modifying request headers based on RequestHeaderModifier configuration
 #[derive(Debug, Clone, PartialEq)]

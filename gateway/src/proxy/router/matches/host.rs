@@ -1,4 +1,4 @@
-use http::{header::HOST, HeaderMap};
+use http::{HeaderMap, header::HOST};
 use tracing::{debug, instrument};
 use vg_core::net::Hostname;
 

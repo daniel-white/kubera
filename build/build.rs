@@ -1,7 +1,7 @@
 use kube::CustomResourceExt;
 use schemars::schema_for;
-use std::fs::create_dir_all;
 use std::fs::File;
+use std::fs::create_dir_all;
 use std::io::Write;
 use std::path::Path;
 use vg_api::v1alpha1::*;
@@ -46,10 +46,10 @@ fn write_crds(out_dir: &Path) {
         GatewayParameters::crd(),
         StaticResponseFilter::crd(),
     ]
-        .iter()
-        .fold(file, |mut output, crd| {
-            writeln!(output, "---").unwrap();
-            writeln!(output, "{}", serde_yaml::to_string(crd).unwrap().as_str()).unwrap();
-            output
-        });
+    .iter()
+    .fold(file, |mut output, crd| {
+        writeln!(output, "---").unwrap();
+        writeln!(output, "{}", serde_yaml::to_string(crd).unwrap().as_str()).unwrap();
+        output
+    });
 }

@@ -4,7 +4,7 @@ use tracing::debug;
 use typed_builder::TypedBuilder;
 use vg_core::config::gateway::types::GatewayConfiguration;
 use vg_core::continue_on;
-use vg_core::sync::signal::{signal, Receiver};
+use vg_core::sync::signal::{Receiver, signal};
 use vg_core::task::Builder as TaskBuilder;
 
 #[derive(Getters, Debug, Clone, TypedBuilder)]

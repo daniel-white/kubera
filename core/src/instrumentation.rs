@@ -1,5 +1,7 @@
 use crate::task::Builder as TaskBuilder;
-use opentelemetry::global::{meter, set_meter_provider, set_tracer_provider};
+use opentelemetry::global::{
+    meter, set_meter_provider, set_text_map_propagator, set_tracer_provider,
+};
 use opentelemetry::metrics::Meter;
 use opentelemetry::trace::{TraceContextExt, TracerProvider};
 use opentelemetry::{Context, Key, KeyValue, Value};
@@ -8,6 +10,7 @@ use opentelemetry_appender_tracing::layer::OpenTelemetryTracingBridge;
 use opentelemetry_otlp::{LogExporterBuilder, MetricExporterBuilder, SpanExporterBuilder};
 use opentelemetry_sdk::logs::LoggerProviderBuilder;
 use opentelemetry_sdk::metrics::MeterProviderBuilder;
+use opentelemetry_sdk::propagation::TraceContextPropagator;
 use opentelemetry_sdk::trace::TracerProviderBuilder;
 use std::sync::{LazyLock, Once};
 use tracing::info;
@@ -61,6 +64,8 @@ pub fn init_instrumentation(task_builder: &TaskBuilder, name: &'static str) {
 
         let env_filter =
             EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("warn"));
+
+        set_text_map_propagator(TraceContextPropagator::new());
 
         let tracer = tracer_provider.tracer(name);
         let otel_trace_layer = OpenTelemetryLayer::new(tracer);
@@ -122,7 +127,7 @@ impl From<KeyValueCollector> for Vec<KeyValue> {
     fn from(collector: KeyValueCollector) -> Self {
         collector.vec
     }
-} 
+}
 
 pub trait KeyValues {
     fn key_values(&self) -> Vec<KeyValue> {

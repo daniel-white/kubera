@@ -4,14 +4,14 @@ use gateway_api::apis::standard::gateways::Gateway;
 use gateway_api::apis::standard::httproutes::HTTPRoute;
 use getset::{CopyGetters, Getters};
 use k8s_openapi::api::core::v1::Service;
-use std::collections::hash_map::Entry;
 use std::collections::HashMap;
+use std::collections::hash_map::Entry;
 use std::sync::Arc;
 use tracing::{debug, info, warn};
 use typed_builder::TypedBuilder;
 use vg_core::continue_on;
 use vg_core::net::Port;
-use vg_core::sync::signal::{signal, Receiver};
+use vg_core::sync::signal::{Receiver, signal};
 use vg_core::task::Builder as TaskBuilder;
 use vg_macros::await_ready;
 

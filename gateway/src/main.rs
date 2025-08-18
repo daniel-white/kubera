@@ -1,21 +1,21 @@
 mod cli;
 mod controllers;
+mod instrumentation;
 mod proxy;
 mod util;
 
-use std::sync::Arc;
 use crate::cli::Cli;
-use crate::controllers::config::fs::{watch_configuration_file, WatchConfigurationFileParams};
+use crate::controllers::config::fs::{WatchConfigurationFileParams, watch_configuration_file};
 use crate::controllers::config::ipc::{
-    fetch_configuration, watch_ipc_endpoint, FetchConfigurationParams,
+    FetchConfigurationParams, fetch_configuration, watch_ipc_endpoint,
 };
-use crate::controllers::config::selector::{select_configuration, SelectorParams};
-use crate::controllers::ipc_events::{poll_gateway_events, PollGatewayEventsParams};
+use crate::controllers::config::selector::{SelectorParams, select_configuration};
+use crate::controllers::ipc_events::{PollGatewayEventsParams, poll_gateway_events};
 use crate::controllers::router::synthesize_http_router;
 use crate::controllers::static_response_bodies_cache::static_response_bodies_cache;
+use crate::proxy::Proxy;
 use crate::proxy::filters::static_responses::static_responses;
 use crate::proxy::responses::error_responses::error_responses;
-use crate::proxy::Proxy;
 use clap::Parser;
 use pingora::prelude::http_proxy_service;
 use pingora::server::Server;
@@ -24,6 +24,7 @@ use proxy::filters::client_addrs::client_addr_filter;
 use proxy::router::topology::TopologyLocation;
 use reqwest_middleware::{ClientBuilder, Extension};
 use reqwest_tracing::{OtelName, TracingMiddleware};
+use std::sync::Arc;
 use vg_core::crypto::init_crypto;
 use vg_core::instrumentation::init_instrumentation;
 use vg_core::sync::signal::signal;
@@ -35,14 +36,18 @@ async fn main() {
 
     init_crypto();
     init_instrumentation(&task_builder, "vg-gateway");
-    
-    let client = reqwest::ClientBuilder::new().build().expect("Failed to create HTTP client");
 
-    let client = Arc::new(ClientBuilder::new(client)
-        .with_init(Extension(OtelName("vg-gateway".into())))
-        // Makes use of that extension to specify the otel name
-        .with(TracingMiddleware::default())
-        .build());
+    let client = reqwest::ClientBuilder::new()
+        .build()
+        .expect("Failed to create HTTP client");
+
+    let client = Arc::new(
+        ClientBuilder::new(client)
+            .with_init(Extension(OtelName("vg-gateway".into())))
+            // Makes use of that extension to specify the otel name
+            .with(TracingMiddleware::default())
+            .build(),
+    );
 
     let args = Cli::parse();
 

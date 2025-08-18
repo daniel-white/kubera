@@ -4,7 +4,7 @@ use std::sync::Arc;
 use tracing::{debug, error, warn};
 use url::Url;
 use vg_core::config::gateway::types::http::filters::URLRewrite;
-use vg_core::sync::signal::{signal, Receiver};
+use vg_core::sync::signal::{Receiver, signal};
 use vg_core::task::Builder as TaskBuilder;
 
 use super::request_redirect::RouteMatchContext;
@@ -310,9 +310,10 @@ impl URLRewriteFilter {
             // Update host header if hostname was rewritten
             if let Some(new_host) = rewrite_result.uri.host()
                 && new_host != original_uri.host().unwrap_or("")
-                    && let Err(e) = request_header.insert_header("Host", new_host) {
-                        warn!("Failed to update Host header: {}", e);
-                    }
+                && let Err(e) = request_header.insert_header("Host", new_host)
+            {
+                warn!("Failed to update Host header: {}", e);
+            }
 
             debug!("Applied URL rewrite to request header");
         }

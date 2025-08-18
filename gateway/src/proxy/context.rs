@@ -3,6 +3,8 @@ use crate::proxy::router::endpoints::EndpointsResolver;
 use crate::proxy::router::{HttpRoute, HttpRouteRule};
 use bytes::Bytes;
 use http::Response;
+use opentelemetry::trace::Tracer;
+use opentelemetry::{Context, ContextGuard};
 use std::net::{IpAddr, SocketAddr};
 use std::sync::{Arc, OnceLock};
 use typed_builder::TypedBuilder;
@@ -25,16 +27,22 @@ struct ContextState {
 }
 
 #[derive(TypedBuilder)]
-pub struct Context {
+pub struct RequestContext {
+    #[builder(default)]
+    tracing_context: OnceLock<Context>,
+
     error_response_generators_rx: Receiver<ErrorResponseGenerators>,
 
     #[builder(default)]
     state: OnceLock<ContextState>,
+
+    #[builder(default)]
+    otel_context: Option<opentelemetry::Context>,
 }
 
-unsafe impl Send for Context {}
+unsafe impl Send for RequestContext {}
 
-unsafe impl Sync for Context {}
+unsafe impl Sync for RequestContext {}
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum MatchRouteResult {
@@ -43,20 +51,30 @@ pub enum MatchRouteResult {
     MissingConfiguration,
 }
 
-impl Context {
+impl RequestContext {
+    pub fn set_tracing_context(&mut self, context: Context) {
+        let _ = self.tracing_context.get_or_init(|| context);
+    }
+
+    pub fn attach_tracing_context(&self) -> ContextGuard {
+        let tracing_context = self.tracing_context.get().expect("Tracing context not set");
+        tracing_context.clone().attach()
+    }
+
     pub fn route(&self) -> Option<&MatchRouteResult> {
         self.state.get().map(|x| &x.route)
     }
 
     pub fn next_upstream_peer(&mut self) -> UpstreamPeerResult {
         if let Some(state) = self.state.get_mut()
-            && let Some(resolver) = &mut state.endpoint_resolver {
-                return if let Some(addr) = resolver.next() {
-                    UpstreamPeerResult::Addr(addr)
-                } else {
-                    UpstreamPeerResult::NotFound
-                };
-            }
+            && let Some(resolver) = &mut state.endpoint_resolver
+        {
+            return if let Some(addr) = resolver.next() {
+                UpstreamPeerResult::Addr(addr)
+            } else {
+                UpstreamPeerResult::NotFound
+            };
+        }
         match self.route() {
             Some(MatchRouteResult::NotFound) => UpstreamPeerResult::NotFound,
             Some(MatchRouteResult::MissingConfiguration) | None => {
@@ -108,6 +126,13 @@ impl Context {
             endpoint_resolver,
             client_addr,
         });
+    }
+
+    pub fn set_otel_context(&mut self, ctx: opentelemetry::Context) {
+        self.otel_context = Some(ctx);
+    }
+    pub fn otel_context(&self) -> Option<&opentelemetry::Context> {
+        self.otel_context.as_ref()
     }
 
     pub async fn generate_error_response(

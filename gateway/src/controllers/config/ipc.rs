@@ -1,9 +1,9 @@
 use http::StatusCode;
+use reqwest_middleware::ClientWithMiddleware;
 use std::io::BufReader;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Instant;
-use reqwest_middleware::ClientWithMiddleware;
 use tokio::sync::broadcast::Receiver as BroadcastReceiver;
 use tracing::{debug, info, warn};
 use typed_builder::TypedBuilder;
@@ -12,7 +12,7 @@ use vg_core::config::gateway::serde::read_configuration;
 use vg_core::config::gateway::types::GatewayConfiguration;
 use vg_core::continue_on;
 use vg_core::ipc::GatewayEvent;
-use vg_core::sync::signal::{signal, Receiver, Sender};
+use vg_core::sync::signal::{Receiver, Sender, signal};
 use vg_core::task::Builder as TaskBuilder;
 
 #[derive(Debug, TypedBuilder)]

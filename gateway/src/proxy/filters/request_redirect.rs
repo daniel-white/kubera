@@ -4,7 +4,7 @@ use std::sync::Arc;
 use tracing::{debug, error, warn};
 use url::Url;
 use vg_core::config::gateway::types::http::filters::RequestRedirect;
-use vg_core::sync::signal::{signal, Receiver};
+use vg_core::sync::signal::{Receiver, signal};
 use vg_core::task::Builder as TaskBuilder;
 
 /// Filter for handling HTTP request redirects based on RequestRedirect configuration.
