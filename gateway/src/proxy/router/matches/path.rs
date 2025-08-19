@@ -1,5 +1,5 @@
-use super::Match;
 use super::score::HttpRouteRuleMatchesScore;
+use super::Match;
 use crate::util::get_regex;
 use tracing::{debug, instrument};
 
@@ -128,7 +128,6 @@ impl PathMatch {
     /// ```
     #[instrument(
         skip(self, score, path),
-        level = "debug",
         name = "PathMatch::matches_with_result"
         fields(matcher = ?self)
     )]
@@ -174,7 +173,6 @@ impl Match<&str> for PathMatch {
     /// use `matches_with_result` instead.
     #[instrument(
         skip(self, score, path),
-        level = "debug",
         name = "PathMatch::matches"
         fields(matcher = ?self)
     )]

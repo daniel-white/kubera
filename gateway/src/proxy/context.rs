@@ -6,8 +6,8 @@ use http::Response;
 use opentelemetry::trace::Tracer;
 use std::net::{IpAddr, SocketAddr};
 use std::sync::{Arc, OnceLock};
-use tracing::span::EnteredSpan;
 use tracing::Span;
+use tracing::span::EnteredSpan;
 use typed_builder::TypedBuilder;
 use vg_core::sync::signal::Receiver;
 

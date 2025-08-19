@@ -1,5 +1,5 @@
-use super::Match;
 use super::score::HttpRouteRuleMatchesScore;
+use super::Match;
 use crate::util::get_regex;
 use http::{HeaderMap, HeaderName, HeaderValue};
 use tracing::{debug, instrument};
@@ -57,7 +57,6 @@ impl HeaderMatch {
 
     #[instrument(
         skip(self, name, value),
-        level = "debug",
         name = "HeaderMatch::matches"
         fields(match = ?self)
     )]
@@ -72,11 +71,7 @@ pub struct HeadersMatch {
 }
 
 impl Match<HeaderMap> for HeadersMatch {
-    #[instrument(
-        skip(self, score, headers),
-        level = "debug",
-        name = "HeadersMatch::matches"
-    )]
+    #[instrument(skip(self, score, headers), name = "HeadersMatch::matches")]
     fn matches(&self, score: &HttpRouteRuleMatchesScore, headers: &HeaderMap) -> bool {
         let is_match = self
             .header_matches

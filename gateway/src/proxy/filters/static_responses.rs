@@ -129,7 +129,11 @@ impl StaticResponseFilter {
     /// * `Ok(true)` if a static response was applied successfully
     /// * `Ok(false)` if no matching static response configuration was found
     /// * `Err(...)` if there was an error writing the response
-    pub async fn apply_to_session(&self, session: &mut Session, key: &str) -> Result<Option<StatusCode>> {
+    pub async fn apply_to_session(
+        &self,
+        session: &mut Session,
+        key: &str,
+    ) -> Result<Option<StatusCode>> {
         if let Some(static_response) = self.get_full_response(key).await {
             debug!(
                 "Applying static response for key: {} with status: {}",

@@ -5,8 +5,8 @@ pub mod types;
 #[cfg(test)]
 mod filter_deserialization_tests {
     use crate::config::gateway::types::{
-        http::filters::{HttpRouteFilter, HttpRouteFilterType},
         GatewayConfiguration,
+        http::filters::{HttpRouteFilter, HttpRouteFilterType},
     };
     use serde_yaml;
 

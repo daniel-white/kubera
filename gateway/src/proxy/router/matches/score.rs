@@ -22,7 +22,7 @@ impl PartialOrd for HttpRouteRuleMatchesScore {
 }
 
 impl Ord for HttpRouteRuleMatchesScore {
-    #[instrument(skip(self, other), level = "debug", name = "Score::cmp")]
+    #[instrument(skip(self, other), name = "Score::cmp")]
     fn cmp(&self, other: &Self) -> Ordering {
         if self == other {
             return Ordering::Equal;

@@ -37,10 +37,7 @@ pub struct Cli {
     gateway_name: String,
 
     #[getset(get_clone = "pub")]
-    #[arg(
-        env = "VALE_GATEWAY_LISTENERS",
-        long = "listeners"
-    )]
+    #[arg(env = "VALE_GATEWAY_LISTENERS", long = "listeners")]
     vale_gateway_listeners: Option<String>,
 }
 

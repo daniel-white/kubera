@@ -1,4 +1,4 @@
-use http::{HeaderMap, header::HOST};
+use http::{header::HOST, HeaderMap};
 use tracing::{debug, instrument};
 use vg_core::net::Hostname;
 
@@ -12,7 +12,6 @@ pub enum HostValueMatch {
 impl HostValueMatch {
     #[instrument(
         skip(self, host),
-        level = "debug",
         name = "HostValueMatch::matches"
         fields(match = ?self)
     )]
@@ -31,7 +30,7 @@ pub struct HostMatch {
 }
 
 impl HostMatch {
-    #[instrument(skip(self, headers), level = "debug", name = "HostMatch::matches")]
+    #[instrument(skip(self, headers), name = "HostMatch::matches")]
     pub fn matches(&self, headers: &HeaderMap) -> bool {
         // If no host matches are defined, accept all requests
         if self.host_value_matches.is_empty() {

@@ -1,5 +1,6 @@
 use http::StatusCode;
 use reqwest_middleware::ClientWithMiddleware;
+use reqwest_tracing::{OtelName, OtelPathNames};
 use std::io::BufReader;
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -58,7 +59,20 @@ pub fn fetch_configuration(
 
                     let serial = Instant::now(); // capture the time before the request
 
-                    match params.client.get(url).send().await {
+                    let response = params
+                        .client
+                        .get(url)
+                        .with_extension(OtelName("fetch_configuration".into()))
+                        .with_extension(
+                            OtelPathNames::known_paths([
+                                "/ipc/namespaces/{namespace}/gateways/{gateway_name}/configuration",
+                            ])
+                            .expect("Failed to set known paths"),
+                        )
+                        .send()
+                        .await;
+
+                    match response {
                         Ok(response) if response.status() == StatusCode::OK => {
                             match response.bytes().await {
                                 Ok(bytes) => {

@@ -18,13 +18,14 @@ use filters::request_headers::RequestHeaderFilter;
 use filters::request_redirect::RequestRedirectFilter;
 use filters::response_headers::ResponseHeaderFilter;
 use filters::url_rewrite::URLRewriteFilter;
-use http::header::SERVER;
+use http::header::{HOST, SERVER, USER_AGENT};
 use http::{HeaderMap, StatusCode};
 use opentelemetry::global::get_text_map_propagator;
 use opentelemetry::trace::Tracer;
 use opentelemetry_semantic_conventions::attribute::URL_SCHEME;
 use opentelemetry_semantic_conventions::trace::{
-    HTTP_RESPONSE_STATUS_CODE, NETWORK_PEER_ADDRESS, NETWORK_PEER_PORT,
+    CLIENT_ADDRESS, HTTP_RESPONSE_STATUS_CODE, NETWORK_PEER_ADDRESS, NETWORK_PEER_PORT,
+    SERVER_ADDRESS, USER_AGENT_ORIGINAL,
 };
 use pingora::http::ResponseHeader;
 use pingora::prelude::*;
@@ -114,9 +115,12 @@ impl ProxyHttp for Proxy {
         let client_addr = if let Some(client_addr_filter) = self.client_addr_filter_rx.get().await {
             client_addr_filter.filter(session)
         } else {
-            warn!("No client address filter configured");
             None
         };
+
+        if let Some(client_addr) = client_addr {
+            request_span.set_attribute(CLIENT_ADDRESS, client_addr.to_string());
+        }
 
         let router = self.router_rx.get().await;
         let route = if let Some(router) = router {
@@ -174,8 +178,6 @@ impl ProxyHttp for Proxy {
                                     );
                                 }
                             }
-                        } else {
-                            warn!("No static responses configuration available");
                         }
                     }
                 }
@@ -303,6 +305,18 @@ impl ProxyHttp for Proxy {
 
         if let Some(scheme) = uri.scheme_str() {
             span.set_attribute(URL_SCHEME, scheme.to_ascii_lowercase());
+        }
+
+        if let Some(host) = request.headers.get(HOST)
+            && let Some(host) = host.to_str().ok()
+        {
+            span.set_attribute(SERVER_ADDRESS, host.to_string());
+        }
+
+        if let Some(user_agent) = request.headers.get(USER_AGENT)
+            && let Some(user_agent) = user_agent.to_str().ok()
+        {
+            span.set_attribute(USER_AGENT_ORIGINAL, user_agent.to_string());
         }
 
         ctx.set_request_span(span);

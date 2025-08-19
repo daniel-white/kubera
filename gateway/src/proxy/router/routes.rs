@@ -158,7 +158,7 @@ impl HttpRoute {
     ///     }
     /// }
     /// ```
-    #[instrument(skip(self, parts), level = "debug", name = "HttpRoute::matches")]
+    #[instrument(skip(self, parts), name = "HttpRoute::matches")]
     pub fn matches(&self, parts: &Parts) -> HttpRouteMatchResult {
         if !self.host_header_match.matches(&parts.headers) {
             return HttpRouteMatchResult::not_matched();

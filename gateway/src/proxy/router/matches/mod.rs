@@ -75,11 +75,7 @@ impl HttpRouteRuleMatchesResult {
 }
 
 impl HttpRouteRuleMatches {
-    #[instrument(
-        skip(self, parts),
-        level = "trace",
-        name = "HttpRouteRuleMatches::matches"
-    )]
+    #[instrument(skip(self, parts), name = "HttpRouteRuleMatches::matches")]
     pub fn matches(&self, parts: &Parts) -> HttpRouteRuleMatchesResult {
         let score = HttpRouteRuleMatchesScore::default();
         let mut matched_prefix = None;

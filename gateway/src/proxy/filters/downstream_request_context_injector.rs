@@ -28,9 +28,9 @@ impl<'a> UpstreamRequestContextInjectorFilter<'a> {
 mod tests {
     use super::*;
     use http::HeaderValue;
+    use opentelemetry::Context;
     use opentelemetry::propagation::text_map_propagator::FieldIter;
     use opentelemetry::propagation::{Extractor, Injector, TextMapPropagator};
-    use opentelemetry::Context;
     use std::sync::OnceLock;
 
     static TRACE_CONTEXT_HEADER_FIELDS: OnceLock<[String; 2]> = OnceLock::new();

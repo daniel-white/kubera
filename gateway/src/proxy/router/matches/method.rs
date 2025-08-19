@@ -1,5 +1,5 @@
-use super::Match;
 use super::score::HttpRouteRuleMatchesScore;
+use super::Match;
 use http::Method;
 use tracing::{debug, instrument};
 
@@ -11,7 +11,6 @@ pub struct MethodMatch {
 impl Match<Method> for MethodMatch {
     #[instrument(
         skip(self, score, method),
-        level = "debug",
         name = "MethodMatcher::matches"
         fields(match = ?self)
     )]

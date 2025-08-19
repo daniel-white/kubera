@@ -16,7 +16,7 @@ pub use routes::HttpRouteRule;
 use std::collections::HashMap;
 use std::net::{IpAddr, SocketAddr};
 use std::sync::Arc;
-use tracing::debug;
+use tracing::{debug, instrument};
 use typed_builder::TypedBuilder;
 use vg_core::net::Hostname;
 
@@ -139,6 +139,7 @@ impl HttpRouterBuilder {
 }
 
 impl HttpRouter {
+    #[instrument("match_route", skip(self, parts))]
     pub fn match_route(&self, parts: &Parts) -> Option<HttpRouterMatchResult> {
         if !self.host_matches.matches(&parts.headers) {
             return None;

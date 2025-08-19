@@ -11,7 +11,6 @@ pub enum HostHeaderValueMatch {
 impl HostHeaderValueMatch {
     #[instrument(
         skip(self, host_header_value),
-        level = "debug",
         name = "HostHeaderValueMatcher::matches"
         fields(matcher = ?self)
     )]
@@ -36,11 +35,7 @@ impl HostHeaderMatch {
         HostHeaderMatchBuilder::new()
     }
 
-    #[instrument(
-        skip(self, headers),
-        level = "debug",
-        name = "HostHeaderMatch::matches"
-    )]
+    #[instrument(skip(self, headers), name = "HostHeaderMatch::matches")]
     pub fn matches(&self, headers: &HeaderMap) -> bool {
         if self.host_header_value_matches.is_empty() {
             debug!("No host header matches configured");

@@ -3,6 +3,7 @@ use dashmap::DashMap;
 use dashmap::Entry::*;
 use http::StatusCode;
 use reqwest_middleware::ClientWithMiddleware;
+use reqwest_tracing::{OtelName, OtelPathNames};
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -59,7 +60,18 @@ impl StaticResponseBodiesCache {
                 };
                 debug!("Fetching static response from URL: {}", url);
 
-                match state.client.get(url).send().await {
+                let response = state.client.get(url)
+                    .with_extension(OtelName("fetch_static_response".into()))
+                    .with_extension(
+                        OtelPathNames::known_paths([
+                            "/ipc/namespaces/{namespace}/gateways/{gateway_name}/static_responses/{static_response_id}",
+                        ])
+                            .expect("Failed to set known paths"),
+                    )
+                    .send()
+                    .await;
+
+                match response {
                     Ok(response) if response.status() == StatusCode::OK => {
                         match response.bytes().await {
                             Ok(bytes) => {
