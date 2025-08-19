@@ -46,6 +46,8 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.uid
+            - name: VALE_GATEWAY_LISTENERS
+              value: "default,http,8080,/,404"
             - name: GATEWAY_NAME
               value: {{ .gateway_name | quote }}
             - name: NODE_NAME
@@ -74,22 +76,11 @@ spec:
               value: {{ .open_telemetry.traces_sampler }}
             - name: OTEL_TRACES_SAMPLER_ARG
               value: {{ .open_telemetry.traces_sampler_arg }}
-{{/*          ports:*/}}
-{{/*            - name: http*/}}
-{{/*              containerPort: 8080*/}}
-{{/*              protocol: TCP*/}}
-{{/*          resources:*/}}
-{{/*            limits:*/}}
-{{/*              cpu: 100m*/}}
-{{/*              memory: 128Mi*/}}
-{{/*            requests:*/}}
-{{/*              cpu: 50m*/}}
-{{/*              memory: 64Mi*/}}
-{{/*          livenessProbe:*/}}
-{{/*            httpGet:*/}}
-{{/*              path: /*/}}
-{{/*              port: http*/}}
-{{/*          readinessProbe:*/}}
-{{/*            httpGet:*/}}
-{{/*              path: /*/}}
-{{/*              port: http*/}}
+          readinessProbe:
+            exec:
+              command:
+                - /usr/local/bin/vg-gateway-readiness-probe.sh
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 10
+            failureThreshold: 3

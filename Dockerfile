@@ -28,10 +28,13 @@ FROM debian:${DEBIAN_RELEASE}-slim AS runtime
 ARG RUST_CONFIGURATION
 RUN apt update && apt install -y \
     ca-certificates \
+    curl \
+    net-tools \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /usr/src/vale-gateway/target/${RUST_CONFIGURATION}/vg-control-plane /usr/local/bin/
 COPY --from=builder /usr/src/vale-gateway/target/${RUST_CONFIGURATION}/vg-gateway /usr/local/bin/
+COPY --from=builder /usr/src/vale-gateway/gateway/scripts/*.sh /usr/local/bin/
 
 # Add non-root user for security
 RUN useradd vale-gateway

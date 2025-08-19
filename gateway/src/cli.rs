@@ -8,14 +8,6 @@ use vg_core::net::Port;
 #[command(name = "vale-gateway")]
 #[command(about = "The Vale Gateway", long_about = None)]
 pub struct Cli {
-    #[getset(get_copy = "pub")]
-    #[arg(default_value ="80",
-          env = "PORT",
-          long = "port",
-          value_parser = parse_port,
-    )]
-    port: Port,
-
     #[getset(get_clone = "pub")]
     #[arg(
         default_value = "/etc/vale-gateway/config.yaml",
@@ -43,6 +35,13 @@ pub struct Cli {
     #[getset(get_clone = "pub")]
     #[arg(env = "GATEWAY_NAME", long = "gateway-name")]
     gateway_name: String,
+
+    #[getset(get_clone = "pub")]
+    #[arg(
+        env = "VALE_GATEWAY_LISTENERS",
+        long = "listeners"
+    )]
+    vale_gateway_listeners: Option<String>,
 }
 
 fn parse_port(arg: &str) -> Result<Port> {

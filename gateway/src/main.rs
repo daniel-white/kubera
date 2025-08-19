@@ -5,21 +5,20 @@ mod proxy;
 mod util;
 
 use crate::cli::Cli;
-use crate::controllers::config::fs::{WatchConfigurationFileParams, watch_configuration_file};
+use crate::controllers::config::fs::{watch_configuration_file, WatchConfigurationFileParams};
 use crate::controllers::config::ipc::{
-    FetchConfigurationParams, fetch_configuration, watch_ipc_endpoint,
+    fetch_configuration, watch_ipc_endpoint, FetchConfigurationParams,
 };
-use crate::controllers::config::selector::{SelectorParams, select_configuration};
-use crate::controllers::ipc_events::{PollGatewayEventsParams, poll_gateway_events};
+use crate::controllers::config::selector::{select_configuration, SelectorParams};
+use crate::controllers::ipc_events::{poll_gateway_events, PollGatewayEventsParams};
 use crate::controllers::router::synthesize_http_router;
 use crate::controllers::static_response_bodies_cache::static_response_bodies_cache;
-use crate::proxy::Proxy;
 use crate::proxy::filters::static_responses::static_responses;
 use crate::proxy::responses::error_responses::error_responses;
+use crate::proxy::Proxy;
 use clap::Parser;
 use pingora::prelude::http_proxy_service;
 use pingora::server::Server;
-use pingora::services::listening::Service;
 use proxy::filters::client_addrs::client_addr_filter;
 use proxy::router::topology::TopologyLocation;
 use reqwest_middleware::{ClientBuilder, Extension};
@@ -133,11 +132,6 @@ async fn main() {
         service.add_tcp("0.0.0.0:8080");
 
         server.add_service(service);
-
-        let mut prometheus_service_http = Service::prometheus_http_service();
-        prometheus_service_http.add_tcp("0.0.0.0:12340");
-
-        server.add_service(prometheus_service_http);
 
         server.run_forever();
     });
