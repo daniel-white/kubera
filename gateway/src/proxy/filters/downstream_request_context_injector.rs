@@ -1,7 +1,8 @@
 use http::HeaderMap;
-use opentelemetry::Context;
 use opentelemetry::propagation::TextMapPropagator;
 use opentelemetry_http::HeaderInjector;
+use tracing::Span;
+use tracing_opentelemetry::OpenTelemetrySpanExt;
 
 /// Filter that applies an OpenTelemetry propagator to upstream requests
 pub struct UpstreamRequestContextInjectorFilter<'a>(&'a dyn TextMapPropagator);
@@ -11,7 +12,7 @@ impl<'a> UpstreamRequestContextInjectorFilter<'a> {
         Self(propagator)
     }
 
-    pub fn apply_to_headers(&self, headers: &mut HeaderMap) {
+    pub fn apply_to_headers(&self, span: &Span, headers: &mut HeaderMap) {
         let propagator = &*self.0;
 
         for field in propagator.fields() {
@@ -19,7 +20,7 @@ impl<'a> UpstreamRequestContextInjectorFilter<'a> {
         }
 
         let mut injector = HeaderInjector(headers);
-        propagator.inject_context(&Context::current(), &mut injector);
+        propagator.inject_context(&span.context(), &mut injector);
     }
 }
 
@@ -27,9 +28,9 @@ impl<'a> UpstreamRequestContextInjectorFilter<'a> {
 mod tests {
     use super::*;
     use http::HeaderValue;
-    use opentelemetry::Context;
     use opentelemetry::propagation::text_map_propagator::FieldIter;
     use opentelemetry::propagation::{Extractor, Injector, TextMapPropagator};
+    use opentelemetry::Context;
     use std::sync::OnceLock;
 
     static TRACE_CONTEXT_HEADER_FIELDS: OnceLock<[String; 2]> = OnceLock::new();
@@ -69,7 +70,9 @@ mod tests {
         headers.append("tracestate", HeaderValue::from_static("old-state"));
         headers.append("other", HeaderValue::from_static("value"));
 
-        filter.apply_to_headers(&mut headers);
+        let span = Span::current();
+
+        filter.apply_to_headers(&span, &mut headers);
         assert_eq!(
             headers.get("traceparent"),
             Some(&HeaderValue::from_static("dummy-parent"))

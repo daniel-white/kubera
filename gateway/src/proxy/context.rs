@@ -4,9 +4,10 @@ use crate::proxy::router::{HttpRoute, HttpRouteRule};
 use bytes::Bytes;
 use http::Response;
 use opentelemetry::trace::Tracer;
-use opentelemetry::{Context, ContextGuard};
 use std::net::{IpAddr, SocketAddr};
 use std::sync::{Arc, OnceLock};
+use tracing::span::EnteredSpan;
+use tracing::Span;
 use typed_builder::TypedBuilder;
 use vg_core::sync::signal::Receiver;
 
@@ -29,15 +30,15 @@ struct ContextState {
 #[derive(TypedBuilder)]
 pub struct RequestContext {
     #[builder(default)]
-    tracing_context: OnceLock<Context>,
+    request_span: OnceLock<Span>,
+
+    #[builder(default)]
+    upstream_request_span: OnceLock<EnteredSpan>,
 
     error_response_generators_rx: Receiver<ErrorResponseGenerators>,
 
     #[builder(default)]
     state: OnceLock<ContextState>,
-
-    #[builder(default)]
-    otel_context: Option<opentelemetry::Context>,
 }
 
 unsafe impl Send for RequestContext {}
@@ -52,13 +53,22 @@ pub enum MatchRouteResult {
 }
 
 impl RequestContext {
-    pub fn set_tracing_context(&mut self, context: Context) {
-        let _ = self.tracing_context.get_or_init(|| context);
+    pub fn set_request_span(&mut self, span: Span) {
+        let _ = self.request_span.get_or_init(|| span);
     }
 
-    pub fn attach_tracing_context(&self) -> ContextGuard {
-        let tracing_context = self.tracing_context.get().expect("Tracing context not set");
-        tracing_context.clone().attach()
+    pub fn request_span(&self) -> &Span {
+        self.request_span.get().expect("Tracing span not set")
+    }
+
+    pub fn set_upstream_request_span(&mut self, span: Span) {
+        let _ = self.upstream_request_span.get_or_init(|| span.entered());
+    }
+
+    pub fn upstream_request_span(&mut self) -> EnteredSpan {
+        self.upstream_request_span
+            .take()
+            .expect("Upstream tracing span not set")
     }
 
     pub fn route(&self) -> Option<&MatchRouteResult> {
@@ -126,13 +136,6 @@ impl RequestContext {
             endpoint_resolver,
             client_addr,
         });
-    }
-
-    pub fn set_otel_context(&mut self, ctx: opentelemetry::Context) {
-        self.otel_context = Some(ctx);
-    }
-    pub fn otel_context(&self) -> Option<&opentelemetry::Context> {
-        self.otel_context.as_ref()
     }
 
     pub async fn generate_error_response(
