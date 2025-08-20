@@ -3,7 +3,11 @@ use http::header::{CONTENT_LENGTH, CONTENT_TYPE};
 use http::{Response, StatusCode};
 use problemdetails::Problem;
 use std::borrow::Cow;
+use opentelemetry::trace::TraceContextExt;
+use opentelemetry::TraceId;
 use strum::IntoStaticStr;
+use tracing::Span;
+use tracing_opentelemetry::OpenTelemetrySpanExt;
 use url::Url;
 use vg_core::config::gateway::types::GatewayConfiguration;
 use vg_core::config::gateway::types::net::ErrorResponseKind;
@@ -124,6 +128,17 @@ trait ErrorResponseGenerator: PartialEq {
     fn body(&self, _code: ErrorResponseCode) -> Option<(&'static str, Cow<'static, str>)> {
         None
     }
+    
+    fn trace_id(&self) -> Option<String> {
+        let span = Span::current();
+        let context = span.context();
+        let trace_id = context.span().span_context().trace_id();
+        if trace_id != TraceId::INVALID {
+            Some(trace_id.to_string())
+        } else {
+            None
+        }
+    }
 }
 
 #[derive(PartialEq, Eq, Clone)]
@@ -186,6 +201,12 @@ impl ErrorResponseGenerator for ProblemDetailErrorResponseGenerator {
             .with_value("status", status_code.as_u16())
             .with_type(format!("{}{}", self.authority, code_str))
             .with_detail(message);
+        
+        let problem = if let Some(trace_id) = self.trace_id() {
+            problem.with_value("trace_id", trace_id)
+        } else {
+            problem
+        };
 
         let body: String = serde_json::to_string(&problem.body).unwrap();
 
