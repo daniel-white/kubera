@@ -522,6 +522,7 @@ fn process_http_routes(
                                             request_redirect: None,
                                             url_rewrite: None,
                                             ext_static_response: None,
+                                            ext_access_control: None,
                                         };
 
                                         target.add_filter(vg_filter);
@@ -560,6 +561,7 @@ fn process_http_routes(
                                             request_redirect: None,
                                             url_rewrite: None,
                                             ext_static_response: None,
+                                            ext_access_control: None,
                                         };
 
                                         target.add_filter(vg_filter);
@@ -577,6 +579,7 @@ fn process_http_routes(
                                             request_redirect: Some(vg_redirect),
                                             url_rewrite: None,
                                             ext_static_response: None,
+                                            ext_access_control: None,
                                         };
                                         target.add_filter(vg_filter);
                                     }
@@ -619,6 +622,7 @@ fn process_http_routes(
                                             request_redirect: None,
                                             url_rewrite: Some(vg_url_rewrite),
                                             ext_static_response: None,
+                                            ext_access_control: None,
                                         };
                                         target.add_filter(vg_filter);
                                     }
@@ -645,6 +649,7 @@ fn process_http_routes(
                                                         request_redirect: None,
                                                         url_rewrite: None,
                                                         ext_static_response: Some(static_response),
+                                                        ext_access_control: None,
                                                     };
 
                                                     target.add_filter(vg_filter);

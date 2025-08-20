@@ -33,7 +33,7 @@ use pingora::protocols::http::error_resp::gen_error_response;
 use router::HttpRouter;
 use std::collections::HashMap;
 use std::sync::Arc;
-use tracing::{debug, info_span, instrument, warn, Span};
+use tracing::{Span, debug, info_span, instrument, warn};
 use typed_builder::TypedBuilder;
 use vg_core::config::gateway::types::net::StaticResponse;
 use vg_core::sync::signal::Receiver;

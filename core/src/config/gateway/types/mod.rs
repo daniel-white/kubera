@@ -5,8 +5,8 @@ use crate::config::gateway::types::http::router::{
     HttpRoute, HttpRouteBuilder, HttpRouteBuilderError,
 };
 use crate::config::gateway::types::net::{
-    ClientAddrs, ClientAddrsBuilder, ErrorResponses, Listener, ListenerBuilder,
-    ListenerBuilderError, StaticResponse, StaticResponses,
+    AccessControlFilters, ClientAddrs, ClientAddrsBuilder, ErrorResponses, Listener,
+    ListenerBuilder, ListenerBuilderError, StaticResponse, StaticResponses,
 };
 use crate::net::Port;
 use getset::{CloneGetters, CopyGetters, Getters};
@@ -78,6 +78,10 @@ pub struct GatewayConfiguration {
     #[getset(get = "pub")]
     #[serde(default, skip_serializing_if = "Option::is_none")]
     static_responses: Option<StaticResponses>,
+
+    #[getset(get = "pub")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    access_control_filters: Option<AccessControlFilters>,
 }
 
 #[derive(Debug, Default)]
@@ -89,6 +93,7 @@ pub struct GatewayConfigurationBuilder {
     client_addrs_builder: Option<ClientAddrsBuilder>,
     error_responses: Option<ErrorResponses>,
     static_responses: Option<StaticResponses>,
+    access_control_filters: Option<AccessControlFilters>,
 }
 
 #[derive(Debug, Error)]
@@ -97,6 +102,8 @@ pub enum GatewayConfigurationBuilderError {
     InvalidHttpRoute(usize, HttpRouteBuilderError),
     #[error("Invalid listener at index {0}: {1}")]
     InvalidListener(usize, ListenerBuilderError),
+    #[error("Route references unknown access control filter: {0}")]
+    UnknownAccessControlFilter(String),
 }
 
 impl GatewayConfigurationBuilder {
@@ -116,7 +123,7 @@ impl GatewayConfigurationBuilder {
         if let Some(err) = errs.into_iter().next() {
             return Err(err);
         }
-
+        
         let (listeners, errs): (Vec<_>, Vec<_>) = self
             .listeners_builders
             .into_iter()
@@ -141,6 +148,7 @@ impl GatewayConfigurationBuilder {
             client_addrs: self.client_addrs_builder.map(ClientAddrsBuilder::build),
             error_responses: self.error_responses,
             static_responses: self.static_responses,
+            access_control_filters: self.access_control_filters,
         })
     }
 
@@ -203,6 +211,14 @@ impl GatewayConfigurationBuilder {
                 .build();
             Some(static_responses)
         };
+        self
+    }
+
+    pub fn with_access_control_filters(
+        &mut self,
+        access_control_filters: AccessControlFilters,
+    ) -> &mut Self {
+        self.access_control_filters = Some(access_control_filters);
         self
     }
 }

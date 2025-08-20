@@ -37,6 +37,9 @@ pub struct HttpRouteFilter {
 
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ext_static_response: Option<ExtStaticResponseRef>,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ext_access_control: Option<ExtAccessControlRef>,
 }
 
 /// HTTP Route Filter Types - matches Gateway API filter types
@@ -54,6 +57,8 @@ pub enum HttpRouteFilterType {
     URLRewrite,
     #[serde(rename = "StaticResponse")]
     ExtStaticResponse,
+    #[serde(rename = "AccessControl")]
+    ExtAccessControl,
 }
 
 /// Request header modification filter - matches Gateway API `RequestHeaderModifier` structure
@@ -186,6 +191,11 @@ pub struct BackendRef {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct StaticResponseRef {
+    pub key: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct ExtAccessControlRef {
     pub key: String,
 }
 

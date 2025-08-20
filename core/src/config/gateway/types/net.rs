@@ -522,3 +522,44 @@ pub struct StaticResponseBody {
     #[builder(setter(into))]
     identifier: String,
 }
+
+#[derive(Deserialize, Serialize, Clone, Debug, JsonSchema, PartialEq, Getters, TypedBuilder)]
+pub struct AccessControlFilter {
+    #[getset(get = "pub")]
+    key: String,
+
+    #[getset(get = "pub")]
+    effect: AccessControlFilterEffect,
+
+    #[getset(get = "pub")]
+    clients: AccessControlFilterClientMatches,
+}
+
+#[derive(Deserialize, Serialize, Clone, Debug, JsonSchema, PartialEq)]
+pub enum AccessControlFilterEffect {
+    Allow,
+    Deny,
+}
+
+#[derive(Deserialize, Serialize, Clone, Debug, JsonSchema, PartialEq, Getters, TypedBuilder)]
+#[serde(rename_all = "camelCase")]
+pub struct AccessControlFilterClientMatches {
+    #[getset(get = "pub")]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    ips: Vec<std::net::IpAddr>,
+
+    #[getset(get = "pub")]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[schemars(schema_with = "cidr_array_schema")]
+    ip_ranges: Vec<ipnet::IpNet>,
+}
+
+#[derive(
+    Deserialize, Serialize, Clone, Debug, JsonSchema, PartialEq, Getters, Default, TypedBuilder,
+)]
+pub struct AccessControlFilters {
+    #[getset(get = "pub")]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[builder(default)]
+    filters: Vec<AccessControlFilter>,
+}
