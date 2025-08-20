@@ -2,7 +2,7 @@ use crate::config::gateway::types::http::filters::RequestHeaderModifier;
 use crate::net::{Hostname, Port};
 use getset::Getters;
 use ipnet::IpNet;
-use schemars::{JsonSchema, Schema, SchemaGenerator, json_schema};
+use schemars::{json_schema, JsonSchema, Schema, SchemaGenerator};
 use serde::{Deserialize, Serialize};
 use serde_valid::Validate;
 use std::net::IpAddr;
@@ -526,6 +526,7 @@ pub struct StaticResponseBody {
 #[derive(Deserialize, Serialize, Clone, Debug, JsonSchema, PartialEq, Getters, TypedBuilder)]
 pub struct AccessControlFilter {
     #[getset(get = "pub")]
+    #[builder(setter(into))]
     key: String,
 
     #[getset(get = "pub")]
@@ -542,24 +543,13 @@ pub enum AccessControlFilterEffect {
 }
 
 #[derive(Deserialize, Serialize, Clone, Debug, JsonSchema, PartialEq, Getters, TypedBuilder)]
-#[serde(rename_all = "camelCase")]
 pub struct AccessControlFilterClientMatches {
     #[getset(get = "pub")]
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    ips: Vec<std::net::IpAddr>,
+    ips: Vec<IpAddr>,
 
     #[getset(get = "pub")]
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     #[schemars(schema_with = "cidr_array_schema")]
-    ip_ranges: Vec<ipnet::IpNet>,
-}
-
-#[derive(
-    Deserialize, Serialize, Clone, Debug, JsonSchema, PartialEq, Getters, Default, TypedBuilder,
-)]
-pub struct AccessControlFilters {
-    #[getset(get = "pub")]
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    #[builder(default)]
-    filters: Vec<AccessControlFilter>,
+    ip_ranges: Vec<IpNet>,
 }

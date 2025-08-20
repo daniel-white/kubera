@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use strum::{EnumString, IntoStaticStr};
 use tracing::{debug, info};
-use vg_api::v1alpha1::StaticResponseFilter;
+use vg_api::v1alpha1::{AccessControlFilter, StaticResponseFilter};
 use vg_core::continue_on;
 use vg_core::sync::signal::{Receiver, signal};
 use vg_core::task::Builder as TaskBuilder;
@@ -14,30 +14,42 @@ use vg_macros::await_ready;
 #[derive(Debug, Clone, PartialEq, Eq, EnumString, IntoStaticStr)]
 pub enum ExtensionFilterKind {
     StaticResponseFilter,
+    AccessControlFilter,
 }
 
 #[derive(Debug, Default, Clone, PartialEq, Getters)]
 pub struct ExtensionFilters {
     #[getset(get = "pub")]
     static_responses: Objects<StaticResponseFilter>,
+    #[getset(get = "pub")]
+    access_controls: Objects<AccessControlFilter>,
 }
 
 pub fn collect_extension_filters_by_gateway(
     task_builder: &TaskBuilder,
     http_routes_by_gateway_rx: &Receiver<HashMap<ObjectRef, Vec<Arc<HTTPRoute>>>>,
     static_response_filters_rx: &Receiver<Objects<StaticResponseFilter>>,
+    access_control_filters_rx: &Receiver<Objects<AccessControlFilter>>,
 ) -> Receiver<HashMap<ObjectRef, ExtensionFilters>> {
     let (tx, rx) = signal("collected_extension_filters_by_gateway");
 
     let http_routes_by_gateway_rx = http_routes_by_gateway_rx.clone();
     let static_response_filters_rx = static_response_filters_rx.clone();
+    let access_control_filters_rx = access_control_filters_rx.clone();
 
     task_builder
-        .new_task(stringify!(pub fn collect_static_response_filters_by_gateway))
+        .new_task(stringify!(pub fn collect_extension_filters_by_gateway))
         .spawn(async move {
             loop {
-                await_ready!(http_routes_by_gateway_rx, static_response_filters_rx)
-                    .and_then(async |http_routes_by_gateway, static_response_filters| {
+                await_ready!(
+                    http_routes_by_gateway_rx,
+                    static_response_filters_rx,
+                    access_control_filters_rx
+                )
+                .and_then(
+                    async |http_routes_by_gateway,
+                           static_response_filters,
+                           access_control_filters| {
                         let mut filters: HashMap<ObjectRef, ExtensionFilters> = HashMap::new();
 
                         for (gateway_ref, http_routes) in http_routes_by_gateway {
@@ -75,18 +87,33 @@ pub fn collect_extension_filters_by_gateway(
                                             .static_responses
                                             .insert(static_response_filter);
                                     }
+                                } else if Ok(ExtensionFilterKind::AccessControlFilter) == kind {
+                                    let filter_ref = ObjectRef::of_kind::<AccessControlFilter>()
+                                        .namespace(gateway_ref.namespace().clone())
+                                        .name(&filter.name)
+                                        .build();
+
+                                    if let Some(access_control_filter) =
+                                        access_control_filters.get_by_ref(&filter_ref)
+                                    {
+                                        let _ = extension_filters
+                                            .access_controls
+                                            .insert(access_control_filter);
+                                    }
                                 }
                             }
                         }
 
                         tx.set(filters).await;
-                    })
-                    .run()
-                    .await;
+                    },
+                )
+                .run()
+                .await;
 
                 continue_on!(
                     http_routes_by_gateway_rx.changed(),
-                    static_response_filters_rx.changed()
+                    static_response_filters_rx.changed(),
+                    access_control_filters_rx.changed()
                 );
             }
         });

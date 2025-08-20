@@ -194,7 +194,7 @@ pub struct StaticResponseRef {
     pub key: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TypedBuilder)]
 pub struct ExtAccessControlRef {
     pub key: String,
 }

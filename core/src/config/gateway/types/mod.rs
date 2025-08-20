@@ -5,7 +5,7 @@ use crate::config::gateway::types::http::router::{
     HttpRoute, HttpRouteBuilder, HttpRouteBuilderError,
 };
 use crate::config::gateway::types::net::{
-    AccessControlFilters, ClientAddrs, ClientAddrsBuilder, ErrorResponses, Listener,
+    AccessControlFilter, ClientAddrs, ClientAddrsBuilder, ErrorResponses, Listener,
     ListenerBuilder, ListenerBuilderError, StaticResponse, StaticResponses,
 };
 use crate::net::Port;
@@ -80,8 +80,8 @@ pub struct GatewayConfiguration {
     static_responses: Option<StaticResponses>,
 
     #[getset(get = "pub")]
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    access_control_filters: Option<AccessControlFilters>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    access_control_filters: Vec<AccessControlFilter>,
 }
 
 #[derive(Debug, Default)]
@@ -93,7 +93,7 @@ pub struct GatewayConfigurationBuilder {
     client_addrs_builder: Option<ClientAddrsBuilder>,
     error_responses: Option<ErrorResponses>,
     static_responses: Option<StaticResponses>,
-    access_control_filters: Option<AccessControlFilters>,
+    access_control_filters: Vec<AccessControlFilter>,
 }
 
 #[derive(Debug, Error)]
@@ -123,7 +123,7 @@ impl GatewayConfigurationBuilder {
         if let Some(err) = errs.into_iter().next() {
             return Err(err);
         }
-        
+
         let (listeners, errs): (Vec<_>, Vec<_>) = self
             .listeners_builders
             .into_iter()
@@ -214,11 +214,8 @@ impl GatewayConfigurationBuilder {
         self
     }
 
-    pub fn with_access_control_filters(
-        &mut self,
-        access_control_filters: AccessControlFilters,
-    ) -> &mut Self {
-        self.access_control_filters = Some(access_control_filters);
+    pub fn with_access_control_filters(&mut self, filters: Vec<AccessControlFilter>) -> &mut Self {
+        self.access_control_filters = filters;
         self
     }
 }
