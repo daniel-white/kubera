@@ -33,7 +33,9 @@ use std::sync::Arc;
 use thiserror::Error;
 pub use transformers::StaticResponsesCache;
 use typed_builder::TypedBuilder;
-use vg_api::v1alpha1::{GatewayClassParameters, GatewayParameters, StaticResponseFilter};
+use vg_api::v1alpha1::{
+    AccessControlFilter, GatewayClassParameters, GatewayParameters, StaticResponseFilter,
+};
 use vg_core::sync::signal::Receiver;
 use vg_core::task::Builder as TaskBuilder;
 
@@ -84,6 +86,8 @@ pub fn spawn_controllers(task_builder: &TaskBuilder, params: SpawnControllersPar
         watch_objects!(options, task_builder, GatewayParameters, kube_client_rx);
     let static_response_filters_rx =
         watch_objects!(options, task_builder, StaticResponseFilter, kube_client_rx);
+    let access_control_filters_rx =
+        watch_objects!(options, task_builder, AccessControlFilter, kube_client_rx);
 
     let gateway_class_rx = filter_gateway_classes(task_builder, &gateway_classes_rx);
     let gateway_class_parameters_rx = filter_gateway_class_parameters(
@@ -140,6 +144,13 @@ pub fn spawn_controllers(task_builder: &TaskBuilder, params: SpawnControllersPar
         &http_routes_rx,
     );
 
+    // Add AccessControlFilter status controller
+    sync::sync_access_control_filter_status(
+        task_builder,
+        &access_control_filters_rx,
+        &kube_client_rx,
+    );
+
     let http_routes_by_gateway_rx = collect_http_routes_by_gateway(task_builder, &http_routes_rx);
     let service_backends_rx = collect_http_route_backends(task_builder, &http_routes_rx);
     let backends_rx =
@@ -148,6 +159,7 @@ pub fn spawn_controllers(task_builder: &TaskBuilder, params: SpawnControllersPar
         task_builder,
         &http_routes_by_gateway_rx,
         &static_response_filters_rx,
+        &access_control_filters_rx
     );
 
     bind_static_responses_cache(

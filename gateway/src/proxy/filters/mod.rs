@@ -7,3 +7,4 @@ pub mod request_redirect;
 pub mod response_headers;
 pub mod static_responses;
 pub mod url_rewrite;
+pub mod access_control;

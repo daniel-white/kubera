@@ -7,6 +7,9 @@ pub mod router;
 
 use crate::controllers::static_response_bodies_cache::StaticResponseBodiesCache;
 use crate::proxy::context::{MatchRouteResult, UpstreamPeerResult};
+use crate::proxy::filters::access_control::{
+    AccessControlEvaluationResult, AccessControlFilterHandler,
+};
 use crate::proxy::filters::downstream_request_context_injector::UpstreamRequestContextInjectorFilter;
 use crate::proxy::filters::request_context_extractor::RequestContextExtractorFilter;
 use crate::proxy::filters::static_responses::StaticResponseFilter;
@@ -33,15 +36,18 @@ use pingora::protocols::http::error_resp::gen_error_response;
 use router::HttpRouter;
 use std::collections::HashMap;
 use std::sync::Arc;
-use tracing::{debug, info_span, instrument, warn, Span};
+use tracing::{debug, info, info_span, instrument, warn, Span};
 use typed_builder::TypedBuilder;
-use vg_core::config::gateway::types::net::StaticResponse;
+use vg_core::config::gateway::types::net::{
+    AccessControlFilter, AccessControlFilterEffect, StaticResponse,
+};
 use vg_core::sync::signal::Receiver;
 
 #[derive(TypedBuilder)]
 pub struct Proxy {
     router_rx: Receiver<HttpRouter>,
     client_addr_filter_rx: Receiver<ClientAddrFilter>,
+    access_control_filters_rx: Receiver<Arc<HashMap<String, AccessControlFilter>>>,
     error_responses_rx: Receiver<ErrorResponseGenerators>,
     static_responses_rx: Receiver<Arc<HashMap<String, StaticResponse>>>,
     static_response_bodies_cache: StaticResponseBodiesCache,
@@ -139,7 +145,86 @@ impl ProxyHttp for Proxy {
 
         let error_code = match route {
             MatchRouteResult::Found(route, rule, matched_prefix) => {
-                // Check for static response filters first - they should take precedence
+                if let Some(filter_defs) = self.access_control_filters_rx.get().await {
+                    let filters = rule
+                        .filters()
+                        .iter()
+                        .filter_map(|f| f.ext_access_control.as_ref());
+                    let filters: Vec<_> = filters.filter_map(|f| filter_defs.get(&f.key)).collect();
+
+                    let mut handler = AccessControlFilterHandler::builder();
+                    for filter in filters {
+                        for ip in filter.clients().ips() {
+                            match filter.effect() {
+                                AccessControlFilterEffect::Allow => {
+                                    handler.allow_ip(*ip);
+                                }
+                                AccessControlFilterEffect::Deny => {
+                                    handler.deny_ip(*ip);
+                                }
+                            }
+                        }
+
+                        for ip_range in filter.clients().ip_ranges() {
+                            match filter.effect() {
+                                AccessControlFilterEffect::Allow => {
+                                    handler.allow_ip_range(*ip_range);
+                                }
+                                AccessControlFilterEffect::Deny => {
+                                    handler.deny_ip_range(*ip_range);
+                                }
+                            }
+                        }
+                    }
+
+                    let handler = handler.build();
+
+                    match handler.evaluate(client_addr) {
+                        AccessControlEvaluationResult::Allowed => {
+                            debug!(
+                                "Access control filters allowed request for client: {:?}",
+                                client_addr
+                            );
+                        }
+                        AccessControlEvaluationResult::Denied => {
+                            info!(
+                                "Access control filters denied request for client: {:?}",
+                                client_addr
+                            );
+                            let response = ctx
+                                .generate_error_response(ErrorResponseCode::AccessDenied)
+                                .await;
+
+                            let mut error_response = gen_error_response(response.status().into());
+                            self.set_response_server_header(&mut error_response)?;
+                            for (name, value) in response.headers() {
+                                error_response.insert_header(name, value)?;
+                            }
+
+                            session.write_response_header_ref(&error_response).await?;
+                            session
+                                .write_response_body(response.body().clone(), true)
+                                .await?;
+                            return Ok(true); // Request handled, don't proceed to upstream
+                        }
+                    }
+                } else {
+                    let response = ctx
+                        .generate_error_response(ErrorResponseCode::InvalidConfiguration)
+                        .await;
+
+                    let mut error_response = gen_error_response(response.status().into());
+                    self.set_response_server_header(&mut error_response)?;
+                    for (name, value) in response.headers() {
+                        error_response.insert_header(name, value)?;
+                    }
+
+                    session.write_response_header_ref(&error_response).await?;
+                    session
+                        .write_response_body(response.body().clone(), true)
+                        .await?;
+                    return Ok(true); // Request handled, don't proceed to upstream
+                }
                 for filter in rule.filters() {
                     if let Some(ext_static_response) = &filter.ext_static_response {
                         if let Some(static_responses) = self.static_responses_rx.get().await {

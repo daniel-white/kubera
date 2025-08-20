@@ -1,5 +1,5 @@
-use super::score::HttpRouteRuleMatchesScore;
 use super::Match;
+use super::score::HttpRouteRuleMatchesScore;
 use crate::util::get_regex;
 use tracing::{debug, instrument};
 

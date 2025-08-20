@@ -19,5 +19,5 @@ rules:
     resources: [ "gatewayclasses/status", "gateways/status", "httproutes/status", "tcproutes/status", "udproutes/status" ]
     verbs: [ "get", "update", "patch" ]
   - apiGroups: [ "vale-gateway.whitefamily.in" ]
-    resources: [ "staticresponsefilters/status" ]
+    resources: [ "accesscontrolfilters/status", "staticresponsefilters/status" ]
     verbs: [ "get", "update", "patch" ]

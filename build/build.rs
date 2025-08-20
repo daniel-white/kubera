@@ -44,6 +44,7 @@ fn write_crds(out_dir: &Path) {
     [
         GatewayClassParameters::crd(),
         GatewayParameters::crd(),
+        AccessControlFilter::crd(),
         StaticResponseFilter::crd(),
     ]
     .iter()

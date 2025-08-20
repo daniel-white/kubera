@@ -3,8 +3,8 @@ use crate::controllers::transformers::{
     Backend, ExtensionFilterKind, ExtensionFilters, GatewayInstanceConfiguration,
 };
 use crate::ipc::IpcServices;
-use crate::kubernetes::KubeClientCell;
 use crate::kubernetes::objects::{ObjectRef, SyncObjectAction};
+use crate::kubernetes::KubeClientCell;
 use crate::options::Options;
 use crate::{sync_objects, watch_objects};
 use gateway_api::apis::standard::httproutes::{
@@ -16,8 +16,8 @@ use gateway_api::httproutes::HTTPRouteRulesMatches;
 use getset::CloneGetters;
 use gtmpl_derive::Gtmpl;
 use k8s_openapi::api::core::v1::{ConfigMap, Service};
-use kube::ResourceExt;
 use kube::runtime::watcher::Config;
+use kube::ResourceExt;
 use std::collections::{HashMap, HashSet};
 use std::net::IpAddr;
 use std::sync::Arc;
@@ -26,22 +26,26 @@ use tokio::sync::mpsc::UnboundedSender;
 use tracing::{debug, error, info, warn};
 use typed_builder::TypedBuilder;
 use vg_api::v1alpha1::{
-    ClientAddressesSource, ErrorResponseKind, ProxyIpAddressHeaders, StaticResponseFilter,
+    AccessControlFilter, AccessControlFilterEffect, ClientAddressesSource, ErrorResponseKind,
+    ProxyIpAddressHeaders, StaticResponseFilter,
 };
 use vg_core::config::gateway::types::http::filters::{
-    ExtStaticResponseRef, HTTPHeader, HttpRouteFilter, HttpRouteFilterType, RequestHeaderModifier,
-    ResponseHeaderModifier,
+    ExtAccessControlRef, ExtStaticResponseRef, HTTPHeader, HttpRouteFilter, HttpRouteFilterType,
+    RequestHeaderModifier, ResponseHeaderModifier,
 };
 use vg_core::config::gateway::types::http::router::{
     HttpMethodMatch, HttpRouteBuilder, HttpRouteRuleBuilder, HttpRouteRuleMatchesBuilder,
 };
 use vg_core::config::gateway::types::net::{
+    AccessControlFilter as ConfigAccessControlFilter,
+    AccessControlFilterClientMatches as ConfigAccessControlFilterClientMatches,
+    AccessControlFilterEffect as ConfigAccessControlEffect,
     ErrorResponseKind as ConfigErrorResponseKind, ErrorResponses as ConfigErrorResponses,
     ProblemDetailErrorResponse, ProxyHeaders, StaticResponse, StaticResponseBody,
 };
 use vg_core::config::gateway::types::{GatewayConfiguration, GatewayConfigurationBuilder};
 use vg_core::net::{Hostname, Port};
-use vg_core::sync::signal::{Receiver, signal};
+use vg_core::sync::signal::{signal, Receiver};
 use vg_core::task::Builder as TaskBuilder;
 use vg_core::{continue_after, continue_on};
 use vg_macros::await_ready;
@@ -308,7 +312,11 @@ fn generate_gateway_configurations(
                                         gateway_instance,
                                     );
                                     if let Some(extension_filters) = extension_filters {
-                                        set_static_responses(
+                                        apply_static_response_filters(
+                                            &mut gateway_configuration,
+                                            extension_filters,
+                                        );
+                                        apply_access_control_filters(
                                             &mut gateway_configuration,
                                             extension_filters,
                                         );
@@ -357,7 +365,38 @@ fn generate_gateway_configurations(
     rx
 }
 
-fn set_static_responses(
+fn apply_access_control_filters(
+    mut gateway_configuration: &mut GatewayConfigurationBuilder,
+    extension_filters: &ExtensionFilters,
+) {
+    if !extension_filters.access_controls().is_empty() {
+        let filters = extension_filters
+            .access_controls()
+            .iter()
+            .map(|(ref_, _, filter)| {
+                let effect = match filter.spec.effect {
+                    AccessControlFilterEffect::Allow => ConfigAccessControlEffect::Allow,
+                    AccessControlFilterEffect::Deny => ConfigAccessControlEffect::Deny,
+                };
+
+                let clients = ConfigAccessControlFilterClientMatches::builder()
+                    .ip_ranges(filter.spec.clients.ip_ranges.clone())
+                    .ips(filter.spec.clients.ips.clone())
+                    .build();
+
+                ConfigAccessControlFilter::builder()
+                    .key(ref_.to_string())
+                    .effect(effect)
+                    .clients(clients)
+                    .build()
+            })
+            .collect();
+
+        gateway_configuration.with_access_control_filters(filters);
+    }
+}
+
+fn apply_static_response_filters(
     builder: &mut GatewayConfigurationBuilder,
     extension_filters: &ExtensionFilters,
 ) {
@@ -522,6 +561,7 @@ fn process_http_routes(
                                             request_redirect: None,
                                             url_rewrite: None,
                                             ext_static_response: None,
+                                            ext_access_control: None,
                                         };
 
                                         target.add_filter(vg_filter);
@@ -560,6 +600,7 @@ fn process_http_routes(
                                             request_redirect: None,
                                             url_rewrite: None,
                                             ext_static_response: None,
+                                            ext_access_control: None,
                                         };
 
                                         target.add_filter(vg_filter);
@@ -577,6 +618,7 @@ fn process_http_routes(
                                             request_redirect: Some(vg_redirect),
                                             url_rewrite: None,
                                             ext_static_response: None,
+                                            ext_access_control: None,
                                         };
                                         target.add_filter(vg_filter);
                                     }
@@ -619,6 +661,7 @@ fn process_http_routes(
                                             request_redirect: None,
                                             url_rewrite: Some(vg_url_rewrite),
                                             ext_static_response: None,
+                                            ext_access_control: None,
                                         };
                                         target.add_filter(vg_filter);
                                     }
@@ -645,6 +688,30 @@ fn process_http_routes(
                                                         request_redirect: None,
                                                         url_rewrite: None,
                                                         ext_static_response: Some(static_response),
+                                                        ext_access_control: None,
+                                                    };
+
+                                                    target.add_filter(vg_filter);
+                                                }
+                                                Ok(ExtensionFilterKind::AccessControlFilter) => {
+                                                    let filter_ref = ObjectRef::of_kind::<AccessControlFilter>()
+                                                        .namespace(http_route.metadata.namespace.clone())
+                                                        .name(&extension_ref.name)
+                                                        .build();
+
+                                                    let access_control = ExtAccessControlRef::builder()
+                                                        .key(filter_ref.to_string())
+                                                        .build();
+
+                                                    let vg_filter = HttpRouteFilter {
+                                                        filter_type: HttpRouteFilterType::ExtAccessControl,
+                                                        request_header_modifier: None,
+                                                        response_header_modifier: None,
+                                                        request_mirror: None,
+                                                        request_redirect: None,
+                                                        url_rewrite: None,
+                                                        ext_static_response: None,
+                                                        ext_access_control: Some(access_control),
                                                     };
 
                                                     target.add_filter(vg_filter);

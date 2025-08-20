@@ -1,3 +1,15 @@
+---
+apiVersion: vale-gateway.whitefamily.in/v1alpha1
+kind: AccessControlFilter
+metadata:
+  name: global-filter
+  namespace: default
+spec:
+  effect: Allow
+  clients:
+    ipRanges:
+      - 0.0.0.0/32
+
 apiVersion: gateway.networking.k8s.io/v1beta1
 kind: Gateway
 metadata:
@@ -12,6 +24,12 @@ spec:
       allowedRoutes:
         namespaces:
           from: Same
+#      filters:
+#        - type: ExtensionRef
+#          extensionRef:
+#            group: vale-gateway.whitefamily.in
+#            kind: AccessControlFilter
+#            name: global-filter
 ---
 apiVersion: v1
 kind: Service
@@ -537,3 +555,43 @@ spec:
           env:
             - name: GATEWAY_NAME
               value: "vale-gateway"
+---
+apiVersion: vale-gateway.whitefamily.in/v1alpha1
+kind: AccessControlFilter
+metadata:
+  name: echo-access-control
+  namespace: default
+spec:
+  effect: Allow
+  clients:
+    ips:
+      - 192.168.1.10
+      - 10.0.0.5
+    ipRanges:
+      - 192.168.1.0/24
+      - 10.0.0.0/8
+---
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: HTTPRoute
+metadata:
+  name: echo-route-acl
+  namespace: default
+spec:
+  parentRefs:
+    - name: vale-gateway
+      namespace: default
+      sectionName: http
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: "/acl"
+      filters:
+        - type: ExtensionRef
+          extensionRef:
+            group: vale-gateway.whitefamily.in
+            kind: AccessControlFilter
+            name: echo-access-control
+      backendRefs:
+        - name: echo-service
+          port: 80
