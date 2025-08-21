@@ -1,13 +1,12 @@
+use crate::proxy::instrumentation::RequestInstrumentation;
 use crate::proxy::responses::error_responses::{ErrorResponseCode, ErrorResponseGenerators};
 use crate::proxy::router::endpoints::EndpointsResolver;
 use crate::proxy::router::{HttpRoute, HttpRouteRule};
 use bytes::Bytes;
+use getset::Getters;
 use http::Response;
-use opentelemetry::trace::Tracer;
 use std::net::{IpAddr, SocketAddr};
 use std::sync::{Arc, OnceLock};
-use tracing::Span;
-use tracing::span::EnteredSpan;
 use typed_builder::TypedBuilder;
 use vg_core::sync::signal::Receiver;
 
@@ -27,13 +26,10 @@ struct ContextState {
     client_addr: Option<IpAddr>,
 }
 
-#[derive(TypedBuilder)]
+#[derive(TypedBuilder, Getters)]
 pub struct RequestContext {
-    #[builder(default)]
-    request_span: OnceLock<Span>,
-
-    #[builder(default)]
-    upstream_request_span: OnceLock<EnteredSpan>,
+    #[getset(get = "pub")]
+    instrumentation: RequestInstrumentation,
 
     error_response_generators_rx: Receiver<ErrorResponseGenerators>,
 
@@ -53,24 +49,6 @@ pub enum MatchRouteResult {
 }
 
 impl RequestContext {
-    pub fn set_request_span(&mut self, span: Span) {
-        let _ = self.request_span.get_or_init(|| span);
-    }
-
-    pub fn request_span(&self) -> &Span {
-        self.request_span.get().expect("Tracing span not set")
-    }
-
-    pub fn set_upstream_request_span(&mut self, span: Span) {
-        let _ = self.upstream_request_span.get_or_init(|| span.entered());
-    }
-
-    pub fn upstream_request_span(&mut self) -> EnteredSpan {
-        self.upstream_request_span
-            .take()
-            .expect("Upstream tracing span not set")
-    }
-
     pub fn route(&self) -> Option<&MatchRouteResult> {
         self.state.get().map(|x| &x.route)
     }

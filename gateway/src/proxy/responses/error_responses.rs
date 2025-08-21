@@ -1,10 +1,10 @@
 use bytes::Bytes;
 use http::header::{CONTENT_LENGTH, CONTENT_TYPE};
 use http::{Response, StatusCode};
+use opentelemetry::TraceId;
+use opentelemetry::trace::TraceContextExt;
 use problemdetails::Problem;
 use std::borrow::Cow;
-use opentelemetry::trace::TraceContextExt;
-use opentelemetry::TraceId;
 use strum::IntoStaticStr;
 use tracing::Span;
 use tracing_opentelemetry::OpenTelemetrySpanExt;
@@ -128,7 +128,7 @@ trait ErrorResponseGenerator: PartialEq {
     fn body(&self, _code: ErrorResponseCode) -> Option<(&'static str, Cow<'static, str>)> {
         None
     }
-    
+
     fn trace_id(&self) -> Option<String> {
         let span = Span::current();
         let context = span.context();
@@ -201,7 +201,7 @@ impl ErrorResponseGenerator for ProblemDetailErrorResponseGenerator {
             .with_value("status", status_code.as_u16())
             .with_type(format!("{}{}", self.authority, code_str))
             .with_detail(message);
-        
+
         let problem = if let Some(trace_id) = self.trace_id() {
             problem.with_value("trace_id", trace_id)
         } else {

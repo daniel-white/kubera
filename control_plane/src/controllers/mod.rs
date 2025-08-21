@@ -159,7 +159,7 @@ pub fn spawn_controllers(task_builder: &TaskBuilder, params: SpawnControllersPar
         task_builder,
         &http_routes_by_gateway_rx,
         &static_response_filters_rx,
-        &access_control_filters_rx
+        &access_control_filters_rx,
     );
 
     bind_static_responses_cache(

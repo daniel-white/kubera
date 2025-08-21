@@ -1,7 +1,7 @@
-use tracing_opentelemetry::OpenTelemetrySpanExt;
 mod constants;
 mod context;
 pub mod filters;
+mod instrumentation;
 pub mod responses;
 pub mod router;
 
@@ -10,9 +10,9 @@ use crate::proxy::context::{MatchRouteResult, UpstreamPeerResult};
 use crate::proxy::filters::access_control::{
     AccessControlEvaluationResult, AccessControlFilterHandler,
 };
-use crate::proxy::filters::downstream_request_context_injector::UpstreamRequestContextInjectorFilter;
-use crate::proxy::filters::request_context_extractor::RequestContextExtractorFilter;
+
 use crate::proxy::filters::static_responses::StaticResponseFilter;
+use crate::proxy::instrumentation::RequestInstrumentation;
 use crate::proxy::responses::error_responses::{ErrorResponseCode, ErrorResponseGenerators};
 use async_trait::async_trait;
 use context::RequestContext;
@@ -21,22 +21,15 @@ use filters::request_headers::RequestHeaderFilter;
 use filters::request_redirect::RequestRedirectFilter;
 use filters::response_headers::ResponseHeaderFilter;
 use filters::url_rewrite::URLRewriteFilter;
-use http::header::{HOST, SERVER, USER_AGENT};
+use http::header::SERVER;
 use http::{HeaderMap, StatusCode};
-use opentelemetry::global::get_text_map_propagator;
-use opentelemetry::trace::Tracer;
-use opentelemetry_semantic_conventions::attribute::URL_SCHEME;
-use opentelemetry_semantic_conventions::trace::{
-    CLIENT_ADDRESS, HTTP_RESPONSE_STATUS_CODE, NETWORK_PEER_ADDRESS, NETWORK_PEER_PORT,
-    SERVER_ADDRESS, USER_AGENT_ORIGINAL,
-};
 use pingora::http::ResponseHeader;
 use pingora::prelude::*;
 use pingora::protocols::http::error_resp::gen_error_response;
 use router::HttpRouter;
 use std::collections::HashMap;
 use std::sync::Arc;
-use tracing::{debug, info, info_span, instrument, warn, Span};
+use tracing::{debug, info, instrument, warn, Instrument};
 use typed_builder::TypedBuilder;
 use vg_core::config::gateway::types::net::{
     AccessControlFilter, AccessControlFilterEffect, StaticResponse,
@@ -58,53 +51,43 @@ impl ProxyHttp for Proxy {
     type CTX = RequestContext;
 
     fn new_ctx(&self) -> Self::CTX {
+        let instrumentation = RequestInstrumentation::new();
+
         RequestContext::builder()
+            .instrumentation(instrumentation)
             .error_response_generators_rx(self.error_responses_rx.clone())
             .build()
     }
 
-    #[instrument(name = "upstream_peer", parent = ctx.request_span(), skip(self, _session, ctx))]
+    #[instrument(name = "upstream_peer", parent = ctx.instrumentation().request_span(), skip(self, _session, ctx))]
     async fn upstream_peer(
         &self,
         _session: &mut Session,
         ctx: &mut Self::CTX,
     ) -> Result<Box<HttpPeer>> {
-        let span = Span::current();
-
         match ctx.next_upstream_peer() {
             UpstreamPeerResult::Addr(addr) => {
-                span.set_attribute(NETWORK_PEER_ADDRESS, addr.ip().to_string());
-                span.set_attribute(NETWORK_PEER_PORT, addr.port() as i64);
+                ctx.instrumentation().record_upstream_peer(addr);
                 Ok(Box::new(HttpPeer::new(addr, false, "".to_string())))
             }
             UpstreamPeerResult::NotFound => {
-                let request_span = ctx.request_span();
-                request_span.set_attribute(
-                    HTTP_RESPONSE_STATUS_CODE,
-                    format!("{:03}", StatusCode::NOT_FOUND.as_u16()),
-                );
+                ctx.instrumentation().record_status(StatusCode::NOT_FOUND);
                 Err(Error::explain(
                     HTTPStatus(StatusCode::NOT_FOUND.into()),
                     "No matching route found",
                 ))
             }
             UpstreamPeerResult::ServiceUnavailable => {
-                let request_span = ctx.request_span();
-                request_span.set_attribute(
-                    HTTP_RESPONSE_STATUS_CODE,
-                    format!("{:03}", StatusCode::SERVICE_UNAVAILABLE.as_u16()),
-                );
+                ctx.instrumentation()
+                    .record_status(StatusCode::SERVICE_UNAVAILABLE);
                 Err(Error::explain(
                     HTTPStatus(StatusCode::SERVICE_UNAVAILABLE.into()),
                     "Service unavailable",
                 ))
             }
             UpstreamPeerResult::MissingConfiguration => {
-                let request_span = ctx.request_span();
-                request_span.set_attribute(
-                    HTTP_RESPONSE_STATUS_CODE,
-                    format!("{:03}", StatusCode::SERVICE_UNAVAILABLE.as_u16()),
-                );
+                ctx.instrumentation()
+                    .record_status(StatusCode::SERVICE_UNAVAILABLE);
                 Err(Error::explain(
                     HTTPStatus(StatusCode::SERVICE_UNAVAILABLE.into()),
                     "Missing configuration",
@@ -113,20 +96,15 @@ impl ProxyHttp for Proxy {
         }
     }
 
-    #[instrument(name = "request_filter", parent = ctx.request_span(), skip(self, session, ctx))]
+    #[instrument(name = "request_filter", parent = ctx.instrumentation().request_span(), skip(self, session, ctx))]
     async fn request_filter(&self, session: &mut Session, ctx: &mut Self::CTX) -> Result<bool> {
-        let span = Span::current();
-        let request_span = ctx.request_span();
-
         let client_addr = if let Some(client_addr_filter) = self.client_addr_filter_rx.get().await {
             client_addr_filter.filter(session)
         } else {
             None
         };
 
-        if let Some(client_addr) = client_addr {
-            request_span.set_attribute(CLIENT_ADDRESS, client_addr.to_string());
-        }
+        ctx.instrumentation().record_client_addr(client_addr);
 
         let router = self.router_rx.get().await;
         let route = if let Some(router) = router {
@@ -243,11 +221,8 @@ impl ProxyHttp for Proxy {
                                         route,
                                         ext_static_response.key()
                                     );
-                                    request_span.set_attribute(
-                                        HTTP_RESPONSE_STATUS_CODE,
-                                        format!("{:03}", status_code.as_u16()),
-                                    );
-                                    return Ok(true); // Request handled, don't proceed to upstream
+                                    ctx.instrumentation().record_status(status_code);
+                                    return Ok(true);
                                 }
                                 Ok(None) => {
                                     debug!(
@@ -288,10 +263,8 @@ impl ProxyHttp for Proxy {
                                 "Applying redirect filter for route: {:?} with prefix: {:?}",
                                 route, matched_prefix
                             );
-                            request_span.set_attribute(
-                                HTTP_RESPONSE_STATUS_CODE,
-                                format!("{:03}", redirect_response.status_code.as_u16()),
-                            );
+                            ctx.instrumentation()
+                                .record_status(redirect_response.status_code);
 
                             // Generate redirect response
                             let mut redirect_resp =
@@ -351,6 +324,7 @@ impl ProxyHttp for Proxy {
 
         let response = ctx.generate_error_response(error_code).await;
 
+        ctx.instrumentation().record_status(response.status());
         let mut error_response = gen_error_response(response.status().into());
         self.set_response_server_header(&mut error_response)?;
         for (name, value) in response.headers() {
@@ -365,59 +339,23 @@ impl ProxyHttp for Proxy {
         Ok(true)
     }
 
+    #[instrument(name = "early_request_filter", parent = ctx.instrumentation().request_span(), skip(self, session, ctx))]
     async fn early_request_filter(&self, session: &mut Session, ctx: &mut Self::CTX) -> Result<()>
     where
         Self::CTX: Send + Sync,
     {
-        let context = get_text_map_propagator(|p| {
-            let filter = RequestContextExtractorFilter::new(p);
-            filter.extract_from_headers(&session.req_header().headers)
-        });
-
-        let request = session.req_header();
-        let http_method = request.method.as_str().to_ascii_uppercase();
-        let uri = &request.uri;
-        let path = uri.path().to_string();
-
-        let span = info_span!("Request",
-            otel.name = %http_method,
-            otel.kind = "server",
-            http.request.method = %http_method,
-            url.path = %path,
-        );
-
-        span.set_parent(context);
-
-        if let Some(scheme) = uri.scheme_str() {
-            span.set_attribute(URL_SCHEME, scheme.to_ascii_lowercase());
-        }
-
-        if let Some(host) = request.headers.get(HOST)
-            && let Some(host) = host.to_str().ok()
-        {
-            span.set_attribute(SERVER_ADDRESS, host.to_string());
-        }
-
-        if let Some(user_agent) = request.headers.get(USER_AGENT)
-            && let Some(user_agent) = user_agent.to_str().ok()
-        {
-            span.set_attribute(USER_AGENT_ORIGINAL, user_agent.to_string());
-        }
-
-        ctx.set_request_span(span);
+        ctx.instrumentation().record_request(session.req_header());
 
         Ok(())
     }
 
-    #[instrument(name = "upstream_request_filter", parent = ctx.request_span(), skip(self, _session, upstream_request, ctx))]
+    #[instrument(name = "upstream_request_filter", parent = ctx.instrumentation().request_span(), skip(self, _session, upstream_request, ctx))]
     async fn upstream_request_filter(
         &self,
         _session: &mut Session,
         upstream_request: &mut RequestHeader,
         ctx: &mut Self::CTX,
     ) -> Result<()> {
-        let request_span = ctx.request_span();
-
         // Apply backend-level header modifications from the matched route rule
         if let Some(MatchRouteResult::Found(route, rule, _)) = ctx.route() {
             if !rule.filters().is_empty() {
@@ -440,41 +378,32 @@ impl ProxyHttp for Proxy {
             debug!("No matched route found for upstream request header filter");
         }
 
-        let upstream_request_span = info_span!("upstream_request", otel.kind = "client");
-        upstream_request_span.set_parent(request_span.context());
-
-        get_text_map_propagator(|p| {
-            let filter = UpstreamRequestContextInjectorFilter::new(p);
-            let mut headers = HeaderMap::new();
-            filter.apply_to_headers(&upstream_request_span, &mut headers);
-            for (name, value) in headers {
-                let _ = upstream_request.insert_header(name.expect("Unable to set header"), value);
-            }
-        });
-
-        ctx.set_upstream_request_span(upstream_request_span);
+        let mut upstream_req_headers = HeaderMap::new();
+        ctx.instrumentation()
+            .begin_upstream_call(&mut upstream_req_headers);
+        for (header_name, header_value) in upstream_req_headers.iter() {
+            let _ = upstream_request.insert_header(
+                header_name.as_str().to_string(),
+                header_value.to_str().unwrap_or("").to_string(),
+            );
+        }
 
         Ok(())
     }
 
-    #[instrument(name = "upstream_response_filter", parent = ctx.request_span(), skip(self, _session, upstream_response, ctx))]
+    #[instrument(name = "upstream_response_filter", parent = ctx.instrumentation().request_span(), skip(self, _session, upstream_response, ctx))]
     fn upstream_response_filter(
         &self,
         _session: &mut Session,
         upstream_response: &mut ResponseHeader,
         ctx: &mut Self::CTX,
     ) -> Result<()> {
-        let upstream_response_span = ctx.upstream_request_span();
-
-        upstream_response_span.set_attribute(
-            HTTP_RESPONSE_STATUS_CODE,
-            upstream_response.status.as_u16() as i64,
-        );
+        ctx.instrumentation().end_upstream_call(upstream_response);
 
         Ok(())
     }
 
-    #[instrument(name = "response_filter", parent = ctx.request_span(), skip(self, _session, upstream_response, ctx))]
+    #[instrument(name = "response_filter", parent = ctx.instrumentation().request_span(), skip(self, _session, upstream_response, ctx))]
     async fn response_filter(
         &self,
         _session: &mut Session,
@@ -484,12 +413,8 @@ impl ProxyHttp for Proxy {
     where
         Self::CTX: Send + Sync,
     {
-        let request_span = ctx.request_span();
-
-        request_span.set_attribute(
-            HTTP_RESPONSE_STATUS_CODE,
-            format!("{:03}", upstream_response.status.as_u16()),
-        );
+        ctx.instrumentation()
+            .record_status(upstream_response.status);
 
         self.set_response_server_header(upstream_response)?;
 

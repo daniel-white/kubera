@@ -3,10 +3,10 @@ use std::collections::HashMap;
 use std::net::IpAddr;
 use std::sync::Arc;
 use tracing::instrument;
-use vg_core::config::gateway::types::net::{AccessControlFilter, StaticResponse};
 use vg_core::config::gateway::types::GatewayConfiguration;
+use vg_core::config::gateway::types::net::{AccessControlFilter, StaticResponse};
 use vg_core::continue_on;
-use vg_core::sync::signal::{signal, Receiver};
+use vg_core::sync::signal::{Receiver, signal};
 use vg_core::task::Builder as TaskBuilder;
 use vg_macros::await_ready;
 
