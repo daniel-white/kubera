@@ -1,46 +1,8 @@
 use ipnet::IpNet;
-use std::collections::HashMap;
 use std::net::IpAddr;
-use std::sync::Arc;
 use tracing::instrument;
-use vg_core::config::gateway::types::GatewayConfiguration;
-use vg_core::config::gateway::types::net::{AccessControlFilter, StaticResponse};
-use vg_core::continue_on;
-use vg_core::sync::signal::{Receiver, signal};
-use vg_core::task::Builder as TaskBuilder;
-use vg_macros::await_ready;
 
-pub fn access_control_filters(
-    task_builder: &TaskBuilder,
-    gateway_configuration_rx: &Receiver<GatewayConfiguration>,
-) -> Receiver<Arc<HashMap<String, AccessControlFilter>>> {
-    let (tx, rx) = signal("static_responses");
-    let gateway_configuration_rx = gateway_configuration_rx.clone();
-
-    task_builder
-        .new_task(stringify!(access_control_filters))
-        .spawn(async move {
-            loop {
-                await_ready!(gateway_configuration_rx)
-                    .and_then(async |gateway_configuration| {
-                        let filters: HashMap<String, AccessControlFilter> = gateway_configuration
-                            .access_control_filters()
-                            .iter()
-                            .map(|f| (f.key().clone(), f.clone()))
-                            .collect();
-
-                        tx.set(Arc::new(filters)).await;
-                    })
-                    .run()
-                    .await;
-
-                continue_on!(gateway_configuration_rx.changed());
-            }
-        });
-
-    rx
-}
-
+#[derive(Debug, PartialEq)]
 enum AccessControlFilterClientMatcher {
     Ip(IpAddr),
     IpRange(IpNet),
@@ -61,6 +23,7 @@ pub enum AccessControlEvaluationResult {
     Denied,
 }
 
+#[derive(Debug, PartialEq)]
 pub struct AccessControlFilterHandler {
     allow_matchers: Vec<AccessControlFilterClientMatcher>,
     deny_matchers: Vec<AccessControlFilterClientMatcher>,

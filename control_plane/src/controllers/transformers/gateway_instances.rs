@@ -2,10 +2,10 @@ use crate::controllers::filters::GatewayClassParametersReferenceState;
 use crate::kubernetes::objects::{ObjectRef, Objects};
 use gateway_api::apis::standard::gateways::Gateway;
 use getset::Getters;
-use k8s_openapi::DeepMerge;
 use k8s_openapi::api::apps::v1::{Deployment, DeploymentSpec, DeploymentStrategy};
 use k8s_openapi::api::core::v1::{Service, ServiceSpec};
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
+use k8s_openapi::DeepMerge;
 use serde_json::{from_value, json};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -15,10 +15,10 @@ use vg_api::v1alpha1::{
     GatewayClassParameters, GatewayConfiguration, GatewayInstrumentationOpenTelemetry,
     GatewayParameters, ImagePullPolicy as ApiImagePullPolicy,
 };
-use vg_core::continue_on;
-use vg_core::sync::signal::{Receiver, signal};
+use vg_core::sync::signal::{signal, Receiver};
 use vg_core::task::Builder as TaskBuilder;
-use vg_macros::await_ready;
+use vg_core::ReadyState;
+use vg_core::{await_ready, continue_on};
 
 #[derive(Default, Copy, Clone, Debug, PartialEq, IntoStaticStr)]
 #[strum(serialize_all = "PascalCase")]
@@ -82,77 +82,72 @@ pub fn collect_gateway_instances(
         .new_task(stringify!(collect_gateway_instances))
         .spawn(async move {
             loop {
-                await_ready!(
+                if let ReadyState::Ready((gateways, gateway_class_parameters, gateway_parameters)) = await_ready!(
                     gateways_rx,
                     gateway_class_parameters_rx,
-                    gateway_parameters_rx,
-                )
-                .and_then(
-                    async |gateways, gateway_class_parameters, gateway_parameters| {
-                        info!("Collecting gateway instances");
-                        let gateway_class_parameters: Option<Arc<GatewayClassParameters>> =
-                            gateway_class_parameters.into();
-                        let gateway_class_parameters = gateway_class_parameters.as_deref();
+                    gateway_parameters_rx
+                ) {
+                    info!("Collecting gateway instances");
+                    let gateway_class_parameters: Option<Arc<GatewayClassParameters>> =
+                        gateway_class_parameters.into();
+                    let gateway_class_parameters = gateway_class_parameters.as_deref();
 
-                        let instances = gateways
-                            .iter()
-                            .map(|(gateway_ref, _, gateway)| {
-                                info!("Processing gateway instance: {}", gateway_ref);
-                                let gateway_parameters =
-                                    gateway_parameters.get_by_ref(&gateway_ref);
-                                let gateway_parameters = gateway_parameters.as_deref();
-                                let (
+                    let instances = gateways
+                        .iter()
+                        .map(|(gateway_ref, _, gateway)| {
+                            info!("Processing gateway instance: {}", gateway_ref);
+                            let gateway_parameters =
+                                gateway_parameters.get_by_ref(&gateway_ref);
+                            let gateway_parameters = gateway_parameters.as_deref();
+                            let (
+                                deployment_overrides,
+                                image_pull_policy,
+                                image_repository,
+                                image_tag,
+                            ) = merge_deployment_overrides(
+                                &gateway,
+                                gateway_class_parameters,
+                                gateway_parameters,
+                            );
+                            let service_overrides = merge_service_overrides(
+                                &gateway,
+                                gateway_class_parameters,
+                                gateway_parameters,
+                            );
+                            let configuration = merge_gateway_configuration(
+                                &gateway,
+                                gateway_class_parameters,
+                                gateway_parameters,
+                            );
+                            let merged_open_telemetry = gateway_parameters
+                                .and_then(|p| p.spec.common.as_ref())
+                                .and_then(|c| c.gateway.as_ref())
+                                .and_then(|g| g.instrumentation.as_ref())
+                                .and_then(|inst| inst.open_telemetry.clone())
+                                .or_else(|| {
+                                    gateway_class_parameters
+                                        .and_then(|p| p.spec.common.gateway.as_ref())
+                                        .and_then(|g| g.instrumentation.as_ref())
+                                        .and_then(|inst| inst.open_telemetry.clone())
+                                });
+                            (
+                                gateway_ref,
+                                GatewayInstanceConfiguration {
+                                    gateway,
+                                    service_overrides,
                                     deployment_overrides,
                                     image_pull_policy,
                                     image_repository,
                                     image_tag,
-                                ) = merge_deployment_overrides(
-                                    &gateway,
-                                    gateway_class_parameters,
-                                    gateway_parameters,
-                                );
-                                let service_overrides = merge_service_overrides(
-                                    &gateway,
-                                    gateway_class_parameters,
-                                    gateway_parameters,
-                                );
-                                let configuration = merge_gateway_configuration(
-                                    &gateway,
-                                    gateway_class_parameters,
-                                    gateway_parameters,
-                                );
-                                let merged_open_telemetry = gateway_parameters
-                                    .and_then(|p| p.spec.common.as_ref())
-                                    .and_then(|c| c.gateway.as_ref())
-                                    .and_then(|g| g.instrumentation.as_ref())
-                                    .and_then(|inst| inst.open_telemetry.clone())
-                                    .or_else(|| {
-                                        gateway_class_parameters
-                                            .and_then(|p| p.spec.common.gateway.as_ref())
-                                            .and_then(|g| g.instrumentation.as_ref())
-                                            .and_then(|inst| inst.open_telemetry.clone())
-                                    });
-                                (
-                                    gateway_ref,
-                                    GatewayInstanceConfiguration {
-                                        gateway,
-                                        service_overrides,
-                                        deployment_overrides,
-                                        image_pull_policy,
-                                        image_repository,
-                                        image_tag,
-                                        configuration,
-                                        merged_open_telemetry,
-                                    },
-                                )
-                            })
-                            .collect();
+                                    configuration,
+                                    merged_open_telemetry,
+                                },
+                            )
+                        })
+                        .collect();
 
-                        tx.set(instances).await;
-                    },
-                )
-                .run()
-                .await;
+                    tx.set(instances).await;
+                }
 
                 continue_on!(
                     gateways_rx.changed(),

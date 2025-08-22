@@ -1,6 +1,6 @@
 use std::sync::Arc;
 use vg_core::config::gateway::types::http::filters::RequestHeaderModifier;
-use vg_core::continue_on;
+use vg_core::{await_ready, continue_on, ReadyState};
 use vg_core::sync::signal::{Receiver, signal};
 use vg_core::task::Builder as TaskBuilder;
 
@@ -50,8 +50,8 @@ pub fn request_header_filter(
         .new_task(stringify!(request_header_filter))
         .spawn(async move {
             loop {
-                if let Some(modifier) = modifier_rx.get().await {
-                    let filter = modifier.map(RequestHeaderFilter::new);
+                if let ReadyState::Ready(modifier) = await_ready!(modifier_rx) {
+                    let filter = modifier.clone().map(RequestHeaderFilter::new);
                     tx.set(filter).await;
                 } else {
                     tx.set(None).await;

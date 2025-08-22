@@ -2,13 +2,12 @@ use crate::proxy::router::topology::TopologyLocation;
 use crate::proxy::router::{HttpRouter, HttpRouterBuilder};
 use http::HeaderValue;
 use std::sync::Arc;
-use tracing::{debug, info};
-use vg_core::config::gateway::types::GatewayConfiguration;
+use tracing::debug;
 use vg_core::config::gateway::types::http::router::*;
-use vg_core::continue_on;
-use vg_core::sync::signal::{Receiver, signal};
+use vg_core::config::gateway::types::GatewayConfiguration;
+use vg_core::sync::signal::{signal, Receiver};
 use vg_core::task::Builder as TaskBuilder;
-use vg_macros::await_ready;
+use vg_core::{await_ready, continue_on, ReadyState};
 
 pub fn synthesize_http_router(
     task_builder: &TaskBuilder,
@@ -24,14 +23,12 @@ pub fn synthesize_http_router(
         .spawn(async move {
             let current_location = Arc::new(current_location);
             loop {
-                await_ready!(gateway_configuration_rx)
-                    .and_then(async |gateway_configuration| {
-                        let router = build_router(&gateway_configuration, current_location.clone());
-                        tx.set(router).await;
-                    })
-                    .run()
-                    .await;
-
+                if let ReadyState::Ready(gateway_configuration) =
+                    await_ready!(gateway_configuration_rx)
+                {
+                    let router = build_router(gateway_configuration, current_location.clone());
+                    tx.set(router).await;
+                }
                 continue_on!(gateway_configuration_rx.changed())
             }
         });

@@ -38,8 +38,8 @@ macro_rules! watch_objects {
             object: Arc<$object_type>,
             ctx: Arc<ControllerContext>,
         ) -> Result<Action, ControllerError> {
-            let mut objects = match ctx.tx.get().await {
-                Some(objects) => objects,
+            let mut objects = match ctx.tx.get().await.as_ref() {
+                Some(objects) => objects.clone(),
                 None => Objects::default()
             };
 
@@ -108,7 +108,7 @@ macro_rules! watch_objects {
                     list_params = list_params.labels(labels);
                 }
                 loop {
-                    if let Some(kube_client) = kube_client_rx.get().await {
+                    if let Some(kube_client) = kube_client_rx.get().await.as_deref() {
                         debug!(
                             "Starting controller for watching {} objects",
                             stringify!($object_type)

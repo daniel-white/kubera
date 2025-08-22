@@ -1,18 +1,17 @@
 use crate::controllers::instances::InstanceRole;
-use crate::kubernetes::KubeClientCell;
 use crate::kubernetes::objects::{ObjectRef, Objects};
+use crate::kubernetes::KubeClientCell;
 use gateway_api::apis::standard::gateways::{Gateway, GatewayStatus};
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::{Condition, Time};
 use k8s_openapi::chrono;
-use kube::Api;
 use kube::api::PostParams;
+use kube::Api;
 use std::sync::Arc;
 use std::time::Duration;
-use tracing::{Instrument, debug, info, info_span, instrument, warn};
-use vg_core::continue_after;
+use tracing::{debug, info, info_span, instrument, warn, Instrument};
 use vg_core::sync::signal::Receiver;
 use vg_core::task::Builder as TaskBuilder;
-use vg_macros::await_ready;
+use vg_core::{continue_after, await_ready, ReadyState};
 
 pub fn sync_gateway_status(
     task_builder: &TaskBuilder,
@@ -28,19 +27,16 @@ pub fn sync_gateway_status(
         .new_task(stringify!(sync_gateway_status))
         .spawn(async move {
             loop {
-                await_ready!(kube_client_rx, instance_role_rx, gateways_rx)
-                    .and_then(async |kube_client, instance_role, gateways| {
-                        if !instance_role.is_primary() {
-                            debug!("Instance is not primary, skipping Gateway status updates");
-                            return;
-                        }
+                if let ReadyState::Ready((kube_client, instance_role, gateways)) = await_ready!(kube_client_rx, instance_role_rx, gateways_rx) {
+                    if !instance_role.is_primary() {
+                        debug!("Instance is not primary, skipping Gateway status updates");
+                        continue;
+                    }
 
-                        for (gateway_ref, _, gateway) in gateways.iter() {
-                            sync_single_gateway_status(&kube_client, gateway_ref, &gateway).await;
-                        }
-                    })
-                    .run()
-                    .await;
+                    for (gateway_ref, _, gateway) in gateways.iter() {
+                        sync_single_gateway_status(kube_client, gateway_ref, &gateway).await;
+                    }
+                }
 
                 continue_after!(
                     Duration::from_secs(30),
@@ -60,7 +56,7 @@ async fn sync_single_gateway_status(
 ) {
     info!("Syncing status for Gateway: {:?}", gateway_ref);
 
-    let status = build_gateway_status(&gateway);
+    let status = build_gateway_status(gateway);
     debug!("Gateway status to be updated: {:?}", status);
 
     let gateway_api = Api::<Gateway>::namespaced(

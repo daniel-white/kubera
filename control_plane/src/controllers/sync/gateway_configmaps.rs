@@ -3,8 +3,8 @@ use crate::controllers::transformers::{
     Backend, ExtensionFilterKind, ExtensionFilters, GatewayInstanceConfiguration,
 };
 use crate::ipc::IpcServices;
-use crate::kubernetes::KubeClientCell;
 use crate::kubernetes::objects::{ObjectRef, SyncObjectAction};
+use crate::kubernetes::KubeClientCell;
 use crate::options::Options;
 use crate::{sync_objects, watch_objects};
 use gateway_api::apis::standard::httproutes::{
@@ -16,8 +16,8 @@ use gateway_api::httproutes::HTTPRouteRulesMatches;
 use getset::CloneGetters;
 use gtmpl_derive::Gtmpl;
 use k8s_openapi::api::core::v1::{ConfigMap, Service};
-use kube::ResourceExt;
 use kube::runtime::watcher::Config;
+use kube::ResourceExt;
 use std::collections::{HashMap, HashSet};
 use std::net::IpAddr;
 use std::sync::Arc;
@@ -45,10 +45,9 @@ use vg_core::config::gateway::types::net::{
 };
 use vg_core::config::gateway::types::{GatewayConfiguration, GatewayConfigurationBuilder};
 use vg_core::net::{Hostname, Port};
-use vg_core::sync::signal::{Receiver, signal};
+use vg_core::sync::signal::{signal, Receiver};
 use vg_core::task::Builder as TaskBuilder;
-use vg_core::{continue_after, continue_on};
-use vg_macros::await_ready;
+use vg_core::{await_ready, continue_after, continue_on, ReadyState};
 
 const TEMPLATE: &str = include_str!("./templates/gateway_configmap.kubernetes-helm-yaml");
 
@@ -153,58 +152,56 @@ fn generate_gateway_configmaps(
         .spawn(async move {
             let current_refs_rx = params.current_refs_rx();
             loop {
-                await_ready!(gateway_configurations_rx, current_refs_rx)
-                    .and_then(async |gateway_configurations, current_configmap_refs| {
-                        info!("Reconciling Gateway ConfigMaps");
-                        let desired_gateway_configurations = expand(&gateway_configurations);
+                if let ReadyState::Ready((gateway_configurations, current_configmap_refs)) =
+                    await_ready!(gateway_configurations_rx, current_refs_rx)
+                {
+                    info!("Reconciling Gateway ConfigMaps");
+                    let desired_gateway_configurations = expand(gateway_configurations);
 
-                        let desire_configmap_refs: HashSet<_> = desired_gateway_configurations
-                            .iter()
-                            .map(|state| state.configmap_ref.clone())
-                            .collect();
+                    let desired_configmap_refs: HashSet<_> = desired_gateway_configurations
+                        .iter()
+                        .map(|state| state.configmap_ref.clone())
+                        .collect();
 
-                        let deleted_refs =
-                            current_configmap_refs.difference(&desire_configmap_refs);
-                        for deleted_ref in deleted_refs {
-                            let _ = params
-                                .sync_tx
-                                .send(SyncObjectAction::Delete(deleted_ref.clone()))
-                                .inspect(|_| {
-                                    params
-                                        .ipc_services()
-                                        .remove_gateway_configuration(deleted_ref);
-                                })
-                                .inspect_err(|err| {
-                                    error!("Failed to send delete action: {}", err);
-                                });
+                    let deleted_refs = current_configmap_refs.difference(&desired_configmap_refs);
+                    for deleted_ref in deleted_refs {
+                        let _ = params
+                            .sync_tx
+                            .send(SyncObjectAction::Delete(deleted_ref.clone()))
+                            .inspect(|()| {
+                                params
+                                    .ipc_services()
+                                    .remove_gateway_configuration(deleted_ref);
+                            })
+                            .inspect_err(|err| {
+                                error!("Failed to send delete action: {}", err);
+                            });
+                    }
+
+                    'send_and_insert: for gateway_state in desired_gateway_configurations {
+                        let Some((template_values, config)) = &gateway_state.values else {
+                            continue 'send_and_insert;
+                        };
+
+                        if let Err(err) = params.sync_tx.send(SyncObjectAction::Upsert(
+                            gateway_state.configmap_ref.clone(),
+                            gateway_state.gateway_ref.clone(),
+                            template_values.clone(),
+                            None,
+                        )) {
+                            warn!("Failed to send upsert action: {}", err);
+                            continue 'send_and_insert;
                         }
 
-                        'send_and_insert: for gateway_state in desired_gateway_configurations {
-                            let Some((template_values, config)) = gateway_state.values else {
-                                continue 'send_and_insert;
-                            };
-
-                            if let Err(err) = params.sync_tx.send(SyncObjectAction::Upsert(
-                                gateway_state.configmap_ref,
-                                gateway_state.gateway_ref.clone(),
-                                template_values,
-                                None,
-                            )) {
-                                warn!("Failed to send upsert action: {}", err);
-                                continue 'send_and_insert;
-                            }
-
-                            if let Err(err) = params
-                                .ipc_services()
-                                .try_insert_gateway_configuration(gateway_state.gateway_ref, config)
-                            {
-                                warn!("Failed to insert gateway configuration: {}", err);
-                                continue 'send_and_insert;
-                            }
+                        if let Err(err) = params.ipc_services().try_insert_gateway_configuration(
+                            gateway_state.gateway_ref.clone(),
+                            config.clone(),
+                        ) {
+                            warn!("Failed to insert gateway configuration: {}", err);
+                            continue 'send_and_insert;
                         }
-                    })
-                    .run()
-                    .await;
+                    }
+                }
 
                 continue_after!(
                     params.options.auto_cycle_duration(),
@@ -277,88 +274,78 @@ fn generate_gateway_configurations(
         .new_task(stringify!(generate_gateway_configurations))
         .spawn(async move {
             loop {
-                await_ready!(
+                if let ReadyState::Ready((
+                    primary_instance_ip_addr,
+                    gateway_instances,
+                    http_routes,
+                    backends,
+                    extension_filters,
+                )) = await_ready!(
                     primary_instance_ip_addr_rx,
                     gateway_instances_rx,
                     http_routes_rx,
                     backends_rx,
                     extension_filters_rx
-                )
-                .and_then(
-                    async |primary_instance_ip_addr,
-                           gateway_instances,
-                           http_routes,
-                           backends,
-                           extension_filters| {
-                        let configs: HashMap<ObjectRef, Option<GatewayConfiguration>> =
-                            gateway_instances
-                                .iter()
-                                .map(|(gateway_ref, gateway_instance)| {
-                                    let mut gateway_configuration =
-                                        GatewayConfigurationBuilder::default();
-                                    let extension_filters = extension_filters.get(gateway_ref);
+                ) {
+                    let configs: HashMap<ObjectRef, Option<GatewayConfiguration>> =
+                        gateway_instances
+                            .iter()
+                            .map(|(gateway_ref, gateway_instance)| {
+                                let mut gateway_configuration =
+                                    GatewayConfigurationBuilder::default();
+                                let extension_filters = extension_filters.get(gateway_ref);
 
-                                    set_ipc(
+                                set_ipc(
+                                    &mut gateway_configuration,
+                                    &ipc_services,
+                                    *primary_instance_ip_addr,
+                                );
+                                set_client_addrs_strategy(
+                                    &mut gateway_configuration,
+                                    gateway_instance,
+                                );
+                                set_error_responses_strategy(
+                                    &mut gateway_configuration,
+                                    gateway_instance,
+                                );
+                                if let Some(extension_filters) = extension_filters {
+                                    apply_static_response_filters(
                                         &mut gateway_configuration,
-                                        &ipc_services,
-                                        primary_instance_ip_addr,
+                                        extension_filters,
                                     );
-                                    set_client_addrs_strategy(
+                                    apply_access_control_filters(
                                         &mut gateway_configuration,
-                                        gateway_instance,
+                                        extension_filters,
                                     );
-                                    set_error_responses_strategy(
-                                        &mut gateway_configuration,
-                                        gateway_instance,
-                                    );
-                                    if let Some(extension_filters) = extension_filters {
-                                        apply_static_response_filters(
-                                            &mut gateway_configuration,
-                                            extension_filters,
-                                        );
-                                        apply_access_control_filters(
-                                            &mut gateway_configuration,
-                                            extension_filters,
-                                        );
+                                }
+
+                                add_listeners(&mut gateway_configuration, gateway_instance);
+
+                                process_http_routes(
+                                    gateway_ref,
+                                    gateway_instance,
+                                    http_routes,
+                                    backends,
+                                    &mut gateway_configuration,
+                                );
+
+                                match gateway_configuration.build() {
+                                    Ok(gateway_configuration) => {
+                                        (gateway_ref.clone(), Some(gateway_configuration))
                                     }
-
-                                    add_listeners(&mut gateway_configuration, gateway_instance);
-
-                                    process_http_routes(
-                                        gateway_ref,
-                                        gateway_instance,
-                                        &http_routes,
-                                        &backends,
-                                        &mut gateway_configuration,
-                                    );
-
-                                    match gateway_configuration.build() {
-                                        Ok(gateway_configuration) => {
-                                            (gateway_ref.clone(), Some(gateway_configuration))
-                                        }
-                                        Err(err) => {
-                                            error!(
-                                                "Failed to build GatewayConfiguration for {}: {}",
-                                                gateway_ref, err
-                                            );
-                                            (gateway_ref.clone(), None)
-                                        }
+                                    Err(err) => {
+                                        error!(
+                                            "Failed to build GatewayConfiguration for {}: {}",
+                                            gateway_ref, err
+                                        );
+                                        (gateway_ref.clone(), None)
                                     }
-                                })
-                                .collect();
+                                }
+                            })
+                            .collect();
 
-                        tx.set(configs).await;
-                    },
-                )
-                .run()
-                .await;
-
-                continue_on!(
-                    primary_instance_ip_addr_rx.changed(),
-                    gateway_instances_rx.changed(),
-                    http_routes_rx.changed(),
-                    backends_rx.changed()
-                )
+                    tx.set(configs).await;
+                }
             }
         });
 
@@ -366,7 +353,7 @@ fn generate_gateway_configurations(
 }
 
 fn apply_access_control_filters(
-    mut gateway_configuration: &mut GatewayConfigurationBuilder,
+    gateway_configuration: &mut GatewayConfigurationBuilder,
     extension_filters: &ExtensionFilters,
 ) {
     if !extension_filters.access_controls().is_empty() {

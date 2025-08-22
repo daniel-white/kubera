@@ -81,13 +81,13 @@ impl Display for Listener {
 impl FromStr for Listener {
     type Err = ListenerParseError;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let fields: Vec<&str> = s.split(',').map(|s| s.trim()).collect();
+        let fields: Vec<&str> = s.split(',').map(str::trim).collect();
         if fields.len() != 5 {
             return Err(ListenerParseError::MissingField);
         }
         let name = fields[0].to_string();
         let protocol = ListenerProtocol::from_str(fields[1])?;
-        let port = Port::from_str(fields[2]).map_err(|_| ListenerParseError::InvalidPort)?;
+        let port = Port::from_str(fields[2]).map_err(|()| ListenerParseError::InvalidPort)?;
         let path = fields[3].to_string();
         let status_u16 = fields[4]
             .parse::<u16>()

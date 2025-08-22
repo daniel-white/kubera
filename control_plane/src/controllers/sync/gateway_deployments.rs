@@ -1,7 +1,7 @@
 use crate::controllers::instances::InstanceRole;
 use crate::controllers::transformers::GatewayInstanceConfiguration;
-use crate::kubernetes::KubeClientCell;
 use crate::kubernetes::objects::{ObjectRef, SyncObjectAction};
+use crate::kubernetes::KubeClientCell;
 use crate::options::Options;
 use crate::{sync_objects, watch_objects};
 use gtmpl_derive::Gtmpl;
@@ -20,7 +20,7 @@ use vg_api::v1alpha1::{
 use vg_core::continue_after;
 use vg_core::sync::signal::Receiver;
 use vg_core::task::Builder as TaskBuilder;
-use vg_macros::await_ready;
+use vg_core::{await_ready, ReadyState};
 
 const TEMPLATE: &str = include_str!("./templates/gateway_deployment.kubernetes-helm-yaml");
 
@@ -61,7 +61,17 @@ pub fn sync_gateway_deployments(
     instance_role_rx: &Receiver<InstanceRole>,
     gateway_instances_rx: &Receiver<HashMap<ObjectRef, GatewayInstanceConfiguration>>,
 ) {
-    let (tx, current_service_refs_rx) = sync_objects!(
+    let (tx, current_service_refs_rx): (
+        tokio::sync::mpsc::UnboundedSender<
+            crate::kubernetes::objects::SyncObjectAction<
+                TemplateValues,
+                k8s_openapi::api::apps::v1::Deployment,
+            >,
+        >,
+        vg_core::sync::signal::Receiver<
+            std::collections::HashSet<crate::kubernetes::objects::ObjectRef>,
+        >,
+    ) = sync_objects!(
         options,
         task_builder,
         Deployment,
@@ -152,99 +162,93 @@ fn generate_gateway_deployments(
         .new_task(stringify!(generate_gateway_deployments))
         .spawn(async move {
             loop {
-                await_ready!(gateway_instances_rx, current_service_refs_rx)
-                    .and_then(async |gateway_instances, current_service_refs| {
-                        let desired_deployments: Vec<_> = gateway_instances
-                            .iter()
-                            .map(|(gateway_ref, instance)| {
-                                let deployment_ref = ObjectRef::of_kind::<Deployment>()
-                                    .namespace(gateway_ref.namespace().clone())
-                                    .name(gateway_ref.name())
-                                    .build();
+                if let ReadyState::Ready((gateway_instances, current_service_refs)) =
+                    await_ready!(gateway_instances_rx, current_service_refs_rx)
+                {
+                    let desired_deployments: Vec<_> = gateway_instances
+                        .iter()
+                        .map(|(gateway_ref, instance)| {
+                            let deployment_ref = ObjectRef::of_kind::<Deployment>()
+                                .namespace(gateway_ref.namespace().clone())
+                                .name(gateway_ref.name())
+                                .build();
 
-                                let replicas = instance
-                                    .deployment_overrides()
-                                    .spec
-                                    .as_ref()
-                                    .and_then(|spec| spec.replicas)
-                                    .unwrap_or(1);
+                            let replicas = instance
+                                .deployment_overrides()
+                                .spec
+                                .as_ref()
+                                .and_then(|spec| spec.replicas)
+                                .unwrap_or(1);
 
-                                let (traces_sampler, traces_sampler_arg) =
-                                    extract_traces_sampler_config(
-                                        instance.merged_open_telemetry().as_ref(),
-                                    );
-                                let open_telemetry = OpenTelemetryTemplateValues::builder()
-                                    .collector_name(
-                                        env::var("OTEL_COLLECTOR_NAME").unwrap_or_default(),
-                                    )
-                                    .exporter_endpoint(
-                                        env::var("OTEL_EXPORTER_OTLP_ENDPOINT").unwrap_or_default(),
-                                    )
-                                    .traces_sampler(traces_sampler.clone().unwrap_or_default())
-                                    .traces_sampler_arg(
-                                        traces_sampler_arg.clone().unwrap_or_default(),
-                                    )
-                                    .build();
-                                let template_values = TemplateValues::builder()
-                                    .gateway_name(gateway_ref.name())
-                                    .cluster_name("TBD")
-                                    .configmap_name(format!("{}-config", gateway_ref.name()))
-                                    .image_pull_policy(Into::<&'static str>::into(
-                                        instance.image_pull_policy(),
-                                    ))
-                                    .image_repository(instance.image_repository().to_string())
-                                    .image_tag(instance.image_tag().to_string())
-                                    .replicas(replicas)
-                                    .open_telemetry(open_telemetry)
-                                    .build();
-
-                                (
-                                    deployment_ref,
-                                    gateway_ref,
-                                    template_values,
-                                    instance.deployment_overrides(),
+                            let (traces_sampler, traces_sampler_arg) =
+                                extract_traces_sampler_config(
+                                    instance.merged_open_telemetry().as_ref(),
+                                );
+                            let open_telemetry = OpenTelemetryTemplateValues::builder()
+                                .collector_name(env::var("OTEL_COLLECTOR_NAME").unwrap_or_default())
+                                .exporter_endpoint(
+                                    env::var("OTEL_EXPORTER_OTLP_ENDPOINT").unwrap_or_default(),
                                 )
-                            })
-                            .collect();
+                                .traces_sampler(traces_sampler.clone().unwrap_or_default())
+                                .traces_sampler_arg(traces_sampler_arg.clone().unwrap_or_default())
+                                .build();
+                            let template_values = TemplateValues::builder()
+                                .gateway_name(gateway_ref.name())
+                                .cluster_name("TBD")
+                                .configmap_name(format!("{}-config", gateway_ref.name()))
+                                .image_pull_policy(Into::<&'static str>::into(
+                                    instance.image_pull_policy(),
+                                ))
+                                .image_repository(instance.image_repository().to_string())
+                                .image_tag(instance.image_tag().to_string())
+                                .replicas(replicas)
+                                .open_telemetry(open_telemetry)
+                                .build();
 
-                        let desired_deployments_ref: HashSet<_> = desired_deployments
-                            .iter()
-                            .map(|(ref_, _, _, _)| ref_.clone())
-                            .collect();
-
-                        let deleted_refs =
-                            current_service_refs.difference(&desired_deployments_ref);
-                        for deleted_ref in deleted_refs {
-                            let _ = tx
-                                .send(SyncObjectAction::Delete(deleted_ref.clone()))
-                                .inspect_err(|err| {
-                                    warn!(
-                                        "Failed to send delete action for deployment {}: {}",
-                                        deleted_ref, err
-                                    );
-                                });
-                        }
-
-                        for (deployment_ref, gateway_ref, template_values, deployment_overrides) in
-                            desired_deployments
-                        {
-                            tx.send(SyncObjectAction::Upsert(
-                                deployment_ref.clone(),
-                                gateway_ref.clone(),
+                            (
+                                deployment_ref,
+                                gateway_ref,
                                 template_values,
-                                Some(deployment_overrides.clone()),
-                            ))
+                                instance.deployment_overrides(),
+                            )
+                        })
+                        .collect();
+
+                    let desired_deployments_ref: HashSet<_> = desired_deployments
+                        .iter()
+                        .map(|(ref_, _, _, _)| ref_.clone())
+                        .collect();
+
+                    let deleted_refs = current_service_refs.difference(&desired_deployments_ref);
+                    for deleted_ref in deleted_refs {
+                        let _ = tx
+                            .send(SyncObjectAction::Delete(deleted_ref.clone()))
                             .inspect_err(|err| {
                                 warn!(
-                                    "Failed to send upsert action for deployment {}: {}",
-                                    deployment_ref, err
+                                    "Failed to send delete action for deployment {}: {}",
+                                    deleted_ref, err
                                 );
-                            })
-                            .ok();
-                        }
-                    })
-                    .run()
-                    .await;
+                            });
+                    }
+
+                    for (deployment_ref, gateway_ref, template_values, deployment_overrides) in
+                        desired_deployments
+                    {
+                        tx.send(SyncObjectAction::Upsert(
+                            deployment_ref.clone(),
+                            gateway_ref.clone(),
+                            template_values,
+                            Some(deployment_overrides.clone()),
+                        ))
+                        .inspect_err(|err| {
+                            warn!(
+                                "Failed to send upsert action for deployment {}: {}",
+                                deployment_ref, err
+                            );
+                        })
+                        .ok();
+                    }
+                }
 
                 continue_after!(
                     options.auto_cycle_duration(),

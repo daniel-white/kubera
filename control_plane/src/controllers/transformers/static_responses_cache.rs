@@ -8,10 +8,9 @@ use tokio::sync::RwLock;
 use tracing::warn;
 use typed_builder::TypedBuilder;
 use vg_api::v1alpha1::{StaticResponseFilter, StaticResponseFilterBodyFormat};
-use vg_core::continue_on;
 use vg_core::sync::signal::Receiver;
 use vg_core::task::Builder as TaskBuilder;
-use vg_macros::await_ready;
+use vg_core::{await_ready, continue_on, ReadyState};
 
 #[derive(Debug, Default)]
 struct StaticResponseCacheState {
@@ -31,7 +30,7 @@ impl StaticResponsesCache {
             Occupied(entry) => Some(entry.get().clone()),
             Vacant(entry) => {
                 if let Some(filters_rx) = &data.filters_rx
-                    && let Some(filters) = filters_rx.get().await
+                    && let Some(filters) = filters_rx.get().await.as_ref()
                     && let Some(filter) = filters.get_by_unique_id(&key)
                     && let Some(body) = &filter.spec.body
                 {
@@ -91,13 +90,9 @@ pub fn bind_static_responses_cache(
         .spawn(async move {
             loop {
                 let filters_rx = static_response_filters_rx.clone();
-                await_ready!(static_response_filters_rx)
-                    .and_then(async |_| {
-                        static_responses_cache.reset(filters_rx).await;
-                    })
-                    .run()
-                    .await;
-
+                if let ReadyState::Ready(_) = await_ready!(static_response_filters_rx) {
+                    static_responses_cache.reset(filters_rx).await;
+                }
                 continue_on!(static_response_filters_rx.changed())
             }
         });

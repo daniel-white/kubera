@@ -1,11 +1,11 @@
 use crate::kubernetes::objects::{ObjectRef, Objects};
 use gateway_api::apis::standard::gateways::Gateway;
 use gateway_api::apis::standard::httproutes::HTTPRoute;
-use tracing::{debug, debug_span, info, warn};
-use vg_core::continue_on;
-use vg_core::sync::signal::{Receiver, signal};
+use tracing::{debug, debug_span, warn};
+use vg_core::sync::signal::{signal, Receiver};
 use vg_core::task::Builder as TaskBuilder;
-use vg_macros::await_ready;
+use vg_core::ReadyState;
+use vg_core::{await_ready, continue_on};
 
 /// Check if an HTTP route is allowed by the Gateway's allowedRoutes configuration
 fn is_http_route_allowed_by_gateway(
@@ -110,64 +110,52 @@ pub fn filter_http_routes(
         .new_task(stringify!(filter_http_routes))
         .spawn(async move {
             loop {
-                await_ready!(gateways_rx, http_routes_rx)
-                    .and_then(async |gateways, http_routes| {
-                        let http_routes = http_routes
-                            .iter()
-                            .filter(|(http_route_ref, _, http_route)| {
-                                let result = debug_span!("inner").in_scope(|| {
-                                    // Check if the HTTP route references any existing gateway and is allowed by its allowedRoutes configuration
-                                    http_route
-                                        .spec
-                                        .parent_refs
-                                        .iter()
-                                        .flat_map(|parent_ref| parent_ref.iter())
-                                        .any(|parent_ref| {
-                                            let gateway_ref = ObjectRef::of_kind::<Gateway>()
-                                                .namespace(
-                                                    parent_ref
-                                                        .namespace
-                                                        .clone()
-                                                        .or_else(|| http_route_ref.namespace().clone()),
-                                                )
-                                                .name(&parent_ref.name)
-                                                .build();
+                if let ReadyState::Ready((gateways, http_routes)) =
+                    await_ready!(gateways_rx, http_routes_rx)
+                {
+                    let http_routes = http_routes
+                        .iter()
+                        .filter(|(http_route_ref, _, http_route)| {
+                            
+                            debug_span!("inner").in_scope(|| {
+                                // Check if the HTTP route references any existing gateway and is allowed by its allowedRoutes configuration
+                                http_route
+                                    .spec
+                                    .parent_refs
+                                    .iter()
+                                    .flat_map(|parent_ref| parent_ref.iter())
+                                    .any(|parent_ref| {
+                                        let gateway_ref = ObjectRef::of_kind::<Gateway>()
+                                            .namespace(
+                                                parent_ref
+                                                    .namespace
+                                                    .clone()
+                                                    .or_else(|| http_route_ref.namespace().clone()),
+                                            )
+                                            .name(&parent_ref.name)
+                                            .build();
 
-                                            // Check if the gateway exists
-                                            if let Some(gateway) = gateways.get_by_ref(&gateway_ref) {
-                                                // Check if this HTTP route is allowed by the gateway's allowedRoutes configuration
-                                                is_http_route_allowed_by_gateway(http_route_ref, &gateway, &gateway_ref)
-                                            } else {
-                                                debug!(
-                                                    "HTTPRoute {} references non-existent Gateway {}",
-                                                    http_route_ref,
-                                                    gateway_ref
-                                                );
-                                                false
-                                            }
-                                        })
-                                });
-
-                                if result {
-                                    info!(
-                                        "HTTPRoute object.ref={} matches an active Vale Gateway and is allowed by allowedRoutes configuration",
-                                        http_route_ref
-                                    );
-                                } else {
-                                    debug!(
-                                        "HTTPRoute object.ref={} does not match any active Vale Gateway or is rejected by allowedRoutes configuration",
-                                        http_route_ref
-                                    );
-                                }
-
-                                result
+                                        // Check if the gateway exists
+                                        if let Some(gateway) = gateways.get_by_ref(&gateway_ref) {
+                                            // Check if this HTTP route is allowed by the gateway's allowedRoutes configuration
+                                            is_http_route_allowed_by_gateway(
+                                                http_route_ref,
+                                                &gateway,
+                                                &gateway_ref,
+                                            )
+                                        } else {
+                                            debug!(
+                                                "Gateway not found for HTTPRoute parent_ref: {:?}",
+                                                gateway_ref
+                                            );
+                                            false
+                                        }
+                                    })
                             })
-                            .collect();
-
-                        tx.set(http_routes).await;
-                    })
-                    .run()
-                    .await;
+                        })
+                        .collect();
+                    tx.set(http_routes).await;
+                }
 
                 continue_on!(gateways_rx.changed(), http_routes_rx.changed());
             }

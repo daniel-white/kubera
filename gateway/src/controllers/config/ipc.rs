@@ -11,7 +11,7 @@ use typed_builder::TypedBuilder;
 use url::Url;
 use vg_core::config::gateway::serde::read_configuration;
 use vg_core::config::gateway::types::GatewayConfiguration;
-use vg_core::continue_on;
+use vg_core::{await_ready, continue_on, ReadyState};
 use vg_core::ipc::GatewayEvent;
 use vg_core::sync::signal::{Receiver, Sender, signal};
 use vg_core::task::Builder as TaskBuilder;
@@ -33,6 +33,7 @@ pub fn fetch_configuration(
     task_builder: &TaskBuilder,
     params: FetchConfigurationParams,
 ) -> Receiver<(Instant, GatewayConfiguration)> {
+    let ipc_endpoint_rx = params.ipc_endpoint_rx.clone();
     let (tx, rx) = signal("fetched_configuration");
 
     task_builder
@@ -40,7 +41,7 @@ pub fn fetch_configuration(
         .spawn(async move {
             let mut gateway_events = params.gateway_events_rx;
             loop {
-                if let Some(ipc_endpoint_addr) = params.ipc_endpoint_rx.get().await
+                if let ReadyState::Ready(ipc_endpoint_addr) = await_ready!(ipc_endpoint_rx)
                     && let Ok(event) = gateway_events.recv().await
                     && let GatewayEvent::ConfigurationUpdate(_) = event
                 {
@@ -117,7 +118,7 @@ pub fn watch_ipc_endpoint(
         .new_task(stringify!(watch_ipc_endpoint))
         .spawn(async move {
             loop {
-                if let Some(gateway_configuration) = gateway_configuration_rx.get().await {
+                if let ReadyState::Ready(gateway_configuration) = await_ready!(gateway_configuration_rx) {
                     let primary_endpoint = gateway_configuration
                         .ipc()
                         .as_ref()

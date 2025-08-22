@@ -85,7 +85,7 @@ impl Spawner {
     {
         let shutdown = self.shutdown.clone();
         self.spawn(async move {
-            let _ = shutdown.handle().await;
+            let () = shutdown.handle().await;
             task.await;
         });
     }

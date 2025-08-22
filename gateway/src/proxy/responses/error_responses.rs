@@ -1,20 +1,19 @@
 use bytes::Bytes;
 use http::header::{CONTENT_LENGTH, CONTENT_TYPE};
 use http::{Response, StatusCode};
-use opentelemetry::TraceId;
 use opentelemetry::trace::TraceContextExt;
+use opentelemetry::TraceId;
 use problemdetails::Problem;
 use std::borrow::Cow;
 use strum::IntoStaticStr;
 use tracing::Span;
 use tracing_opentelemetry::OpenTelemetrySpanExt;
 use url::Url;
-use vg_core::config::gateway::types::GatewayConfiguration;
 use vg_core::config::gateway::types::net::ErrorResponseKind;
-use vg_core::continue_on;
-use vg_core::sync::signal::{Receiver, signal};
+use vg_core::config::gateway::types::GatewayConfiguration;
+use vg_core::sync::signal::{signal, Receiver};
 use vg_core::task::Builder as TaskBuilder;
-use vg_macros::await_ready;
+use vg_core::{await_ready, continue_on, ReadyState};
 
 pub fn error_responses(
     task_builder: &TaskBuilder,
@@ -28,43 +27,39 @@ pub fn error_responses(
         .new_task(stringify!(error_responses))
         .spawn(async move {
             loop {
-                await_ready!(gateway_configuration_rx)
-                    .and_then(async |gateway_configuration| {
-                        let error_responses = gateway_configuration
-                            .error_responses()
-                            .clone()
-                            .unwrap_or_default();
+                if let ReadyState::Ready(gateway_configuration) =
+                    await_ready!(gateway_configuration_rx)
+                {
+                    let error_responses = gateway_configuration
+                        .error_responses()
+                        .clone()
+                        .unwrap_or_default();
 
-                        let generator = match error_responses.kind() {
-                            ErrorResponseKind::Empty => {
-                                ErrorResponseGenerators::Empty(EmptyErrorResponseGenerator)
-                            }
-                            ErrorResponseKind::Html => {
-                                ErrorResponseGenerators::Html(HtmlErrorResponseGenerator)
-                            }
-                            ErrorResponseKind::ProblemDetail => {
-                                let problem_detail =
-                                    error_responses.problem_detail().clone().unwrap_or_default();
-                                let authority =
-                                    problem_detail.authority().clone().unwrap_or_else(|| {
-                                        "http://vale-gateway.whitefamily.in/problems/".into()
-                                    });
-                                let authority = Url::parse(&authority).unwrap_or_else(|_| {
-                                    Url::parse("http://vale-gateway.whitefamily.in/problems/")
-                                        .unwrap()
+                    let generator = match error_responses.kind() {
+                        ErrorResponseKind::Empty => {
+                            ErrorResponseGenerators::Empty(EmptyErrorResponseGenerator)
+                        }
+                        ErrorResponseKind::Html => {
+                            ErrorResponseGenerators::Html(HtmlErrorResponseGenerator)
+                        }
+                        ErrorResponseKind::ProblemDetail => {
+                            let problem_detail =
+                                error_responses.problem_detail().clone().unwrap_or_default();
+                            let authority =
+                                problem_detail.authority().clone().unwrap_or_else(|| {
+                                    "http://vale-gateway.whitefamily.in/problems/".into()
                                 });
-                                ErrorResponseGenerators::ProblemDetail(
-                                    ProblemDetailErrorResponseGenerator::new(authority),
-                                )
-                            }
-                        };
-
-                        tx.set(generator).await;
-                    })
-                    .run()
-                    .await;
-
-                continue_on!(gateway_configuration_rx.changed())
+                            let authority = Url::parse(&authority).unwrap_or_else(|_| {
+                                Url::parse("http://vale-gateway.whitefamily.in/problems/").unwrap()
+                            });
+                            ErrorResponseGenerators::ProblemDetail(
+                                ProblemDetailErrorResponseGenerator::new(authority),
+                            )
+                        }
+                    };
+                    tx.set(generator).await;
+                }
+                continue_on!(gateway_configuration_rx.changed());
             }
         });
 

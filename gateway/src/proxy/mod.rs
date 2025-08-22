@@ -7,40 +7,38 @@ pub mod router;
 
 use crate::controllers::static_response_bodies_cache::StaticResponseBodiesCache;
 use crate::proxy::context::{MatchRouteResult, UpstreamPeerResult};
-use crate::proxy::filters::access_control::{
-    AccessControlEvaluationResult, AccessControlFilterHandler,
-};
 
+use crate::proxy::filters::access_control::AccessControlFilterHandlers;
 use crate::proxy::filters::static_responses::StaticResponseFilter;
 use crate::proxy::instrumentation::RequestInstrumentation;
 use crate::proxy::responses::error_responses::{ErrorResponseCode, ErrorResponseGenerators};
 use async_trait::async_trait;
 use context::RequestContext;
-use filters::client_addrs::ClientAddrFilter;
+use filters::client_addrs::ClientAddrFilterHandler;
 use filters::request_headers::RequestHeaderFilter;
 use filters::request_redirect::RequestRedirectFilter;
 use filters::response_headers::ResponseHeaderFilter;
 use filters::url_rewrite::URLRewriteFilter;
 use http::header::SERVER;
 use http::{HeaderMap, StatusCode};
+use itertools::Itertools;
 use pingora::http::ResponseHeader;
 use pingora::prelude::*;
 use pingora::protocols::http::error_resp::gen_error_response;
 use router::HttpRouter;
 use std::collections::HashMap;
 use std::sync::Arc;
-use tracing::{debug, info, instrument, warn, Instrument};
+use tracing::{debug, instrument, warn};
 use typed_builder::TypedBuilder;
-use vg_core::config::gateway::types::net::{
-    AccessControlFilter, AccessControlFilterEffect, StaticResponse,
-};
+use vg_core::config::gateway::types::net::StaticResponse;
 use vg_core::sync::signal::Receiver;
+use vg_core::{await_ready, ReadyState};
 
 #[derive(TypedBuilder)]
 pub struct Proxy {
     router_rx: Receiver<HttpRouter>,
-    client_addr_filter_rx: Receiver<ClientAddrFilter>,
-    access_control_filters_rx: Receiver<Arc<HashMap<String, AccessControlFilter>>>,
+    client_addr_filter_handler_rx: Receiver<ClientAddrFilterHandler>,
+    access_control_filters_handlers_rx: Receiver<AccessControlFilterHandlers>,
     error_responses_rx: Receiver<ErrorResponseGenerators>,
     static_responses_rx: Receiver<Arc<HashMap<String, StaticResponse>>>,
     static_response_bodies_cache: StaticResponseBodiesCache,
@@ -98,16 +96,18 @@ impl ProxyHttp for Proxy {
 
     #[instrument(name = "request_filter", parent = ctx.instrumentation().request_span(), skip(self, session, ctx))]
     async fn request_filter(&self, session: &mut Session, ctx: &mut Self::CTX) -> Result<bool> {
-        let client_addr = if let Some(client_addr_filter) = self.client_addr_filter_rx.get().await {
-            client_addr_filter.filter(session)
-        } else {
-            None
-        };
+        let client_addr_filter_handler_rx = self.client_addr_filter_handler_rx.clone();
+        let client_addr =
+            if let ReadyState::Ready(handler) = await_ready!(client_addr_filter_handler_rx) {
+                handler.filter(session)
+            } else {
+                None
+            };
 
         ctx.instrumentation().record_client_addr(client_addr);
 
-        let router = self.router_rx.get().await;
-        let route = if let Some(router) = router {
+        let router_rx = self.router_rx.clone();
+        let route = if let ReadyState::Ready(router) = await_ready!(router_rx) {
             let req_parts = session.req_header();
             match router.match_route(req_parts) {
                 Some(match_result) => MatchRouteResult::Found(
@@ -121,93 +121,76 @@ impl ProxyHttp for Proxy {
             MatchRouteResult::MissingConfiguration
         };
 
+        let access_control_filters_handlers_rx = self.access_control_filters_handlers_rx.clone();
         let error_code = match route {
             MatchRouteResult::Found(route, rule, matched_prefix) => {
-                if let Some(filter_defs) = self.access_control_filters_rx.get().await {
-                    let filters = rule
-                        .filters()
-                        .iter()
-                        .filter_map(|f| f.ext_access_control.as_ref());
-                    let filters: Vec<_> = filters.filter_map(|f| filter_defs.get(&f.key)).collect();
+                // if let ReadyState::Ready(handlers) =
+                //     await_ready!(access_control_filters_handlers_rx)
+                // {
+                //     let handler = rule
+                //         .filters()
+                //         .iter()
+                //         .filter_map(|f| f.ext_access_control.as_ref())
+                //         .flat_map(|f| handlers.get(f.key()))
+                //         .exactly_one();
+                //
+                //
+                //
+                //     match handler.evaluate(client_addr) {
+                //         AccessControlEvaluationResult::Allowed => {
+                //             debug!(
+                //                 "Access control filters allowed request for client: {:?}",
+                //                 client_addr
+                //             );
+                //         }
+                //         AccessControlEvaluationResult::Denied => {
+                //             info!(
+                //                 "Access control filters denied request for client: {:?}",
+                //                 client_addr
+                //             );
+                //             let response = ctx
+                //                 .generate_error_response(ErrorResponseCode::AccessDenied)
+                //                 .await;
+                //
+                //             let mut error_response = gen_error_response(response.status().into());
+                //             self.set_response_server_header(&mut error_response)?;
+                //             for (name, value) in response.headers() {
+                //                 error_response.insert_header(name, value)?;
+                //             }
+                //
+                //             session.write_response_header_ref(&error_response).await?;
+                //             session
+                //                 .write_response_body(response.body().clone(), true)
+                //                 .await?;
+                //             return Ok(true); // Request handled, don't proceed to upstream
+                //         }
+                //     }
+                // } else {
+                //     let response = ctx
+                //         .generate_error_response(ErrorResponseCode::InvalidConfiguration)
+                //         .await;
+                //
+                //     let mut error_response = gen_error_response(response.status().into());
+                //     self.set_response_server_header(&mut error_response)?;
+                //     for (name, value) in response.headers() {
+                //         error_response.insert_header(name, value)?;
+                //     }
+                //
+                //     session.write_response_header_ref(&error_response).await?;
+                //     session
+                //         .write_response_body(response.body().clone(), true)
+                //         .await?;
+                //     return Ok(true); // Request handled, don't proceed to upstream
+                // }
 
-                    let mut handler = AccessControlFilterHandler::builder();
-                    for filter in filters {
-                        for ip in filter.clients().ips() {
-                            match filter.effect() {
-                                AccessControlFilterEffect::Allow => {
-                                    handler.allow_ip(*ip);
-                                }
-                                AccessControlFilterEffect::Deny => {
-                                    handler.deny_ip(*ip);
-                                }
-                            }
-                        }
-
-                        for ip_range in filter.clients().ip_ranges() {
-                            match filter.effect() {
-                                AccessControlFilterEffect::Allow => {
-                                    handler.allow_ip_range(*ip_range);
-                                }
-                                AccessControlFilterEffect::Deny => {
-                                    handler.deny_ip_range(*ip_range);
-                                }
-                            }
-                        }
-                    }
-
-                    let handler = handler.build();
-
-                    match handler.evaluate(client_addr) {
-                        AccessControlEvaluationResult::Allowed => {
-                            debug!(
-                                "Access control filters allowed request for client: {:?}",
-                                client_addr
-                            );
-                        }
-                        AccessControlEvaluationResult::Denied => {
-                            info!(
-                                "Access control filters denied request for client: {:?}",
-                                client_addr
-                            );
-                            let response = ctx
-                                .generate_error_response(ErrorResponseCode::AccessDenied)
-                                .await;
-
-                            let mut error_response = gen_error_response(response.status().into());
-                            self.set_response_server_header(&mut error_response)?;
-                            for (name, value) in response.headers() {
-                                error_response.insert_header(name, value)?;
-                            }
-
-                            session.write_response_header_ref(&error_response).await?;
-                            session
-                                .write_response_body(response.body().clone(), true)
-                                .await?;
-                            return Ok(true); // Request handled, don't proceed to upstream
-                        }
-                    }
-                } else {
-                    let response = ctx
-                        .generate_error_response(ErrorResponseCode::InvalidConfiguration)
-                        .await;
-
-                    let mut error_response = gen_error_response(response.status().into());
-                    self.set_response_server_header(&mut error_response)?;
-                    for (name, value) in response.headers() {
-                        error_response.insert_header(name, value)?;
-                    }
-
-                    session.write_response_header_ref(&error_response).await?;
-                    session
-                        .write_response_body(response.body().clone(), true)
-                        .await?;
-                    return Ok(true); // Request handled, don't proceed to upstream
-                }
+                let static_responses_rx = self.static_responses_rx.clone();
                 for filter in rule.filters() {
-                    if let Some(ext_static_response) = &filter.ext_static_response {
-                        if let Some(static_responses) = self.static_responses_rx.get().await {
+                    if let Some(ext_static_response) = &filter.ext_static_response
+                        && let ReadyState::Ready(static_responses) =
+                            await_ready!(static_responses_rx)
+                        {
                             let static_filter = StaticResponseFilter::builder()
-                                .responses(static_responses)
+                                .responses(static_responses.clone())
                                 .static_response_bodies(self.static_response_bodies_cache.clone())
                                 .build();
 
@@ -239,7 +222,6 @@ impl ProxyHttp for Proxy {
                                 }
                             }
                         }
-                    }
                 }
 
                 // Check for redirect filters before proceeding to upstream

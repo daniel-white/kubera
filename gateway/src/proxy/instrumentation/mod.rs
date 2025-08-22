@@ -5,7 +5,7 @@ use http::uri::Authority;
 use http::{request, response, HeaderMap, StatusCode};
 use opentelemetry::global::get_text_map_propagator;
 use opentelemetry::metrics::{Histogram, UpDownCounter};
-use opentelemetry::{KeyValue, Value};
+use opentelemetry::KeyValue;
 use opentelemetry_http::{HeaderExtractor, HeaderInjector};
 use opentelemetry_semantic_conventions::metric::HTTP_SERVER_REQUEST_DURATION;
 use opentelemetry_semantic_conventions::trace::*;
@@ -16,7 +16,6 @@ use std::sync::LazyLock;
 use std::time::Instant;
 use tracing::span::EnteredSpan;
 use tracing::{info_span, Span};
-use tracing::field::ValueSet;
 use tracing_opentelemetry::OpenTelemetrySpanExt;
 
 static DURATION: LazyLock<Histogram<f64>> = LazyLock::new(|| {
@@ -154,12 +153,12 @@ impl RequestInstrumentation {
     }
 
     #[track_caller]
-    pub fn begin_upstream_call(&self, mut upstream_req_headers: &mut HeaderMap) {
+    pub fn begin_upstream_call(&self, upstream_req_headers: &mut HeaderMap) {
         let span = info_span!("upstream_request", otel.kind = "client",);
         span.set_parent(self.request_span.context());
 
         get_text_map_propagator(|p| {
-            let mut injector = HeaderInjector(&mut upstream_req_headers);
+            let mut injector = HeaderInjector(upstream_req_headers);
             p.inject(&mut injector);
         });
 

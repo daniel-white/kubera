@@ -1,19 +1,20 @@
-use crate::kubernetes::KubeClientCell;
 use crate::kubernetes::objects::Objects;
+use crate::kubernetes::KubeClientCell;
 use anyhow::{Context, Result};
 use gateway_api::apis::standard::httproutes::HTTPRoute;
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::{Condition, Time};
 use k8s_openapi::chrono::Utc;
 use kube::api::PostParams;
 use kube::{Api, Client};
-use tracing::{Instrument, debug, info, info_span, warn};
+use std::ops::Deref;
+use tracing::{debug, info, info_span, warn, Instrument};
 use vg_api::v1alpha1::{
     StaticResponseFilter, StaticResponseFilterConditionReason, StaticResponseFilterConditionType,
     StaticResponseFilterStatus,
 };
 use vg_core::sync::signal::Receiver;
 use vg_core::task::Builder as TaskBuilder;
-use vg_macros::await_ready;
+use vg_core::{await_ready, ReadyState};
 
 /// Controller for managing `StaticResponseFilter` status updates
 pub fn sync_static_response_filter_status(
@@ -30,30 +31,28 @@ pub fn sync_static_response_filter_status(
         .new_task(stringify!(sync_static_response_filter_status))
         .spawn(async move {
             loop {
-                await_ready!(kube_client_rx, static_response_filters_rx, http_routes_rx)
-                    .and_then(async |kube_client, static_filters, http_routes| {
-                        info!("Syncing status for StaticResponseFilters");
+                if let ReadyState::Ready((kube_client, static_filters, http_routes)) =
+                    await_ready!(kube_client_rx, static_response_filters_rx, http_routes_rx)
+                {
+                    info!("Syncing status for StaticResponseFilters");
 
-                        // Iterate through all static response filters
-                        for (filter_ref, _, filter) in static_filters.iter() {
-                            debug!("Processing StaticResponseFilter: {}", filter_ref);
+                    // Iterate through all static response filters
+                    for (filter_ref, _, filter) in static_filters.iter() {
+                        debug!("Processing StaticResponseFilter: {}", filter_ref);
 
-                            let attached_routes = count_attached_routes(&filter, &http_routes);
-                            let status = create_filter_status(&filter.spec, attached_routes);
+                        let attached_routes = count_attached_routes(&filter, http_routes);
+                        let status = create_filter_status(&filter.spec, attached_routes);
 
-                            if let Err(e) =
-                                update_filter_status(&kube_client.clone().into(), &filter, status)
-                                    .await
-                            {
-                                warn!(
-                                    "Failed to update status for StaticResponseFilter {}: {}",
-                                    filter_ref, e
-                                );
-                            }
+                        if let Err(e) =
+                            update_filter_status(kube_client.deref().clone(), &filter, status).await
+                        {
+                            warn!(
+                                "Failed to update status for StaticResponseFilter {}: {}",
+                                filter_ref, e
+                            );
                         }
-                    })
-                    .run()
-                    .await;
+                    }
+                }
 
                 vg_core::continue_on!(
                     static_response_filters_rx.changed(),
@@ -244,7 +243,7 @@ fn is_valid_body_config(body: Option<&vg_api::v1alpha1::StaticResponseFilterBody
 
 /// Update the status of a `StaticResponseFilter`
 async fn update_filter_status(
-    client: &Client,
+    client: Client,
     filter: &StaticResponseFilter,
     status: StaticResponseFilterStatus,
 ) -> Result<()> {
@@ -259,7 +258,7 @@ async fn update_filter_status(
         .as_ref()
         .context("Filter namespace not found")?;
 
-    let api: Api<StaticResponseFilter> = Api::namespaced(client.clone(), filter_namespace);
+    let api: Api<StaticResponseFilter> = Api::namespaced(client, filter_namespace);
 
     debug!(
         "Updating status for StaticResponseFilter {}/{}",
@@ -285,15 +284,14 @@ async fn update_filter_status(
             })?;
 
         // Check if the status actually needs to be updated
-        if let Some(existing_status) = &current_filter.status {
-            if existing_status == &status {
+        if let Some(existing_status) = &current_filter.status
+            && existing_status == &status {
                 debug!(
                     "Status for StaticResponseFilter {}/{} is already up to date",
                     filter_namespace, filter_name
                 );
                 return Ok(());
             }
-        }
 
         // Create a new version with updated status
         let mut updated_filter = current_filter.clone();

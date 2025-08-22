@@ -1,18 +1,17 @@
 use crate::kubernetes::KubeClientCell;
 use async_trait::async_trait;
 use axum_health::{HealthDetail, HealthIndicator};
-use kube::Api;
 use kube::api::ListParams;
-use std::ops::Deref;
-use tracing::{Instrument, info_span};
+use kube::Api;
+use tracing::{info_span, Instrument};
 use vg_api::v1alpha1::GatewayClassParameters;
 use vg_core::sync::signal::Receiver;
 
 pub struct KubernetesApiHealthIndicator(Receiver<KubeClientCell>);
 
 impl KubernetesApiHealthIndicator {
-    pub fn new(kube_client: &Receiver<KubeClientCell>) -> Self {
-        Self(kube_client.clone())
+    pub fn new(kube_client_rx: &Receiver<KubeClientCell>) -> Self {
+        Self(kube_client_rx.clone())
     }
 }
 
@@ -23,8 +22,8 @@ impl HealthIndicator for KubernetesApiHealthIndicator {
     }
 
     async fn details(&self) -> HealthDetail {
-        if let Some(kube_client) = self.0.get().await {
-            let api = Api::<GatewayClassParameters>::all(kube_client.deref().clone());
+        if let Some(kube_client) = self.0.get().await.as_deref().cloned() {
+            let api = Api::<GatewayClassParameters>::all(kube_client);
             match api
                 .list(&ListParams::default())
                 .instrument(info_span!("list_gateway_class_parameters"))

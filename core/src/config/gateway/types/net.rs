@@ -1,8 +1,9 @@
 use crate::config::gateway::types::http::filters::RequestHeaderModifier;
 use crate::net::{Hostname, Port};
+use crate::types::filters::access_control::Key;
 use getset::Getters;
 use ipnet::IpNet;
-use schemars::{JsonSchema, Schema, SchemaGenerator, json_schema};
+use schemars::{json_schema, JsonSchema, Schema, SchemaGenerator};
 use serde::{Deserialize, Serialize};
 use serde_valid::Validate;
 use std::net::IpAddr;
@@ -527,7 +528,7 @@ pub struct StaticResponseBody {
 pub struct AccessControlFilter {
     #[getset(get = "pub")]
     #[builder(setter(into))]
-    key: String,
+    key: Key,
 
     #[getset(get = "pub")]
     effect: AccessControlFilterEffect,

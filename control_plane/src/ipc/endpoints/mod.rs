@@ -135,7 +135,7 @@ fn router(state: IpcEndpointState, health: Health) -> Router {
         .with_state(state)
         .layer(HttpMetricsLayerBuilder::default().build())
         .layer(OtelAxumLayer::default())
-        .layer(OtelInResponseLayer::default())
+        .layer(OtelInResponseLayer)
         .layer(health)
 }
 

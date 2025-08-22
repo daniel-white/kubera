@@ -123,8 +123,9 @@ impl RequestContext {
         let generator = self
             .error_response_generators_rx
             .get()
-            .await
-            .unwrap_or_default();
+            .await;;
+        
+        let generator = generator.as_ref().unwrap();
         generator.get_response(code)
     }
 }

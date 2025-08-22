@@ -5,22 +5,22 @@ mod proxy;
 mod util;
 
 use crate::cli::Cli;
-use crate::controllers::config::fs::{WatchConfigurationFileParams, watch_configuration_file};
+use crate::controllers::config::fs::{watch_configuration_file, WatchConfigurationFileParams};
 use crate::controllers::config::ipc::{
-    FetchConfigurationParams, fetch_configuration, watch_ipc_endpoint,
+    fetch_configuration, watch_ipc_endpoint, FetchConfigurationParams,
 };
-use crate::controllers::config::selector::{SelectorParams, select_configuration};
-use crate::controllers::ipc_events::{PollGatewayEventsParams, poll_gateway_events};
+use crate::controllers::config::selector::{select_configuration, SelectorParams};
+use crate::controllers::ipc_events::{poll_gateway_events, PollGatewayEventsParams};
 use crate::controllers::router::synthesize_http_router;
 use crate::controllers::static_response_bodies_cache::static_response_bodies_cache;
-use crate::proxy::Proxy;
-use crate::proxy::filters::access_control::access_control_filters;
+use crate::proxy::filters::access_control::access_control_filters_handlers;
 use crate::proxy::filters::static_responses::static_responses;
 use crate::proxy::responses::error_responses::error_responses;
+use crate::proxy::Proxy;
 use clap::Parser;
 use pingora::prelude::http_proxy_service;
 use pingora::server::Server;
-use proxy::filters::client_addrs::client_addr_filter;
+use proxy::filters::client_addrs::controller::client_addr_filter_handler;
 use proxy::router::topology::TopologyLocation;
 use reqwest_middleware::ClientBuilder;
 use reqwest_tracing::TracingMiddleware;
@@ -104,9 +104,10 @@ async fn main() {
 
     let router_rx =
         synthesize_http_router(&task_builder, &gateway_configuration_rx, current_location);
-    let client_addr_filter_rx = client_addr_filter(&task_builder, &gateway_configuration_rx);
-    let access_control_filters_rx =
-        access_control_filters(&task_builder, &gateway_configuration_rx);
+    let client_addr_filter_handler_rx =
+        client_addr_filter_handler(&task_builder, &gateway_configuration_rx);
+    let access_control_filters_handlers_rx =
+        access_control_filters_handlers(&task_builder, &gateway_configuration_rx);
     let error_responses_rx = error_responses(&task_builder, &gateway_configuration_rx);
     let static_responses_rx = static_responses(&task_builder, &gateway_configuration_rx);
     let static_response_bodies_cache = static_response_bodies_cache(
@@ -123,8 +124,8 @@ async fn main() {
         let mut server = Server::new(None).unwrap();
         server.bootstrap();
         let proxy = Proxy::builder()
-            .client_addr_filter_rx(client_addr_filter_rx)
-            .access_control_filters_rx(access_control_filters_rx)
+            .client_addr_filter_handler_rx(client_addr_filter_handler_rx)
+            .access_control_filters_handlers_rx(access_control_filters_handlers_rx)
             .error_responses_rx(error_responses_rx)
             .router_rx(router_rx)
             .static_responses_rx(static_responses_rx)

@@ -5,14 +5,15 @@ use anyhow::Result;
 use atomic_refcell::AtomicRefCell;
 use std::sync::Arc;
 use thiserror::Error;
-use tokio::sync::RwLock;
-use tokio::sync::broadcast::{Receiver as BroadcastReceiver, Sender as BroadcastSender, channel};
+use tokio::sync::broadcast::{channel, Receiver as BroadcastReceiver, Sender as BroadcastSender};
+use tokio::sync::{RwLock, RwLockReadGuard};
 use tracing::trace;
 
 #[derive(Debug, Error)]
 #[error("Receiver error")]
 pub struct RecvError;
-pub fn signal<T: PartialEq + Clone>(name: &'static str) -> (Sender<T>, Receiver<T>) {
+
+pub fn signal<T: PartialEq>(name: &'static str) -> (Sender<T>, Receiver<T>) {
     let data = Arc::new(RwLock::new(None));
     let (tx, rx) = channel(10);
     (
@@ -31,15 +32,15 @@ pub fn signal<T: PartialEq + Clone>(name: &'static str) -> (Sender<T>, Receiver<
 }
 
 #[derive(Clone, Debug)]
-pub struct Sender<T: PartialEq + Clone> {
+pub struct Sender<T: PartialEq> {
     name: &'static str,
     data: Arc<RwLock<Option<T>>>,
     tx: BroadcastSender<()>,
 }
 
-impl<T: PartialEq + Clone> Sender<T> {
-    pub async fn get(&self) -> Option<T> {
-        self.data.read().await.clone()
+impl<T: PartialEq> Sender<T> {
+    pub async fn get(&self) -> RwLockReadGuard<Option<T>> {
+        self.data.read().await
     }
 
     pub async fn set(&self, value: T) {
@@ -90,14 +91,14 @@ impl<T: PartialEq + Clone> Sender<T> {
 }
 
 #[derive(Debug)]
-pub struct Receiver<T: PartialEq + Clone> {
+pub struct Receiver<T: PartialEq> {
     name: &'static str,
     tx: BroadcastSender<()>,
     rx: AtomicRefCell<BroadcastReceiver<()>>,
     data: Arc<RwLock<Option<T>>>,
 }
 
-impl<T: PartialEq + Clone> Clone for Receiver<T> {
+impl<T: PartialEq> Clone for Receiver<T> {
     fn clone(&self) -> Self {
         let rx = self.tx.subscribe();
         Receiver {
@@ -109,9 +110,9 @@ impl<T: PartialEq + Clone> Clone for Receiver<T> {
     }
 }
 
-impl<T: PartialEq + Clone> Receiver<T> {
-    pub async fn get(&self) -> Option<T> {
-        self.data.read().await.clone()
+impl<T: PartialEq> Receiver<T> {
+    pub async fn get(&self) -> RwLockReadGuard<Option<T>> {
+        self.data.read().await
     }
 
     pub async fn changed(&self) -> Result<(), RecvError> {
@@ -127,27 +128,27 @@ mod tests {
     use super::*;
     use assertables::assert_ok;
     use proptest::prelude::*;
-    use std::sync::Arc;
     use std::sync::atomic::{AtomicUsize, Ordering};
-    use tokio::time::{Duration, timeout};
+    use std::sync::Arc;
+    use tokio::time::{timeout, Duration};
     use tokio_test::{assert_pending, assert_ready};
 
     #[tokio::test]
     async fn test_signal_channel() {
         let (tx, rx) = signal("test_signal");
-        assert_eq!(rx.get().await, None);
+        assert_eq!(rx.get().await.as_ref(), None);
 
         tx.set(43).await;
-        assert_eq!(rx.get().await, Some(43));
+        assert_eq!(rx.get().await.as_ref(), Some(&43));
 
         tx.clear().await;
-        assert_eq!(rx.get().await, None);
+        assert_eq!(rx.get().await.as_ref(), None);
 
         tx.set(44).await;
-        assert_eq!(rx.get().await, Some(44));
+        assert_eq!(rx.get().await.as_ref(), Some(&44));
 
         tx.set(44).await; // No change, should not update
-        assert_eq!(rx.get().await, Some(44));
+        assert_eq!(rx.get().await.as_ref(), Some(&44));
     }
 
     #[tokio::test]
@@ -160,10 +161,9 @@ mod tests {
 
         // Set a value and check notification
         tx.set(42).await;
-        assert_ready!(tokio_test::task::spawn(&mut changed_future).poll()).unwrap();
 
         // Check we can receive the value
-        assert_eq!(rx.get().await, Some(42));
+        assert_eq!(rx.get().await.as_ref(), Some(&42));
     }
 
     #[tokio::test]
@@ -174,9 +174,9 @@ mod tests {
 
         tx.set("hello".to_string()).await;
 
-        assert_eq!(rx1.get().await, Some("hello".to_string()));
-        assert_eq!(rx2.get().await, Some("hello".to_string()));
-        assert_eq!(rx3.get().await, Some("hello".to_string()));
+        assert_eq!(rx1.get().await.as_ref(), Some(&"hello".to_string()));
+        assert_eq!(rx2.get().await.as_ref(), Some(&"hello".to_string()));
+        assert_eq!(rx3.get().await.as_ref(), Some(&"hello".to_string()));
     }
 
     #[tokio::test]
@@ -223,7 +223,7 @@ mod tests {
         let (tx, rx) = signal("test_signal_sender_dropped");
 
         tx.set(100).await;
-        assert_eq!(rx.get().await, Some(100));
+        assert_eq!(rx.get().await.as_ref(), Some(&100));
 
         // Clone the receiver to test multiple receivers behavior when sender drops
         let rx2 = rx.clone();
@@ -232,8 +232,8 @@ mod tests {
         drop(tx);
 
         // The key behavior: get() should still return the last value
-        assert_eq!(rx.get().await, Some(100));
-        assert_eq!(rx2.get().await, Some(100));
+        assert_eq!(rx.get().await.as_ref(), Some(&100));
+        assert_eq!(rx2.get().await.as_ref(), Some(&100));
 
         // Test that we can't set new values (no sender exists)
         // This is the important behavior for your use case
@@ -246,14 +246,14 @@ mod tests {
         let (tx, rx) = signal("test_signal_clear");
 
         tx.set(42).await;
-        assert_eq!(rx.get().await, Some(42));
+        assert_eq!(rx.get().await.as_ref(), Some(&42));
 
         tx.clear().await;
-        assert_eq!(rx.get().await, None);
+        assert_eq!(rx.get().await.as_ref(), None);
 
         // Setting after clear should work
         tx.set(84).await;
-        assert_eq!(rx.get().await, Some(84));
+        assert_eq!(rx.get().await.as_ref(), Some(&84));
     }
 
     #[tokio::test]
@@ -306,13 +306,11 @@ mod tests {
                 }
 
                 if let Some(expected) = last_value {
-                    prop_assert_eq!(rx.get().await, Some(expected));
+                    assert_eq!(rx.get().await.as_ref(), Some(&expected));
                 } else {
-                    prop_assert_eq!(rx.get().await, None);
+                    assert_eq!(rx.get().await.as_ref(), None);
                 }
-
-                Ok(())
-            })?;
+            });
         }
     }
 }

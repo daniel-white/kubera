@@ -1,20 +1,19 @@
 use crate::controllers::static_response_bodies_cache::StaticResponseBodiesCache;
 use bytes::Bytes;
 use getset::{CloneGetters, CopyGetters, Getters};
-use http::StatusCode;
 use http::header::{CONTENT_LENGTH, CONTENT_TYPE, SERVER};
+use http::StatusCode;
 use pingora::http::ResponseHeader;
 use pingora::prelude::*;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tracing::{debug, warn};
 use typed_builder::TypedBuilder;
-use vg_core::config::gateway::types::GatewayConfiguration;
 pub(crate) use vg_core::config::gateway::types::net::StaticResponse;
-use vg_core::continue_on;
-use vg_core::sync::signal::{Receiver, signal};
+use vg_core::config::gateway::types::GatewayConfiguration;
+use vg_core::sync::signal::{signal, Receiver};
 use vg_core::task::Builder as TaskBuilder;
-use vg_macros::await_ready;
+use vg_core::{await_ready, continue_on, ReadyState};
 
 /// Filter for handling static HTTP responses based on StaticResponse configuration.
 ///
@@ -186,25 +185,19 @@ pub fn static_responses(
         .new_task(stringify!(collect_static_responses))
         .spawn(async move {
             loop {
-                await_ready!(gateway_configuration_rx)
-                    .and_then(async |gateway_configuration| {
-                        if let Some(static_responses) = gateway_configuration.static_responses() {
-                            let responses_map: HashMap<String, StaticResponse> = static_responses
-                                .responses()
-                                .iter()
-                                .map(|static_response| {
-                                    (static_response.key().clone(), static_response.clone())
-                                })
-                                .collect();
+                if let ReadyState::Ready(gateway_configuration) =
+                    await_ready!(gateway_configuration_rx)
+                    && let Some(static_responses) = gateway_configuration.static_responses() {
+                        let responses_map: HashMap<String, StaticResponse> = static_responses
+                            .responses()
+                            .iter()
+                            .map(|static_response| {
+                                (static_response.key().clone(), static_response.clone())
+                            })
+                            .collect();
 
-                            tx.set(Arc::new(responses_map)).await;
-                        } else {
-                            tx.set(Arc::new(HashMap::new())).await;
-                        }
-                    })
-                    .run()
-                    .await;
-
+                        tx.set(Arc::new(responses_map)).await;
+                    }
                 continue_on!(gateway_configuration_rx.changed());
             }
         });

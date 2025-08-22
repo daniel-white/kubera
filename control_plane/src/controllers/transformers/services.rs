@@ -7,11 +7,11 @@ use std::collections::HashMap;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use tracing::debug;
 use typed_builder::TypedBuilder;
-use vg_core::continue_on;
 use vg_core::net::Port;
-use vg_core::sync::signal::{Receiver, signal};
+use vg_core::sync::signal::{signal, Receiver};
 use vg_core::task::Builder as TaskBuilder;
-use vg_macros::await_ready;
+use vg_core::ReadyState;
+use vg_core::{await_ready, continue_on};
 
 #[derive(Debug, TypedBuilder, Getters, Clone, Hash, PartialEq, Eq)]
 pub struct Endpoints {
@@ -53,37 +53,35 @@ pub fn collect_service_backends(
         .new_task(stringify!(collect_service_backends))
         .spawn(async move {
             loop {
-                await_ready!(http_route_backends_rx, endpoint_slices_rx)
-                    .and_then(async |http_route_backends, endpoint_slices| {
-                        let endpoint_slices_by_service: HashMap<_, _> = endpoint_slices
-                            .iter()
-                            .filter_map(|(_, _, endpoint_slice)| {
-                                let metadata = &endpoint_slice.metadata;
-                                let labels = metadata.labels.as_ref()?;
-                                labels
-                                    .get("kubernetes.io/service-name")
-                                    .map(|service_name| {
-                                        ObjectRef::of_kind::<Service>()
-                                            .namespace(endpoint_slice.metadata.namespace.clone())
-                                            .name(service_name)
-                                            .build()
-                                    })
-                                    .map(|service_ref| (service_ref, endpoint_slice))
-                            })
-                            .filter_map(|(service_ref, endpoint_slice)| {
-                                http_route_backends.get(&service_ref).map(|h| {
-                                    (
-                                        service_ref.clone(),
-                                        extract_backend(&service_ref, h, endpoint_slice.as_ref()),
-                                    )
+                if let ReadyState::Ready((http_route_backends, endpoint_slices)) =
+                    await_ready!(http_route_backends_rx, endpoint_slices_rx)
+                {
+                    let endpoint_slices_by_service: HashMap<_, _> = endpoint_slices
+                        .iter()
+                        .filter_map(|(_, _, endpoint_slice)| {
+                            let metadata = &endpoint_slice.metadata;
+                            let labels = metadata.labels.as_ref()?;
+                            labels
+                                .get("kubernetes.io/service-name")
+                                .map(|service_name| {
+                                    ObjectRef::of_kind::<Service>()
+                                        .namespace(endpoint_slice.metadata.namespace.clone())
+                                        .name(service_name)
+                                        .build()
                                 })
+                                .map(|service_ref| (service_ref, endpoint_slice))
+                        })
+                        .filter_map(|(service_ref, endpoint_slice)| {
+                            http_route_backends.get(&service_ref).map(|h| {
+                                (
+                                    service_ref.clone(),
+                                    extract_backend(&service_ref, h, endpoint_slice.as_ref()),
+                                )
                             })
-                            .collect();
-
-                        tx.set(endpoint_slices_by_service).await;
-                    })
-                    .run()
-                    .await;
+                        })
+                        .collect();
+                    tx.set(endpoint_slices_by_service).await;
+                }
 
                 continue_on!(
                     http_route_backends_rx.changed(),

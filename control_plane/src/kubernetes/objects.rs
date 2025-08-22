@@ -189,9 +189,8 @@ where
         self.by_ref.keys().cloned().collect()
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = (ObjectRef, ObjectUniqueId, Arc<K>)> {
+    pub fn iter(&self) -> impl Iterator<Item = (ObjectRef, ObjectUniqueId, Arc<K>)> + use<K> {
         let type_name = type_name::<K>();
-        warn!("Iterating over {type_name}, this may be expensive");
         let v = self
             .by_ref
             .iter()
@@ -203,7 +202,6 @@ where
                 Some(uid) => Some((r.clone(), ObjectUniqueId::new(uid), s.clone())),
             })
             .collect_vec();
-        warn!("Iterated over {} {type_name}", v.len());
         v.into_iter()
     }
 }

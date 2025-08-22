@@ -1,13 +1,13 @@
 use crate::instrumentation::METER;
-use crate::kubernetes::KubeClientCell;
 use crate::kubernetes::objects::ObjectRef;
+use crate::kubernetes::KubeClientCell;
 use crate::options::Options;
 use futures::StreamExt;
 use k8s_openapi::api::coordination::v1::Lease;
 use k8s_openapi::api::core::v1::Pod;
-use kube::runtime::Controller;
 use kube::runtime::controller::Action;
 use kube::runtime::watcher::Config;
+use kube::runtime::Controller;
 use kube::{Api, Client};
 use kube_leader_election::{LeaseLock, LeaseLockParams, LeaseLockResult};
 use opentelemetry::KeyValue;
@@ -20,10 +20,9 @@ use thiserror::Error;
 use tokio::select;
 use tracing::log::warn;
 use tracing::{debug, info, instrument};
-use vg_core::sync::signal::{Receiver, Sender, signal};
+use vg_core::sync::signal::{signal, Receiver, Sender};
 use vg_core::task::Builder as TaskBuilder;
-use vg_core::{continue_after, continue_on};
-use vg_macros::await_ready;
+use vg_core::{await_ready, continue_after, continue_on, ReadyState};
 
 pub fn watch_leader_instance_ip_addr(
     options: Arc<Options>,
@@ -67,7 +66,7 @@ pub fn watch_leader_instance_ip_addr(
         .spawn(async move {
             let controller_context = Arc::new(ControllerContext { options, tx });
             loop {
-                match (kube_client_rx.get().await.as_deref(), instance_role_rx.get().await.and_then(|r| r.primary_pod_ref().cloned())) {
+                match (kube_client_rx.get().await.as_deref(), instance_role_rx.get().await.as_ref().and_then(|r| r.primary_pod_ref().cloned())) {
                     (Some(kube_client), Some(primary_pod_ref)) => {
                         info!("Determining instance IP address for pod as it is the primary: {:?}", primary_pod_ref);
 
@@ -219,22 +218,17 @@ fn report_instance_role(task_builder: &TaskBuilder, instance_role_rx: Receiver<I
                 .with_description("Indicates the current state of the instance")
                 .build();
             loop {
-                await_ready!(instance_role_rx)
-                    .and_then(async |instance_role: InstanceRole| {
-                        let (primary_value, redundant_value, undetermined_value) =
-                            match instance_role {
-                                InstanceRole::Primary(_) => (1, 0, 0),
-                                InstanceRole::Redundant(_) => (0, 1, 0),
-                                InstanceRole::Undetermined => (0, 0, 1),
-                            };
+                if let ReadyState::Ready(instance_role) = await_ready!(instance_role_rx) {
+                    let (primary_value, redundant_value, undetermined_value) = match instance_role {
+                        InstanceRole::Primary(_) => (1, 0, 0),
+                        InstanceRole::Redundant(_) => (0, 1, 0),
+                        InstanceRole::Undetermined => (0, 0, 1),
+                    };
 
-                        metric.record(primary_value, &[KeyValue::new("role", "primary")]);
-                        metric.record(redundant_value, &[KeyValue::new("role", "redundant")]);
-                        metric.record(undetermined_value, &[KeyValue::new("role", "undetermined")]);
-                    })
-                    .run()
-                    .await;
-
+                    metric.record(primary_value, &[KeyValue::new("role", "primary")]);
+                    metric.record(redundant_value, &[KeyValue::new("role", "redundant")]);
+                    metric.record(undetermined_value, &[KeyValue::new("role", "undetermined")]);
+                }
                 continue_after!(Duration::from_secs(10), instance_role_rx.changed());
             }
         });

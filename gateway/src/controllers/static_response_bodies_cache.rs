@@ -11,10 +11,9 @@ use tokio::sync::RwLock;
 use tracing::{debug, info, warn};
 use url::Url;
 use vg_core::config::gateway::types::net::StaticResponse;
-use vg_core::continue_on;
 use vg_core::sync::signal::Receiver;
 use vg_core::task::Builder as TaskBuilder;
-use vg_macros::await_ready;
+use vg_core::{await_ready, continue_on, ReadyState};
 
 #[derive(Debug)]
 struct StaticResponseBodiesCacheState {
@@ -117,22 +116,20 @@ pub fn static_response_bodies_cache(
         .new_task(stringify!(static_response_bodies_cache))
         .spawn(async move {
             loop {
-                await_ready!(static_responses_rx, ipc_endpoint_rx)
-                    .and_then(async |static_responses, ipc_endpoint| {
-                        let mut state = cache_for_task.state.write().await;
-                        state.replace(StaticResponseBodiesCacheState {
-                            cache: DashMap::new(),
-                            responses: static_responses.as_ref().clone(),
-                            client: client.clone(),
-                            ipc_endpoint,
-                            pod_name: pod_name.clone(),
-                            gateway_namespace: gateway_namespace.clone(),
-                            gateway_name: gateway_name.clone(),
-                        });
-                    })
-                    .run()
-                    .await;
-
+                if let ReadyState::Ready((static_responses, ipc_endpoint)) =
+                    await_ready!(static_responses_rx, ipc_endpoint_rx)
+                {
+                    let mut state = cache_for_task.state.write().await;
+                    state.replace(StaticResponseBodiesCacheState {
+                        cache: DashMap::new(),
+                        responses: static_responses.as_ref().clone(),
+                        client: client.clone(),
+                        ipc_endpoint: *ipc_endpoint,
+                        pod_name: pod_name.clone(),
+                        gateway_namespace: gateway_namespace.clone(),
+                        gateway_name: gateway_name.clone(),
+                    });
+                }
                 continue_on!(static_responses_rx.changed(), ipc_endpoint_rx.changed());
             }
         });

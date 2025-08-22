@@ -1,3 +1,4 @@
+use crate::types::filters::access_control::Key;
 use getset::Getters;
 use http::HeaderName;
 use schemars::JsonSchema;
@@ -194,9 +195,13 @@ pub struct StaticResponseRef {
     pub key: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TypedBuilder)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TypedBuilder, Getters,
+)]
 pub struct ExtAccessControlRef {
-    pub key: String,
+    #[getset(get = "pub")]
+    #[builder(setter(into))]
+    key: Key,
 }
 
 #[derive(Debug, Error)]

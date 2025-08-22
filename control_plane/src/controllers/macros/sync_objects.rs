@@ -13,11 +13,12 @@ macro_rules! sync_objects {
         use tokio::signal::ctrl_c;
         use tokio::sync::mpsc::unbounded_channel;
         use tracing::{debug, info, trace, warn};
-        use vg_core::{continue_after, continue_on};
+        use vg_core::{continue_after, continue_on, await_ready, ReadyState};
         use vg_core::sync::signal::{signal, Receiver};
         use std::collections::HashSet;
         use $crate::options::Options;
         use vg_core::task::Builder as TaskBuilder;
+        use std::ops::Deref;
 
         let (tx, mut rx) = unbounded_channel::<SyncObjectAction<$template_value_type, $object_type>>();
 
@@ -40,7 +41,7 @@ macro_rules! sync_objects {
                 .new_task(concat!("current_object_refs_", stringify!($object_type)))
                 .spawn(async move {
                     loop {
-                        if let Some(current_objects) = current_objects_rx.get().await {
+                        if let ReadyState::Ready(current_objects) = await_ready!(current_objects_rx) {
                             debug!("Reconciling {} object refs", stringify!($object_type));
 
                             let object_refs: HashSet<_> = current_objects
@@ -117,10 +118,10 @@ macro_rules! sync_objects {
             object
         }
 
-        async fn apply_action(kube_client: Client, template: &Template, action: SyncObjectAction<$template_value_type, $object_type>) {
+        async fn apply_action(kube_client: &Client, template: &Template, action: SyncObjectAction<$template_value_type, $object_type>) {
             let object_ref = action.object_ref();
             let api = Api::<$object_type>::namespaced(
-                kube_client,
+                kube_client.clone(),
                 object_ref.namespace().as_ref().expect("Missing namespace"),
             );
 
@@ -170,35 +171,28 @@ macro_rules! sync_objects {
             .new_task(concat!("current_objects_", stringify!($object_type)))
             .spawn(async move {
                 loop {
-                    match (kube_client_rx.get().await, instance_role_rx.get().await) {
-                        (Some(kube_client), Some(instance_role)) => {
-                            let _ = select! {
-                                action = rx.recv() => match action {
-                                    Some(action) if instance_role.is_primary() => apply_action(kube_client.clone().into(), &template, action).await,
-                                    Some(action) => {
-                                        debug!("Skipping action {:?} for {} objects as instance is not primary", action, stringify!($object_type));
-                                    }
-                                    None => {
-                                        debug!("Channel closed, shutting down controller for {} objects", stringify!($object_type));
-                                        break;
-                                    }
-                                },
-                                _ = instance_role_rx.changed() => {
-                                    continue;
-                                },
-                                _ = ctrl_c() => {
-                                    debug!("Received Ctrl+C, shutting down controller for {} objects", stringify!($object_type));
+                    if let ReadyState::Ready((kube_client, instance_role)) = await_ready!(kube_client_rx, instance_role_rx) {
+                        let _ = select! {
+                            action = rx.recv() => match action {
+                                Some(action) if instance_role.is_primary() => apply_action(kube_client.deref(), &template, action).await,
+                                Some(action) => {
+                                    debug!("Skipping action {:?} for {} objects as instance is not primary", action, stringify!($object_type));
+                                }
+                                None => {
+                                    debug!("Channel closed, shutting down controller for {} objects", stringify!($object_type));
                                     break;
                                 }
-                            };
-                        }
-                        (None, _) => {
-                            debug!("Kube client is not available, unable to apply changes to {} objects", stringify!($object_type));
-                        }
-                        (_, None) => {
-                            debug!("Instance role is not available, unable to apply changes to {} objects", stringify!($object_type));
-                        }
+                            },
+                            _ = instance_role_rx.changed() => {
+                                continue;
+                            },
+                            _ = ctrl_c() => {
+                                debug!("Received Ctrl+C, shutting down controller for {} objects", stringify!($object_type));
+                                break;
+                            }
+                        };
                     }
+
 
                     continue_on!(kube_client_rx.changed(), instance_role_rx.changed());
                 }

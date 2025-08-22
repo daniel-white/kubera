@@ -10,7 +10,7 @@ use tokio::sync::broadcast::{Sender, channel};
 use tracing::{debug, info};
 use typed_builder::TypedBuilder;
 use url::Url;
-use vg_core::continue_on;
+use vg_core::{await_ready, continue_on, ReadyState};
 use vg_core::ipc::GatewayEvent;
 use vg_core::sync::signal::Receiver;
 use vg_core::task::Builder as TaskBuilder;
@@ -39,7 +39,7 @@ pub fn poll_gateway_events(
         .new_task(stringify!(poll_gateway_events))
         .spawn(async move {
             'primary: loop {
-                if let Some(ipc_endpoint_addr) = ipc_endpoint_rx.get().await {
+                if let ReadyState::Ready(ipc_endpoint_addr) = await_ready!(ipc_endpoint_rx) {
                     let url = {
                         let mut url = Url::parse(&format!("http://{ipc_endpoint_addr}"))
                             .expect("Failed to parse URL");

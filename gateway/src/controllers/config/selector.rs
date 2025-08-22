@@ -4,7 +4,7 @@ use tracing::debug;
 use typed_builder::TypedBuilder;
 use vg_core::config::gateway::types::GatewayConfiguration;
 use vg_core::continue_on;
-use vg_core::sync::signal::{Receiver, signal};
+use vg_core::sync::signal::{signal, Receiver};
 use vg_core::task::Builder as TaskBuilder;
 
 #[derive(Getters, Debug, Clone, TypedBuilder)]
@@ -27,30 +27,30 @@ pub fn select_configuration(
         .spawn(async move {
             loop {
                 let config = match (
-                    ipc_config_source_rx.get().await,
-                    fs_config_source_rx.get().await,
+                    ipc_config_source_rx.get().await.as_ref(),
+                    fs_config_source_rx.get().await.as_ref(),
                 ) {
-                    (None, None) => {
-                        debug!("No configuration available from either source");
-                        None
-                    }
                     (Some((_, ipc_config)), None) => {
                         debug!("Using IPC configuration");
-                        Some(ipc_config)
+                        Some(ipc_config.clone())
                     }
                     (None, Some((_, fs_config))) => {
                         debug!("Using file-based configuration");
-                        Some(fs_config)
+                        Some(fs_config.clone())
                     }
                     (Some((ipc_serial, ipc_config)), Some((fs_serial, _)))
                         if fs_serial < ipc_serial =>
                     {
                         debug!("Using IPC configuration, newer");
-                        Some(ipc_config)
+                        Some(ipc_config.clone())
                     }
                     (_, Some((_, fs_config))) => {
                         debug!("Using file-based configuration, newer");
-                        Some(fs_config)
+                        Some(fs_config.clone())
+                    }
+                    _ => {
+                        debug!("No configuration available from either source");
+                        None
                     }
                 };
 
