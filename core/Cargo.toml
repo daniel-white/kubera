@@ -16,6 +16,7 @@ console-subscriber = "0.4"
 flexi_logger = { workspace = true }
 getset = { workspace = true }
 http = { workspace = true }
+http-serde-ext = "1"
 ipnet = { workspace = true }
 itertools = { workspace = true }
 notify = "8"

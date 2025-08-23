@@ -1,15 +1,9 @@
-use crate::proxy::filters::client_addrs::extractors::ClientAddrExtractorType::{
-    Noop, TrustedHeader, TrustedProxies,
-};
-use crate::proxy::filters::client_addrs::extractors::{
-    TrustedHeaderClientAddrExtractor, TrustedProxiesClientAddrExtractor,
-};
-use crate::proxy::filters::client_addrs::ClientAddrFilterHandler;
-use http::HeaderName;
-use std::str::FromStr;
+use super::extractors::ClientAddrExtractorType::*;
+use super::extractors::{TrustedHeaderClientAddrExtractor, TrustedProxiesClientAddrExtractor};
+use super::ClientAddrFilterHandler;
 use std::sync::Arc;
-use vg_core::config::gateway::types::net::{ClientAddrsSource, ProxyHeaders};
 use vg_core::config::gateway::types::GatewayConfiguration;
+use vg_core::http::filters::client_addrs::{ClientAddrsSource, ProxyHeaders};
 use vg_core::sync::signal::{signal, Receiver};
 use vg_core::task::Builder as TaskBuilder;
 use vg_core::{await_ready, continue_on, ReadyState};
@@ -35,7 +29,6 @@ pub fn client_addr_filter_handler(
                             ClientAddrsSource::Header => client_addrs
                                 .header()
                                 .as_ref()
-                                .and_then(|h| HeaderName::from_str(h).ok())
                                 .map(|h| {
                                     let extractor = TrustedHeaderClientAddrExtractor::builder()
                                         .header(h)

@@ -5,9 +5,11 @@ use crate::config::gateway::types::http::router::{
     HttpRoute, HttpRouteBuilder, HttpRouteBuilderError,
 };
 use crate::config::gateway::types::net::{
-    AccessControlFilter, ClientAddrs, ClientAddrsBuilder, ErrorResponses, Listener,
-    ListenerBuilder, ListenerBuilderError, StaticResponse, StaticResponses,
+    ErrorResponses, Listener, ListenerBuilder, ListenerBuilderError, StaticResponse,
+    StaticResponses,
 };
+use crate::http::filters::access_control::AccessControlFilter;
+use crate::http::filters::client_addrs::{ClientAddrsFilter, ClientAddrsFilterBuilder};
 use crate::net::Port;
 use getset::{CloneGetters, CopyGetters, Getters};
 use itertools::{Either, Itertools};
@@ -69,19 +71,11 @@ pub struct GatewayConfiguration {
 
     #[getset(get = "pub")]
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    client_addrs: Option<ClientAddrs>,
-
-    #[getset(get = "pub")]
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     error_responses: Option<ErrorResponses>,
 
     #[getset(get = "pub")]
     #[serde(default, skip_serializing_if = "Option::is_none")]
     static_responses: Option<StaticResponses>,
-
-    #[getset(get = "pub")]
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    access_control_filters: Vec<AccessControlFilter>,
 }
 
 #[derive(Debug, Default)]
@@ -90,10 +84,8 @@ pub struct GatewayConfigurationBuilder {
     ipc: Option<IpcConfigurationBuilder>,
     listeners_builders: Vec<ListenerBuilder>,
     http_route_builders: Vec<HttpRouteBuilder>,
-    client_addrs_builder: Option<ClientAddrsBuilder>,
     error_responses: Option<ErrorResponses>,
     static_responses: Option<StaticResponses>,
-    access_control_filters: Vec<AccessControlFilter>,
 }
 
 #[derive(Debug, Error)]
@@ -145,10 +137,8 @@ impl GatewayConfigurationBuilder {
             ipc: self.ipc.map(IpcConfigurationBuilder::build),
             listeners,
             http_routes,
-            client_addrs: self.client_addrs_builder.map(ClientAddrsBuilder::build),
             error_responses: self.error_responses,
             static_responses: self.static_responses,
-            access_control_filters: self.access_control_filters,
         })
     }
 
@@ -187,16 +177,6 @@ impl GatewayConfigurationBuilder {
         self
     }
 
-    pub fn with_client_addrs<F>(&mut self, factory: F) -> &mut Self
-    where
-        F: FnOnce(&mut ClientAddrsBuilder),
-    {
-        let mut builder = ClientAddrsBuilder::new();
-        factory(&mut builder);
-        self.client_addrs_builder = Some(builder);
-        self
-    }
-
     pub fn with_error_responses(&mut self, error_responses: ErrorResponses) -> &mut Self {
         self.error_responses = Some(error_responses);
         self
@@ -211,11 +191,6 @@ impl GatewayConfigurationBuilder {
                 .build();
             Some(static_responses)
         };
-        self
-    }
-
-    pub fn with_access_control_filters(&mut self, filters: Vec<AccessControlFilter>) -> &mut Self {
-        self.access_control_filters = filters;
         self
     }
 }

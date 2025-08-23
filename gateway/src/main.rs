@@ -1,5 +1,6 @@
 mod cli;
 mod controllers;
+mod http;
 mod instrumentation;
 mod proxy;
 mod util;
@@ -13,14 +14,15 @@ use crate::controllers::config::selector::{select_configuration, SelectorParams}
 use crate::controllers::ipc_events::{poll_gateway_events, PollGatewayEventsParams};
 use crate::controllers::router::synthesize_http_router;
 use crate::controllers::static_response_bodies_cache::static_response_bodies_cache;
-use crate::proxy::filters::access_control::access_control_filters_handlers;
+use crate::http::filters::access_control::access_control_filters_handlers;
+use crate::http::filters::client_addrs::client_addr_filter_handler;
 use crate::proxy::filters::static_responses::static_responses;
 use crate::proxy::responses::error_responses::error_responses;
 use crate::proxy::Proxy;
 use clap::Parser;
 use pingora::prelude::http_proxy_service;
 use pingora::server::Server;
-use proxy::filters::client_addrs::controller::client_addr_filter_handler;
+
 use proxy::router::topology::TopologyLocation;
 use reqwest_middleware::ClientBuilder;
 use reqwest_tracing::TracingMiddleware;

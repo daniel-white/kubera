@@ -7,6 +7,7 @@ use crate::kubernetes::objects::{ObjectRef, SyncObjectAction};
 use crate::kubernetes::KubeClientCell;
 use crate::options::Options;
 use crate::{sync_objects, watch_objects};
+use axum::http::HeaderName;
 use gateway_api::apis::standard::httproutes::{
     HTTPRoute, HTTPRouteRulesMatchesHeadersType, HTTPRouteRulesMatchesMethod,
     HTTPRouteRulesMatchesPathType, HTTPRouteRulesMatchesQueryParamsType,
@@ -20,30 +21,32 @@ use kube::runtime::watcher::Config;
 use kube::ResourceExt;
 use std::collections::{HashMap, HashSet};
 use std::net::IpAddr;
+use std::str::FromStr;
 use std::sync::Arc;
 use tokio::select;
 use tokio::sync::mpsc::UnboundedSender;
 use tracing::{debug, error, info, warn};
 use typed_builder::TypedBuilder;
 use vg_api::v1alpha1::{
-    AccessControlFilter, AccessControlFilterEffect, ClientAddressesSource, ErrorResponseKind,
-    ProxyIpAddressHeaders, StaticResponseFilter,
+    AccessControlFilter as ApiAccessControlFilter, AccessControlFilterEffect,
+    ClientAddressesSource, ErrorResponseKind, ProxyIpAddressHeaders, StaticResponseFilter,
 };
 use vg_core::config::gateway::types::http::filters::{
-    ExtAccessControlRef, ExtStaticResponseRef, HTTPHeader, HttpRouteFilter, HttpRouteFilterType,
-    RequestHeaderModifier, ResponseHeaderModifier,
+    ExtStaticResponseRef, HTTPHeader, HttpRouteFilter, HttpRouteFilterType, RequestHeaderModifier,
+    ResponseHeaderModifier,
 };
 use vg_core::config::gateway::types::http::router::{
     HttpMethodMatch, HttpRouteBuilder, HttpRouteRuleBuilder, HttpRouteRuleMatchesBuilder,
 };
 use vg_core::config::gateway::types::net::{
-    AccessControlFilter as ConfigAccessControlFilter,
-    AccessControlFilterClientMatches as ConfigAccessControlFilterClientMatches,
-    AccessControlFilterEffect as ConfigAccessControlEffect,
     ErrorResponseKind as ConfigErrorResponseKind, ErrorResponses as ConfigErrorResponses,
-    ProblemDetailErrorResponse, ProxyHeaders, StaticResponse, StaticResponseBody,
+    ProblemDetailErrorResponse, StaticResponse, StaticResponseBody,
 };
 use vg_core::config::gateway::types::{GatewayConfiguration, GatewayConfigurationBuilder};
+use vg_core::http::filters::access_control::{
+    AccessControlClients, AccessControlEffect, AccessControlFilter, AccessControlFilterRef,
+};
+use vg_core::http::filters::client_addrs::ProxyHeaders;
 use vg_core::net::{Hostname, Port};
 use vg_core::sync::signal::{signal, Receiver};
 use vg_core::task::Builder as TaskBuilder;
@@ -362,16 +365,16 @@ fn apply_access_control_filters(
             .iter()
             .map(|(ref_, _, filter)| {
                 let effect = match filter.spec.effect {
-                    AccessControlFilterEffect::Allow => ConfigAccessControlEffect::Allow,
-                    AccessControlFilterEffect::Deny => ConfigAccessControlEffect::Deny,
+                    AccessControlFilterEffect::Allow => AccessControlEffect::Allow,
+                    AccessControlFilterEffect::Deny => AccessControlEffect::Deny,
                 };
 
-                let clients = ConfigAccessControlFilterClientMatches::builder()
+                let clients = AccessControlClients::builder()
                     .ip_ranges(filter.spec.clients.ip_ranges.clone())
                     .ips(filter.spec.clients.ips.clone())
                     .build();
 
-                ConfigAccessControlFilter::builder()
+                AccessControlFilter::builder()
                     .key(ref_.to_string())
                     .effect(effect)
                     .clients(clients)
@@ -681,12 +684,12 @@ fn process_http_routes(
                                                     target.add_filter(vg_filter);
                                                 }
                                                 Ok(ExtensionFilterKind::AccessControlFilter) => {
-                                                    let filter_ref = ObjectRef::of_kind::<AccessControlFilter>()
+                                                    let filter_ref = ObjectRef::of_kind::<ApiAccessControlFilter>()
                                                         .namespace(http_route.metadata.namespace.clone())
                                                         .name(&extension_ref.name)
                                                         .build();
 
-                                                    let access_control = ExtAccessControlRef::builder()
+                                                    let access_control = AccessControlFilterRef::builder()
                                                         .key(filter_ref.to_string())
                                                         .build();
 
@@ -928,12 +931,16 @@ fn set_client_addrs_strategy(
                 ClientAddressesSource::None => {
                     // No strategy, use default behavior
                 }
-                ClientAddressesSource::Header => match &client_addresses.header {
+                ClientAddressesSource::Header => match &client_addresses
+                    .header
+                    .as_deref()
+                    .and_then(|h| HeaderName::from_str(h).ok())
+                {
                     Some(header) => {
                         c.trust_header(header);
                     }
                     None => {
-                        warn!("ClientAddressesSource::Header requires a header to be set");
+                        warn!("ClientAddressesSource::Header requires a valid header to be set");
                     }
                 },
                 ClientAddressesSource::Proxies => {

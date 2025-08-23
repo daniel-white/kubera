@@ -4,8 +4,7 @@ use gateway_api::apis::standard::httproutes::HTTPRoute;
 use tracing::{debug, debug_span, warn};
 use vg_core::sync::signal::{signal, Receiver};
 use vg_core::task::Builder as TaskBuilder;
-use vg_core::ReadyState;
-use vg_core::{await_ready, continue_on};
+use vg_core::{await_ready, continue_on, ReadyState};
 
 /// Check if an HTTP route is allowed by the Gateway's allowedRoutes configuration
 fn is_http_route_allowed_by_gateway(
@@ -116,7 +115,6 @@ pub fn filter_http_routes(
                     let http_routes = http_routes
                         .iter()
                         .filter(|(http_route_ref, _, http_route)| {
-                            
                             debug_span!("inner").in_scope(|| {
                                 // Check if the HTTP route references any existing gateway and is allowed by its allowedRoutes configuration
                                 http_route

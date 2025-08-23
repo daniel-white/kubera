@@ -1,18 +1,17 @@
 use super::AccessControlFilterHandler;
 use std::collections::HashMap;
-use vg_core::config::gateway::types::net::AccessControlFilter;
 use vg_core::config::gateway::types::GatewayConfiguration;
+use vg_core::http::filters::access_control::{AccessControlFilter, AccessControlFilterKey};
 use vg_core::sync::signal::{signal, Receiver};
 use vg_core::task::Builder as TaskBuilder;
-use vg_core::types::filters::access_control::Key;
 use vg_core::{await_ready, continue_on, ReadyState};
 
-pub type AccessControlFilterHandlers = HashMap<Key, AccessControlFilterHandler>;
+pub type AccessControlFilterHandlers = HashMap<AccessControlFilterKey, AccessControlFilterHandler>;
 
 fn access_control_filters_config(
     task_builder: &TaskBuilder,
     gateway_configuration_rx: &Receiver<GatewayConfiguration>,
-) -> Receiver<HashMap<Key, AccessControlFilter>> {
+) -> Receiver<HashMap<AccessControlFilterKey, AccessControlFilter>> {
     let (tx, rx) = signal(stringify!(access_control_filters));
     let gateway_configuration_rx = gateway_configuration_rx.clone();
 
@@ -23,11 +22,12 @@ fn access_control_filters_config(
                 if let ReadyState::Ready(gateway_configuration) =
                     await_ready!(gateway_configuration_rx)
                 {
-                    let filters: HashMap<Key, AccessControlFilter> = gateway_configuration
-                        .access_control_filters()
-                        .iter()
-                        .map(|f| (f.key().clone(), f.clone()))
-                        .collect();
+                    let filters: HashMap<AccessControlFilterKey, AccessControlFilter> =
+                        gateway_configuration
+                            .access_control_filters()
+                            .iter()
+                            .map(|f| (f.key().clone(), f.clone()))
+                            .collect();
                     tx.set(filters).await;
                 }
                 continue_on!(gateway_configuration_rx.changed());

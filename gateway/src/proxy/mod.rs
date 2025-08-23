@@ -8,13 +8,13 @@ pub mod router;
 use crate::controllers::static_response_bodies_cache::StaticResponseBodiesCache;
 use crate::proxy::context::{MatchRouteResult, UpstreamPeerResult};
 
-use crate::proxy::filters::access_control::AccessControlFilterHandlers;
+use crate::http::filters::access_control::AccessControlFilterHandlers;
+use crate::http::filters::client_addrs::ClientAddrFilterHandler;
 use crate::proxy::filters::static_responses::StaticResponseFilter;
 use crate::proxy::instrumentation::RequestInstrumentation;
 use crate::proxy::responses::error_responses::{ErrorResponseCode, ErrorResponseGenerators};
 use async_trait::async_trait;
 use context::RequestContext;
-use filters::client_addrs::ClientAddrFilterHandler;
 use filters::request_headers::RequestHeaderFilter;
 use filters::request_redirect::RequestRedirectFilter;
 use filters::response_headers::ResponseHeaderFilter;
@@ -188,40 +188,40 @@ impl ProxyHttp for Proxy {
                     if let Some(ext_static_response) = &filter.ext_static_response
                         && let ReadyState::Ready(static_responses) =
                             await_ready!(static_responses_rx)
-                        {
-                            let static_filter = StaticResponseFilter::builder()
-                                .responses(static_responses.clone())
-                                .static_response_bodies(self.static_response_bodies_cache.clone())
-                                .build();
+                    {
+                        let static_filter = StaticResponseFilter::builder()
+                            .responses(static_responses.clone())
+                            .static_response_bodies(self.static_response_bodies_cache.clone())
+                            .build();
 
-                            match static_filter
-                                .apply_to_session(session, ext_static_response.key())
-                                .await
-                            {
-                                Ok(Some(status_code)) => {
-                                    debug!(
-                                        "Applied static response filter for route: {:?} with key: {}",
-                                        route,
-                                        ext_static_response.key()
-                                    );
-                                    ctx.instrumentation().record_status(status_code);
-                                    return Ok(true);
-                                }
-                                Ok(None) => {
-                                    debug!(
-                                        "Static response key '{}' not found in configuration",
-                                        ext_static_response.key()
-                                    );
-                                }
-                                Err(e) => {
-                                    warn!(
-                                        "Failed to apply static response filter for key '{}': {}",
-                                        ext_static_response.key(),
-                                        e
-                                    );
-                                }
+                        match static_filter
+                            .apply_to_session(session, ext_static_response.key())
+                            .await
+                        {
+                            Ok(Some(status_code)) => {
+                                debug!(
+                                    "Applied static response filter for route: {:?} with key: {}",
+                                    route,
+                                    ext_static_response.key()
+                                );
+                                ctx.instrumentation().record_status(status_code);
+                                return Ok(true);
+                            }
+                            Ok(None) => {
+                                debug!(
+                                    "Static response key '{}' not found in configuration",
+                                    ext_static_response.key()
+                                );
+                            }
+                            Err(e) => {
+                                warn!(
+                                    "Failed to apply static response filter for key '{}': {}",
+                                    ext_static_response.key(),
+                                    e
+                                );
                             }
                         }
+                    }
                 }
 
                 // Check for redirect filters before proceeding to upstream
