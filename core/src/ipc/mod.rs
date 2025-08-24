@@ -1,10 +1,43 @@
 use crate::instrumentation::{KeyValueCollector, KeyValues};
 use getset::Getters;
 use opentelemetry::{StringValue, Value};
+use schemars::JsonSchema;
 use schemars::_private::serde_json;
 use serde::{Deserialize, Serialize};
+use serde_valid::Validate;
+use std::net::SocketAddr;
 use strum::{AsRefStr, IntoStaticStr};
 use typed_builder::TypedBuilder;
+
+#[derive(Validate, Getters, Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct IpcConfiguration {
+    #[getset(get = "pub")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    addr: Option<SocketAddr>,
+}
+
+impl IpcConfiguration {
+    pub fn builder() -> IpcConfigurationBuilder {
+        IpcConfigurationBuilder { addr: None }
+    }
+}
+
+#[derive(Debug)]
+pub struct IpcConfigurationBuilder {
+    addr: Option<SocketAddr>,
+}
+
+impl IpcConfigurationBuilder {
+    pub fn addr<A: Into<SocketAddr>>(&mut self, addr: A) -> &mut Self {
+        self.addr = Some(addr.into());
+        self
+    }
+
+    pub fn build(self) -> IpcConfiguration {
+        IpcConfiguration { addr: self.addr }
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[non_exhaustive]

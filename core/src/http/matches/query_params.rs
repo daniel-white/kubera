@@ -17,15 +17,11 @@ use typed_builder::TypedBuilder;
     Hash,
     JsonSchema,
 )]
+#[serde(rename_all = "camelCase")]
 pub struct HttpQueryParamMatch {
     #[getset(get = "pub")]
-    #[serde(
-        default,
-        rename = "type",
-        skip_serializing_if = "HttpQueryParamMatchType::is_default"
-    )]
     #[builder(setter(into))]
-    match_type: HttpQueryParamMatchType,
+    kind: HttpQueryParamMatchKind,
 
     #[getset(get = "pub")]
     #[builder(setter(into))]
@@ -39,41 +35,34 @@ pub struct HttpQueryParamMatch {
 }
 
 impl HttpQueryParamMatch {
-    pub fn exactly<N: AsRef<str>, V: AsRef<str>>(name: N, value: V) -> Self {
+    pub fn exactly<N: Into<HttpQueryParamName>, V: AsRef<str>>(name: N, value: V) -> Self {
         Self {
-            match_type: HttpQueryParamMatchType::Exact,
-            name: HttpQueryParamName(name.as_ref().to_string()),
+            kind: HttpQueryParamMatchKind::Exact,
+            name: name.into(),
             value: value.as_ref().to_string(),
         }
     }
 
-    pub fn matches<N: AsRef<str>, P: AsRef<str>>(name: N, pattern: P) -> Self {
+    pub fn matches<N: Into<HttpQueryParamName>, P: AsRef<str>>(name: N, pattern: P) -> Self {
         Self {
-            match_type: HttpQueryParamMatchType::RegularExpression,
-            name: HttpQueryParamName(name.as_ref().to_string()),
+            kind: HttpQueryParamMatchKind::RegularExpression,
+            name: name.into(),
             value: pattern.as_ref().to_string(),
         }
     }
 }
 
-#[derive(
-    Default, Validate, Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Hash, JsonSchema,
-)]
-pub enum HttpQueryParamMatchType {
-    #[default]
+#[derive(Validate, Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Hash, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub enum HttpQueryParamMatchKind {
     Exact,
     RegularExpression,
-}
-
-impl HttpQueryParamMatchType {
-    fn is_default(&self) -> bool {
-        *self == Self::Exact
-    }
 }
 
 #[derive(
     Validate, Getters, Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Hash, JsonSchema,
 )]
+#[serde(rename_all = "camelCase")]
 pub struct HttpQueryParamName(
     #[validate(min_length = 1)]
     #[validate(max_length = 256)]
@@ -81,3 +70,9 @@ pub struct HttpQueryParamName(
     #[getset(get = "pub")]
     String,
 );
+
+impl From<&str> for HttpQueryParamName {
+    fn from(value: &str) -> Self {
+        Self(value.to_string())
+    }
+}

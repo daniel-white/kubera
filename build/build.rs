@@ -5,7 +5,7 @@ use std::fs::create_dir_all;
 use std::io::Write;
 use std::path::Path;
 use vg_api::v1alpha1::*;
-use vg_core::config::gateway::types::GatewayConfiguration;
+use vg_core::gateways::Gateway;
 
 fn main() {
     let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap();
@@ -31,7 +31,7 @@ fn write_gateway_configuration_schema(out_dir: &Path) {
     let dest_path = out_dir.join("gateway_configuration_schema.yaml");
     let mut file = File::create(dest_path).unwrap();
 
-    let schema = schema_for!(GatewayConfiguration);
+    let schema = schema_for!(Gateway);
     file.write_all(serde_yaml::to_string(&schema).unwrap().as_bytes())
         .unwrap();
 }

@@ -44,9 +44,10 @@ use vg_core::config::gateway::types::net::{
 };
 use vg_core::config::gateway::types::{GatewayConfiguration, GatewayConfigurationBuilder};
 use vg_core::http::filters::access_control::{
-    AccessControlClients, AccessControlEffect, AccessControlFilter, AccessControlFilterRef,
+    AccessControlEffect, HttpAccessControlClients, HttpAccessControlFilter,
+    HttpAccessControlFilterRef,
 };
-use vg_core::http::filters::client_addrs::ProxyHeaders;
+use vg_core::http::filters::client_addrs::HttpProxyHeaders;
 use vg_core::net::{Hostname, Port};
 use vg_core::sync::signal::{signal, Receiver};
 use vg_core::task::Builder as TaskBuilder;
@@ -369,12 +370,12 @@ fn apply_access_control_filters(
                     AccessControlFilterEffect::Deny => AccessControlEffect::Deny,
                 };
 
-                let clients = AccessControlClients::builder()
+                let clients = HttpAccessControlClients::builder()
                     .ip_ranges(filter.spec.clients.ip_ranges.clone())
                     .ips(filter.spec.clients.ips.clone())
                     .build();
 
-                AccessControlFilter::builder()
+                HttpAccessControlFilter::builder()
                     .key(ref_.to_string())
                     .effect(effect)
                     .clients(clients)
@@ -689,7 +690,7 @@ fn process_http_routes(
                                                         .name(&extension_ref.name)
                                                         .build();
 
-                                                    let access_control = AccessControlFilterRef::builder()
+                                                    let access_control = HttpAccessControlFilterRef::builder()
                                                         .key(filter_ref.to_string())
                                                         .build();
 
@@ -961,19 +962,19 @@ fn set_client_addrs_strategy(
                         for trusted_header in &proxies.trusted_headers {
                             match trusted_header {
                                 ProxyIpAddressHeaders::Forwarded => {
-                                    p.add_trusted_header(ProxyHeaders::Forwarded)
+                                    p.add_trusted_header(HttpProxyHeaders::Forwarded)
                                 }
                                 ProxyIpAddressHeaders::XForwardedFor => {
-                                    p.add_trusted_header(ProxyHeaders::XForwardedFor)
+                                    p.add_trusted_header(HttpProxyHeaders::XForwardedFor)
                                 }
                                 ProxyIpAddressHeaders::XForwardedHost => {
-                                    p.add_trusted_header(ProxyHeaders::XForwardedHost)
+                                    p.add_trusted_header(HttpProxyHeaders::XForwardedHost)
                                 }
                                 ProxyIpAddressHeaders::XForwardedProto => {
-                                    p.add_trusted_header(ProxyHeaders::XForwardedProto)
+                                    p.add_trusted_header(HttpProxyHeaders::XForwardedProto)
                                 }
                                 ProxyIpAddressHeaders::XForwardedBy => {
-                                    p.add_trusted_header(ProxyHeaders::XForwardedBy)
+                                    p.add_trusted_header(HttpProxyHeaders::XForwardedBy)
                                 }
                             };
                         }

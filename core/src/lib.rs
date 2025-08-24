@@ -17,6 +17,7 @@
 
 pub mod config;
 pub mod crypto;
+pub mod gateways;
 pub mod http;
 pub mod instrumentation;
 pub mod io;

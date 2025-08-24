@@ -3,7 +3,7 @@ use super::extractors::{TrustedHeaderClientAddrExtractor, TrustedProxiesClientAd
 use super::ClientAddrFilterHandler;
 use std::sync::Arc;
 use vg_core::config::gateway::types::GatewayConfiguration;
-use vg_core::http::filters::client_addrs::{ClientAddrsSource, ProxyHeaders};
+use vg_core::http::filters::client_addrs::{HttpClientAddrsSource, HttpProxyHeaders};
 use vg_core::sync::signal::{signal, Receiver};
 use vg_core::task::Builder as TaskBuilder;
 use vg_core::{await_ready, continue_on, ReadyState};
@@ -25,8 +25,8 @@ pub fn client_addr_filter_handler(
                     let extractor = if let Some(client_addrs) = gateway_configuration.client_addrs()
                     {
                         match client_addrs.source() {
-                            ClientAddrsSource::None => Noop,
-                            ClientAddrsSource::Header => client_addrs
+                            HttpClientAddrsSource::None => Noop,
+                            HttpClientAddrsSource::Header => client_addrs
                                 .header()
                                 .as_ref()
                                 .map(|h| {
@@ -36,7 +36,7 @@ pub fn client_addr_filter_handler(
                                     TrustedHeader(Arc::new(extractor))
                                 })
                                 .unwrap_or(Noop),
-                            ClientAddrsSource::Proxies => {
+                            HttpClientAddrsSource::Proxies => {
                                 if let Some(proxies) = client_addrs.proxies().as_ref() {
                                     let mut extractor_builder =
                                         TrustedProxiesClientAddrExtractor::builder();
@@ -51,19 +51,19 @@ pub fn client_addr_filter_handler(
 
                                     for header in proxies.trusted_headers() {
                                         match header {
-                                            ProxyHeaders::Forwarded => {
+                                            HttpProxyHeaders::Forwarded => {
                                                 extractor_builder.trust_forwarded_header();
                                             }
-                                            ProxyHeaders::XForwardedFor => {
+                                            HttpProxyHeaders::XForwardedFor => {
                                                 extractor_builder.trust_x_forwarded_for_header();
                                             }
-                                            ProxyHeaders::XForwardedBy => {
+                                            HttpProxyHeaders::XForwardedBy => {
                                                 extractor_builder.trust_x_forwarded_by_header();
                                             }
-                                            ProxyHeaders::XForwardedProto => {
+                                            HttpProxyHeaders::XForwardedProto => {
                                                 extractor_builder.trust_x_forwarded_proto_header();
                                             }
-                                            ProxyHeaders::XForwardedHost => {
+                                            HttpProxyHeaders::XForwardedHost => {
                                                 extractor_builder.trust_x_forwarded_host_header();
                                             }
                                         }

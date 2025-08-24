@@ -1,3 +1,4 @@
+use std::str::FromStr;
 use http::Method;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -5,22 +6,10 @@ use serde_valid::Validate;
 use strum::EnumString;
 
 #[derive(
-    Validate,
-    Default,
-    Debug,
-    Clone,
-    Copy,
-    PartialEq,
-    Eq,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-    EnumString,
-    Hash,
+    Validate, Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, EnumString, Hash,
 )]
 #[serde(rename_all = "UPPERCASE")]
 pub enum HttpMethodMatch {
-    #[default]
     #[strum(serialize = "GET")]
     Get,
     #[strum(serialize = "POST")]
@@ -39,6 +28,7 @@ pub enum HttpMethodMatch {
     Trace,
     #[strum(serialize = "CONNECT")]
     Connect,
+    Extension(String),
 }
 
 impl From<HttpMethodMatch> for Method {
@@ -53,6 +43,9 @@ impl From<HttpMethodMatch> for Method {
             HttpMethodMatch::Options => Method::OPTIONS,
             HttpMethodMatch::Trace => Method::TRACE,
             HttpMethodMatch::Connect => Method::CONNECT,
+            HttpMethodMatch::Extension(ext) => {
+                Method::from_str(&ext).expect("Invalid HTTP method")
+            }
         }
     }
 }

@@ -17,11 +17,11 @@ use typed_builder::TypedBuilder;
     Hash,
     JsonSchema,
 )]
+#[serde(rename_all = "camelCase")]
 pub struct HttpPathMatch {
     #[getset(get = "pub")]
-    #[serde(default, rename = "type")]
     #[builder(setter(into))]
-    match_type: HttpPathMatchType,
+    kind: HttpPathMatchKind,
 
     #[getset(get = "pub")]
     #[validate(max_length = 1024)]
@@ -29,55 +29,33 @@ pub struct HttpPathMatch {
     value: String,
 }
 
-impl Default for HttpPathMatch {
-    fn default() -> Self {
-        HttpPathMatch {
-            match_type: HttpPathMatchType::Prefix,
-            value: "/".to_string(),
-        }
-    }
-}
-
 impl HttpPathMatch {
     pub fn exactly<S: AsRef<str>>(path: S) -> Self {
         Self {
-            match_type: HttpPathMatchType::Exact,
+            kind: HttpPathMatchKind::Exact,
             value: path.as_ref().to_string(),
         }
     }
 
     pub fn with_prefix<S: AsRef<str>>(prefix: S) -> Self {
         Self {
-            match_type: HttpPathMatchType::Prefix,
+            kind: HttpPathMatchKind::Prefix,
             value: prefix.as_ref().to_string(),
         }
     }
 
     pub fn matching<S: AsRef<str>>(pattern: S) -> Self {
         Self {
-            match_type: HttpPathMatchType::RegularExpression,
+            kind: HttpPathMatchKind::RegularExpression,
             value: pattern.as_ref().to_string(),
         }
     }
-
-    #[must_use]
-    pub fn is_default(&self) -> bool {
-        self.match_type.is_default() && self.value == "/"
-    }
 }
 
-#[derive(
-    Default, Validate, Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Hash, JsonSchema,
-)]
-pub enum HttpPathMatchType {
+#[derive(Validate, Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Hash, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub enum HttpPathMatchKind {
     Exact,
-    #[default]
     Prefix,
     RegularExpression,
-}
-
-impl HttpPathMatchType {
-    fn is_default(&self) -> bool {
-        *self == Self::Prefix
-    }
 }

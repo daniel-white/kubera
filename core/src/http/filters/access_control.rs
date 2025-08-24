@@ -8,9 +8,9 @@ use typed_builder::TypedBuilder;
 
 #[derive(Deserialize, Serialize, Clone, Debug, JsonSchema, PartialEq, Hash, Eq)]
 #[serde(transparent)]
-pub struct AccessControlFilterKey(String);
+pub struct HttpAccessControlFilterKey(String);
 
-impl<S: AsRef<str>> From<S> for AccessControlFilterKey {
+impl<S: AsRef<str>> From<S> for HttpAccessControlFilterKey {
     fn from(value: S) -> Self {
         Self(value.as_ref().to_string())
     }
@@ -19,43 +19,49 @@ impl<S: AsRef<str>> From<S> for AccessControlFilterKey {
 #[derive(
     Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TypedBuilder, Getters,
 )]
-#[serde(tag = "type", rename_all = "pascalCase")]
-pub struct AccessControlFilterRef {
+#[serde(rename_all = "camelCase")]
+pub struct HttpAccessControlFilterRef {
     #[getset(get = "pub")]
     #[builder(setter(into))]
-    key: AccessControlFilterKey,
+    key: HttpAccessControlFilterKey,
 }
 
-#[derive(Deserialize, Serialize, Clone, Debug, JsonSchema, PartialEq, Getters, TypedBuilder)]
-#[serde(tag = "type", rename_all = "pascalCase")]
-pub struct AccessControlFilter {
+#[derive(
+    Deserialize, Serialize, Clone, Debug, JsonSchema, PartialEq, Getters, TypedBuilder, Eq,
+)]
+#[serde(rename_all = "camelCase")]
+pub struct HttpAccessControlFilter {
     #[getset(get = "pub")]
     #[builder(setter(into))]
-    key: AccessControlFilterKey,
+    key: HttpAccessControlFilterKey,
 
     #[getset(get = "pub")]
-    effect: AccessControlEffect,
+    effect: HttpAccessControlEffect,
 
     #[getset(get = "pub")]
-    clients: AccessControlClients,
+    clients: HttpAccessControlClients,
 }
 
-#[derive(Deserialize, Serialize, Clone, Debug, JsonSchema, PartialEq)]
-#[serde(tag = "type", rename_all = "pascalCase")]
-pub enum AccessControlEffect {
+#[derive(Deserialize, Serialize, Clone, Debug, JsonSchema, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum HttpAccessControlEffect {
     Allow,
     Deny,
 }
 
-#[derive(Deserialize, Serialize, Clone, Debug, JsonSchema, PartialEq, Getters, TypedBuilder)]
-#[serde(tag = "type", rename_all = "pascalCase")]
-pub struct AccessControlClients {
+#[derive(
+    Deserialize, Serialize, Clone, Debug, JsonSchema, PartialEq, Getters, TypedBuilder, Eq,
+)]
+#[serde(rename_all = "camelCase")]
+pub struct HttpAccessControlClients {
     #[getset(get = "pub")]
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[builder(default)]
     ips: Vec<IpAddr>,
 
     #[getset(get = "pub")]
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     #[schemars(schema_with = "cidr_array")]
+    #[builder(default)]
     ip_ranges: Vec<IpNet>,
 }

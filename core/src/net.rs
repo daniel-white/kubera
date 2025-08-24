@@ -1,35 +1,37 @@
 use crate::CaseInsensitiveString;
 use getset::Getters;
-use schemars::{JsonSchema, Schema, SchemaGenerator, json_schema};
+use schemars::{json_schema, JsonSchema, Schema, SchemaGenerator};
 use serde::{Deserialize, Serialize};
 use serde_valid::Validate;
 use std::borrow::Cow;
 use std::fmt::Display;
+use std::num::NonZeroU16;
 use std::str::FromStr;
 
 #[derive(
     Validate, Getters, Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, Hash,
 )]
-pub struct Port(
-    #[validate(minimum = 1)]
-    #[validate(maximum = 65535)]
-    #[getset(get = "pub")]
-    u16,
-);
+pub struct Port(#[getset(get = "pub")] NonZeroU16);
 
 impl Port {
-    pub fn new(port: u16) -> Self {
+    pub fn new<P: Into<Port>>(port: P) -> Self {
+        port.into()
+    }
+}
+
+impl From<NonZeroU16> for Port {
+    fn from(port: NonZeroU16) -> Self {
         Self(port)
     }
 }
 
-impl From<u16> for Port {
-    fn from(port: u16) -> Self {
-        Self::new(port)
+impl From<Port> for u16 {
+    fn from(port: Port) -> Self {
+        port.0.into()
     }
 }
 
-impl From<Port> for u16 {
+impl From<Port> for NonZeroU16 {
     fn from(port: Port) -> Self {
         port.0
     }
@@ -45,7 +47,7 @@ impl FromStr for Port {
     type Err = ();
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s.parse::<u16>() {
+        match s.parse::<NonZeroU16>() {
             Ok(port) => Ok(Self::new(port)),
             Err(_) => Err(()),
         }
@@ -204,36 +206,6 @@ mod tests {
 
         assert_eq!(map.get(&port2), Some(&"service1"));
         assert_eq!(map.len(), 2);
-    }
-
-    proptest! {
-        #[test]
-        fn test_port_properties(port_num in 1u16..=65535) {
-            let port = Port::new(port_num);
-
-            // Validation should always pass for valid range
-            prop_assert!(port.validate().is_ok());
-
-            // Round trip through string should work
-            let as_string = port.to_string();
-            let from_string = Port::from_str(&as_string);
-            prop_assert_eq!(from_string, Ok(port));
-
-            // Round trip through u16 should work
-            let as_u16: u16 = port.into();
-            let from_u16 = Port::from(as_u16);
-            prop_assert_eq!(from_u16, port);
-        }
-
-        #[test]
-        fn test_port_serialization_roundtrip(port_num in 1u16..=65535) {
-            let port = Port::new(port_num);
-
-            // JSON serialization roundtrip
-            let json = serde_json::to_string(&port)?;
-            let from_json: Port = serde_json::from_str(&json)?;
-            prop_assert_eq!(port, from_json);
-        }
     }
 
     // Hostname tests

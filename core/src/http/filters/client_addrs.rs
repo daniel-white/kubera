@@ -1,4 +1,3 @@
-use crate::schemars::cidr_array;
 use getset::Getters;
 use http::HeaderName;
 use ipnet::IpNet;
@@ -9,9 +8,9 @@ use typed_builder::TypedBuilder;
 
 #[derive(Deserialize, Serialize, Clone, Debug, JsonSchema, PartialEq, Hash, Eq)]
 #[serde(transparent)]
-pub struct ClientAddrFilterKey(String);
+pub struct HttpClientAddrFilterKey(String);
 
-impl<S: AsRef<str>> From<S> for ClientAddrFilterKey {
+impl<S: AsRef<str>> From<S> for HttpClientAddrFilterKey {
     fn from(value: S) -> Self {
         Self(value.as_ref().to_string())
     }
@@ -20,24 +19,27 @@ impl<S: AsRef<str>> From<S> for ClientAddrFilterKey {
 #[derive(
     Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TypedBuilder, Getters,
 )]
-pub struct ClientAddrsFilterRef {
+#[serde(rename_all = "camelCase")]
+pub struct HttpClientAddrsFilterRef {
     #[getset(get = "pub")]
     #[builder(setter(into))]
-    key: ClientAddrFilterKey,
+    key: HttpClientAddrFilterKey,
 }
 
-#[derive(Deserialize, Serialize, Clone, Debug, JsonSchema, PartialEq)]
-pub enum ClientAddrsSource {
+#[derive(Deserialize, Serialize, Clone, Debug, JsonSchema, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum HttpClientAddrsSource {
     Header,
     Proxies,
 }
 
-#[derive(Deserialize, Serialize, Clone, Debug, JsonSchema, PartialEq, Getters)]
-pub struct ClientAddrsFilter {
+#[derive(Deserialize, Serialize, Clone, Debug, JsonSchema, PartialEq, Eq, Getters)]
+#[serde(rename_all = "camelCase")]
+pub struct HttpClientAddrsFilter {
     #[getset(get = "pub")]
-    key: ClientAddrFilterKey,
+    key: HttpClientAddrFilterKey,
     #[getset(get = "pub")]
-    source: ClientAddrsSource,
+    source: HttpClientAddrsSource,
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",
@@ -48,12 +50,12 @@ pub struct ClientAddrsFilter {
     header: Option<HeaderName>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[getset(get = "pub")]
-    proxies: Option<TrustedProxies>,
+    proxies: Option<HttpTrustedProxies>,
 }
 
-impl ClientAddrsFilter {
-    pub fn builder() -> ClientAddrsFilterBuilder {
-        ClientAddrsFilterBuilder {
+impl HttpClientAddrsFilter {
+    pub fn builder() -> HttpClientAddrsFilterBuilder {
+        HttpClientAddrsFilterBuilder {
             key: None,
             source: None,
             header: None,
@@ -63,21 +65,21 @@ impl ClientAddrsFilter {
 }
 
 #[derive(Debug)]
-pub struct ClientAddrsFilterBuilder {
-    key: Option<ClientAddrFilterKey>,
-    source: Option<ClientAddrsSource>,
+pub struct HttpClientAddrsFilterBuilder {
+    key: Option<HttpClientAddrFilterKey>,
+    source: Option<HttpClientAddrsSource>,
     header: Option<HeaderName>,
-    proxies: Option<TrustedProxiesBuilder>,
+    proxies: Option<HttpTrustedProxiesBuilder>,
 }
 
-impl ClientAddrsFilterBuilder {
-    pub fn key<K: Into<ClientAddrFilterKey>>(&mut self, key: K) -> &mut Self {
+impl HttpClientAddrsFilterBuilder {
+    pub fn key<K: Into<HttpClientAddrFilterKey>>(&mut self, key: K) -> &mut Self {
         self.key = Some(key.into());
         self
     }
 
     pub fn trust_header<H: Into<HeaderName>>(&mut self, header: H) -> &mut Self {
-        self.source = Some(ClientAddrsSource::Header);
+        self.source = Some(HttpClientAddrsSource::Header);
         self.header = Some(header.into());
         self.proxies = None;
         self
@@ -85,37 +87,37 @@ impl ClientAddrsFilterBuilder {
 
     pub fn trust_proxies<F>(&mut self, factory: F) -> &mut Self
     where
-        F: FnOnce(&mut TrustedProxiesBuilder),
+        F: FnOnce(&mut HttpTrustedProxiesBuilder),
     {
-        self.source = Some(ClientAddrsSource::Proxies);
-        let mut builder = TrustedProxiesBuilder::new();
+        self.source = Some(HttpClientAddrsSource::Proxies);
+        let mut builder = HttpTrustedProxiesBuilder::new();
         factory(&mut builder);
         self.proxies = Some(builder);
         self
     }
 
-    pub fn build(self) -> ClientAddrsFilter {
+    pub fn build(self) -> HttpClientAddrsFilter {
         let key = self.key.expect("key must be set");
         match self.source.expect("source must be set") {
-            ClientAddrsSource::Header => ClientAddrsFilter {
+            HttpClientAddrsSource::Header => HttpClientAddrsFilter {
                 key,
-                source: ClientAddrsSource::Header,
+                source: HttpClientAddrsSource::Header,
                 header: self.header,
                 proxies: None,
             },
-            ClientAddrsSource::Proxies => ClientAddrsFilter {
+            HttpClientAddrsSource::Proxies => HttpClientAddrsFilter {
                 key,
-                source: ClientAddrsSource::Proxies,
+                source: HttpClientAddrsSource::Proxies,
                 header: None,
-                proxies: self.proxies.map(TrustedProxiesBuilder::build),
+                proxies: self.proxies.map(HttpTrustedProxiesBuilder::build),
             },
         }
     }
 }
 
-#[derive(Deserialize, Serialize, Clone, Debug, JsonSchema, PartialEq)]
+#[derive(Deserialize, Serialize, Clone, Debug, JsonSchema, PartialEq, Eq)]
 #[serde(rename_all = "kebab-case")]
-pub enum ProxyHeaders {
+pub enum HttpProxyHeaders {
     Forwarded,
     XForwardedFor,
     XForwardedHost,
@@ -123,9 +125,8 @@ pub enum ProxyHeaders {
     XForwardedBy,
 }
 
-#[derive(Deserialize, Serialize, Clone, Debug, JsonSchema, PartialEq, Getters)]
-#[serde(rename_all = "camelCase")]
-pub struct TrustedProxies {
+#[derive(Deserialize, Serialize, Clone, Debug, JsonSchema, PartialEq, Eq, Getters)]
+pub struct HttpTrustedProxies {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     #[getset(get = "pub")]
     trusted_ips: Vec<IpAddr>,
@@ -137,17 +138,17 @@ pub struct TrustedProxies {
 
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     #[getset(get = "pub")]
-    trusted_headers: Vec<ProxyHeaders>,
+    trusted_headers: Vec<HttpProxyHeaders>,
 }
 
 #[derive(Debug, Default)]
-pub struct TrustedProxiesBuilder {
+pub struct HttpTrustedProxiesBuilder {
     trusted_ips: Vec<IpAddr>,
     trusted_ranges: Vec<IpNet>,
-    trusted_headers: Vec<ProxyHeaders>,
+    trusted_headers: Vec<HttpProxyHeaders>,
 }
 
-impl TrustedProxiesBuilder {
+impl HttpTrustedProxiesBuilder {
     pub fn new() -> Self {
         Self::default()
     }
@@ -180,13 +181,13 @@ impl TrustedProxiesBuilder {
         self
     }
 
-    pub fn add_trusted_header(&mut self, header: ProxyHeaders) -> &mut Self {
+    pub fn add_trusted_header(&mut self, header: HttpProxyHeaders) -> &mut Self {
         self.trusted_headers.push(header);
         self
     }
 
-    pub fn build(self) -> TrustedProxies {
-        TrustedProxies {
+    pub fn build(self) -> HttpTrustedProxies {
+        HttpTrustedProxies {
             trusted_ips: self.trusted_ips,
             trusted_ranges: self.trusted_ranges,
             trusted_headers: self.trusted_headers,

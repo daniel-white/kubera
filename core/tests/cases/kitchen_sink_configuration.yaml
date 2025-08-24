@@ -1,0 +1,87 @@
+version: v1alpha1
+ipc:
+  addr: 127.0.0.1:9000
+httpListeners:
+  - name: main-listener
+    port: 8080
+    filters:
+      - type: upstreamRequestHeaderModifier
+        set:
+          x-set-header: set-value
+        add:
+          x-add-header: add-value
+        remove:
+          - x-remove-header
+      - type: responseHeaderModifier
+        set:
+          x-set-header: set-value
+        add:
+          x-add-header: add-value
+        remove:
+          - x-remove-header
+      - type: redirect
+        kind: temporary
+        path:
+          kind: PrefixMatch
+          value: /v2
+      - type: accessControl
+        key: access-key
+      - type: clientAddrs
+        key: client-key
+      - type: errorResponse
+        key: error-key
+    filterDefinitions:
+      - type: upstreamRequestHeaderModifier
+        set:
+          x-set-header: set-value
+        add:
+          x-add-header: add-value
+        remove:
+          - x-remove-header
+      - type: responseHeaderModifier
+        set:
+          x-set-header: set-value
+        add:
+          x-add-header: add-value
+        remove:
+          - x-remove-header
+      - type: redirect
+        kind: temporary
+        path:
+          kind: PrefixMatch
+          value: /v2
+      - type: staticResponse
+        key: static-key
+        statusCode: 200
+        body:
+          key: body-key
+          contentType: text/plain
+      - type: accessControl
+        key: access-key
+        effect: allow
+        clients:
+          ips:
+            - 127.0.0.1
+      - type: clientAddrs
+        key: client-key
+        source: header
+        header: x-real-ip
+      - type: errorResponse
+        key: error-key
+        kind: html
+    routes:
+      - key: my-route
+        hostHeaderMatches:
+          - type: suffix
+            value: .example.com
+        rules:
+          - key: my-rule
+            matches:
+              - path:
+                  kind: exact
+                  value: /
+                headers:
+                  - kind: exact
+                    header: content-type
+                    value: application/json
+            backends: [ ]

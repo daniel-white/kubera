@@ -40,6 +40,7 @@ tracing-subscriber = { workspace = true, features = ["json"] }
 tracing-opentelemetry = "0.31"
 unicase = { workspace = true }
 typed-builder = { workspace = true }
+serde_with = { version = "3", features = ["schemars_0_9"] }
 
 [dev-dependencies]
 tokio-test = { workspace = true }

@@ -9,8 +9,8 @@ use std::collections::HashSet;
 #[derive(
     Validate, Getters, Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, Default,
 )]
-#[serde(tag = "type", rename_all = "pascalCase")]
-pub struct HeaderModifierFilter {
+#[serde(rename_all = "camelCase")]
+pub struct HttpHeaderModifierFilter {
     /// Headers to set - will replace existing headers or add new ones
     #[getset(get = "pub")]
     #[serde(
@@ -42,9 +42,9 @@ pub struct HeaderModifierFilter {
     remove: HashSet<HeaderName>,
 }
 
-impl HeaderModifierFilter {
-    pub fn builder() -> HeaderModifierFilterBuilder {
-        HeaderModifierFilterBuilder {
+impl HttpHeaderModifierFilter {
+    pub fn builder() -> HttpHeaderModifierFilterBuilder {
+        HttpHeaderModifierFilterBuilder {
             set: HeaderMap::new(),
             add: HeaderMap::new(),
             remove: HashSet::new(),
@@ -53,28 +53,28 @@ impl HeaderModifierFilter {
 }
 
 #[derive(Debug)]
-pub struct HeaderModifierFilterBuilder {
+pub struct HttpHeaderModifierFilterBuilder {
     set: HeaderMap,
     add: HeaderMap,
     remove: HashSet<HeaderName>,
 }
 
-impl HeaderModifierFilterBuilder {
-    pub fn set_header<N: IntoHeaderName, V: Into<HeaderValue>>(
+impl HttpHeaderModifierFilterBuilder {
+    pub fn set_header<H: IntoHeaderName, V: Into<HeaderValue>>(
         &mut self,
-        name: N,
+        header: H,
         value: V,
     ) -> &mut Self {
-        self.set.insert(name, value.into());
+        self.set.insert(header, value.into());
         self
     }
 
-    pub fn add_header<N: IntoHeaderName, V: Into<HeaderValue>>(
+    pub fn add_header<H: IntoHeaderName, V: Into<HeaderValue>>(
         &mut self,
-        name: N,
+        header: H,
         value: V,
     ) -> &mut Self {
-        self.add.append(name, value.into());
+        self.add.append(header, value.into());
         self
     }
 
@@ -84,8 +84,8 @@ impl HeaderModifierFilterBuilder {
         self
     }
 
-    pub fn build(self) -> HeaderModifierFilter {
-        HeaderModifierFilter {
+    pub fn build(self) -> HttpHeaderModifierFilter {
+        HttpHeaderModifierFilter {
             set: self.set,
             add: self.add,
             remove: self.remove,

@@ -1,8 +1,8 @@
-mod headers;
-mod host_header;
-mod method;
-mod path;
-mod query_params;
+pub mod headers;
+pub mod host_header;
+pub mod method;
+pub mod path;
+pub mod query_params;
 
 pub use self::headers::*;
 pub use self::host_header::*;
@@ -10,6 +10,7 @@ pub use self::method::*;
 pub use self::path::*;
 pub use self::query_params::*;
 use getset::Getters;
+use http::{HeaderName, HeaderValue};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_valid::Validate;
@@ -17,10 +18,8 @@ use serde_valid::Validate;
 #[derive(
     Validate, Getters, Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Hash, JsonSchema,
 )]
-#[serde(rename_all = "camelCase")]
-pub struct HttpRouteRuleMatches {
+pub struct HttpRequestMatches {
     #[getset(get = "pub")]
-    #[serde(default)]
     path: HttpPathMatch,
 
     #[getset(get = "pub")]
@@ -38,7 +37,18 @@ pub struct HttpRouteRuleMatches {
     method: Option<HttpMethodMatch>,
 }
 
-#[derive(Debug, Default)]
+impl HttpRequestMatches {
+    pub fn builder() -> HttpRouteRuleMatchesBuilder {
+        HttpRouteRuleMatchesBuilder {
+            path: HttpPathMatch::exactly("/"),
+            headers: None,
+            query_params: None,
+            method: None,
+        }
+    }
+}
+
+#[derive(Debug)]
 pub struct HttpRouteRuleMatchesBuilder {
     path: HttpPathMatch,
     headers: Option<Vec<HttpHeaderMatch>>,
@@ -48,8 +58,8 @@ pub struct HttpRouteRuleMatchesBuilder {
 
 impl HttpRouteRuleMatchesBuilder {
     #[must_use]
-    pub fn build(self) -> HttpRouteRuleMatches {
-        HttpRouteRuleMatches {
+    pub(crate) fn build(self) -> HttpRequestMatches {
+        HttpRequestMatches {
             path: self.path,
             headers: self.headers,
             query_params: self.query_params,
@@ -76,9 +86,9 @@ impl HttpRouteRuleMatchesBuilder {
         self
     }
 
-    pub fn add_exact_header<N: AsRef<str>, V: AsRef<str>>(
+    pub fn add_exact_header<H: Into<HeaderName>, V: Into<HeaderValue>>(
         &mut self,
-        name: N,
+        name: H,
         value: V,
     ) -> &mut Self {
         let header_match = HttpHeaderMatch::exactly(name, value);
@@ -86,9 +96,9 @@ impl HttpRouteRuleMatchesBuilder {
         self
     }
 
-    pub fn add_header_matching<N: AsRef<str>, P: AsRef<str>>(
+    pub fn add_header_matching<H: Into<HeaderName>, P: AsRef<str>>(
         &mut self,
-        name: N,
+        name: H,
         pattern: P,
     ) -> &mut Self {
         let header_match = HttpHeaderMatch::matches(name, pattern);
@@ -96,7 +106,7 @@ impl HttpRouteRuleMatchesBuilder {
         self
     }
 
-    pub fn add_exact_query_param<N: AsRef<str>, V: AsRef<str>>(
+    pub fn add_exact_query_param<N: Into<HttpQueryParamName>, V: AsRef<str>>(
         &mut self,
         name: N,
         value: V,
@@ -108,7 +118,7 @@ impl HttpRouteRuleMatchesBuilder {
         self
     }
 
-    pub fn add_query_param_matching<N: AsRef<str>, P: AsRef<str>>(
+    pub fn add_query_param_matching<N: Into<HttpQueryParamName>, P: AsRef<str>>(
         &mut self,
         name: N,
         pattern: P,
