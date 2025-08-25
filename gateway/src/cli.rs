@@ -1,8 +1,6 @@
-use anyhow::Result;
 use clap::Parser;
 use getset::{CloneGetters, CopyGetters, Getters};
 use std::path::PathBuf;
-use vg_core::net::Port;
 
 #[derive(Parser, Debug, Getters, Clone, CopyGetters, CloneGetters)]
 #[command(name = "vale-gateway")]
@@ -39,9 +37,4 @@ pub struct Cli {
     #[getset(get_clone = "pub")]
     #[arg(env = "VALE_GATEWAY_LISTENERS", long = "listeners")]
     vale_gateway_listeners: Option<String>,
-}
-
-fn parse_port(arg: &str) -> Result<Port> {
-    let port: u16 = arg.parse()?;
-    Ok(Port::new(port))
 }

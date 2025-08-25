@@ -1,5 +1,5 @@
-use crate::kubernetes::objects::Objects;
 use crate::kubernetes::KubeClientCell;
+use crate::kubernetes::objects::Objects;
 use anyhow::{Context, Result};
 use gateway_api::apis::standard::httproutes::HTTPRoute;
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::{Condition, Time};
@@ -7,14 +7,14 @@ use k8s_openapi::chrono::Utc;
 use kube::api::PostParams;
 use kube::{Api, Client};
 use std::ops::Deref;
-use tracing::{debug, info, info_span, warn, Instrument};
+use tracing::{Instrument, debug, info, info_span, warn};
 use vg_api::v1alpha1::{
     StaticResponseFilter, StaticResponseFilterConditionReason, StaticResponseFilterConditionType,
     StaticResponseFilterStatus,
 };
 use vg_core::sync::signal::Receiver;
 use vg_core::task::Builder as TaskBuilder;
-use vg_core::{await_ready, ReadyState};
+use vg_core::{ReadyState, await_ready};
 
 /// Controller for managing `StaticResponseFilter` status updates
 pub fn sync_static_response_filter_status(
@@ -285,13 +285,14 @@ async fn update_filter_status(
 
         // Check if the status actually needs to be updated
         if let Some(existing_status) = &current_filter.status
-            && existing_status == &status {
-                debug!(
-                    "Status for StaticResponseFilter {}/{} is already up to date",
-                    filter_namespace, filter_name
-                );
-                return Ok(());
-            }
+            && existing_status == &status
+        {
+            debug!(
+                "Status for StaticResponseFilter {}/{} is already up to date",
+                filter_namespace, filter_name
+            );
+            return Ok(());
+        }
 
         // Create a new version with updated status
         let mut updated_filter = current_filter.clone();

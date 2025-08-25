@@ -169,38 +169,3 @@ impl StaticResponseFilter {
         }
     }
 }
-
-/// Collector function that monitors gateway configuration changes and builds static response data.
-///
-/// This function creates a background task that watches for configuration changes and maintains
-/// an up-to-date map of static response configurations indexed by their keys.
-pub fn static_responses(
-    task_builder: &TaskBuilder,
-    gateway_configuration_rx: &Receiver<GatewayConfiguration>,
-) -> Receiver<Arc<HashMap<String, StaticResponse>>> {
-    let (tx, rx) = signal("static_responses");
-    let gateway_configuration_rx = gateway_configuration_rx.clone();
-
-    task_builder
-        .new_task(stringify!(collect_static_responses))
-        .spawn(async move {
-            loop {
-                if let ReadyState::Ready(gateway_configuration) =
-                    await_ready!(gateway_configuration_rx)
-                    && let Some(static_responses) = gateway_configuration.static_responses() {
-                        let responses_map: HashMap<String, StaticResponse> = static_responses
-                            .responses()
-                            .iter()
-                            .map(|static_response| {
-                                (static_response.key().clone(), static_response.clone())
-                            })
-                            .collect();
-
-                        tx.set(Arc::new(responses_map)).await;
-                    }
-                continue_on!(gateway_configuration_rx.changed());
-            }
-        });
-
-    rx
-}

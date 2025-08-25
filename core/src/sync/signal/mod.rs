@@ -5,7 +5,7 @@ use anyhow::Result;
 use atomic_refcell::AtomicRefCell;
 use std::sync::Arc;
 use thiserror::Error;
-use tokio::sync::broadcast::{channel, Receiver as BroadcastReceiver, Sender as BroadcastSender};
+use tokio::sync::broadcast::{Receiver as BroadcastReceiver, Sender as BroadcastSender, channel};
 use tokio::sync::{RwLock, RwLockReadGuard};
 use tracing::trace;
 
@@ -128,9 +128,9 @@ mod tests {
     use super::*;
     use assertables::assert_ok;
     use proptest::prelude::*;
-    use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::Arc;
-    use tokio::time::{timeout, Duration};
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use tokio::time::{Duration, timeout};
     use tokio_test::{assert_pending, assert_ready};
 
     #[tokio::test]

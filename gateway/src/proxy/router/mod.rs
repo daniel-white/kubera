@@ -18,7 +18,7 @@ use std::net::{IpAddr, SocketAddr};
 use std::sync::Arc;
 use tracing::{debug, instrument};
 use typed_builder::TypedBuilder;
-use vg_core::net::Hostname;
+use vg_core::net::{Hostname, Port};
 
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct HttpRouter {
@@ -91,7 +91,7 @@ pub struct HttpRouterBuilder {
 impl HttpRouterBuilder {
     pub fn new(current_location: Arc<TopologyLocation>) -> Self {
         HttpRouterBuilder {
-            current_location,
+            current_location
             host_value_matches: Vec::new(),
             routes_builders: Vec::new(),
         }
@@ -116,7 +116,7 @@ impl HttpRouterBuilder {
     where
         F: FnOnce(&mut HttpRouteBuilder),
     {
-        let mut builder = HttpRouteBuilder::new(&self.current_location);
+        let mut builder = HttpRouteBuilder::new(self.current_location.clone());
         factory(&mut builder);
         self.routes_builders.push(builder);
 
@@ -181,7 +181,7 @@ pub struct HttpBackend {
 pub struct HttpBackendBuilder {
     current_location: Arc<TopologyLocation>,
     weight: i32,
-    port: Option<u16>,
+    port: Option<Port>,
     endpoints: Vec<(TopologyLocation, HttpBackendEndpoint)>,
 }
 
@@ -228,14 +228,14 @@ impl HttpBackendBuilder {
         self
     }
 
-    pub fn with_port(&mut self, port: u16) -> &mut Self {
+    pub fn with_port(&mut self, port: Port) -> &mut Self {
         self.port = Some(port);
         self
     }
 
-    pub fn add_endpoint(&mut self, ip_addr: IpAddr, location: TopologyLocation) -> &mut Self {
+    pub fn add_endpoint(&mut self, addr: SocketAddr, location: TopologyLocation) -> &mut Self {
         let endpoint = HttpBackendEndpoint::builder()
-            .addr(SocketAddr::new(ip_addr, 0))
+            .addr(addr)
             .build();
         self.endpoints.push((location, endpoint));
         self

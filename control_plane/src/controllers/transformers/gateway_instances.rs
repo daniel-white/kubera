@@ -2,10 +2,10 @@ use crate::controllers::filters::GatewayClassParametersReferenceState;
 use crate::kubernetes::objects::{ObjectRef, Objects};
 use gateway_api::apis::standard::gateways::Gateway;
 use getset::Getters;
+use k8s_openapi::DeepMerge;
 use k8s_openapi::api::apps::v1::{Deployment, DeploymentSpec, DeploymentStrategy};
 use k8s_openapi::api::core::v1::{Service, ServiceSpec};
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
-use k8s_openapi::DeepMerge;
 use serde_json::{from_value, json};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -15,9 +15,9 @@ use vg_api::v1alpha1::{
     GatewayClassParameters, GatewayConfiguration, GatewayInstrumentationOpenTelemetry,
     GatewayParameters, ImagePullPolicy as ApiImagePullPolicy,
 };
-use vg_core::sync::signal::{signal, Receiver};
-use vg_core::task::Builder as TaskBuilder;
 use vg_core::ReadyState;
+use vg_core::sync::signal::{Receiver, signal};
+use vg_core::task::Builder as TaskBuilder;
 use vg_core::{await_ready, continue_on};
 
 #[derive(Default, Copy, Clone, Debug, PartialEq, IntoStaticStr)]

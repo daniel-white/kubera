@@ -1,4 +1,4 @@
-use schemars::{json_schema, Schema, SchemaGenerator};
+use schemars::{Schema, SchemaGenerator, json_schema};
 
 pub fn cidr_array(_: &mut SchemaGenerator) -> Schema {
     json_schema!({
@@ -64,6 +64,13 @@ pub fn scheme(_: &mut SchemaGenerator) -> Schema {
     json_schema!({
         "type": "string",
         "enum": ["http", "https"]
+    })
+}
+
+pub fn url(_: &mut SchemaGenerator) -> Schema {
+    json_schema!({
+        "type": "string",
+        "format": "uri"
     })
 }
 

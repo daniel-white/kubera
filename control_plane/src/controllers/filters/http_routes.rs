@@ -2,9 +2,9 @@ use crate::kubernetes::objects::{ObjectRef, Objects};
 use gateway_api::apis::standard::gateways::Gateway;
 use gateway_api::apis::standard::httproutes::HTTPRoute;
 use tracing::{debug, debug_span, warn};
-use vg_core::sync::signal::{signal, Receiver};
+use vg_core::sync::signal::{Receiver, signal};
 use vg_core::task::Builder as TaskBuilder;
-use vg_core::{await_ready, continue_on, ReadyState};
+use vg_core::{ReadyState, await_ready, continue_on};
 
 /// Check if an HTTP route is allowed by the Gateway's allowedRoutes configuration
 fn is_http_route_allowed_by_gateway(

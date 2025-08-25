@@ -14,7 +14,7 @@ pub struct ClientAddrFilterHandler {
 impl ClientAddrFilterHandler {
     pub fn filter(&self, session: &mut Session) -> Option<IpAddr> {
         let extractor = self.extractor.extractor();
-        if let Some(client_addr) = extractor.extract(session) {
+        if let Some(client_addr) = extractor.extract(*session.client_addr().unwrap().as_inet().unwrap(), session.req_header()) {
             let headers = session.req_header_mut();
             headers
                 .insert_header(VALE_GATEWAY_CLIENT_IP_HEADER,

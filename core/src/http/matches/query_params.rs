@@ -71,6 +71,12 @@ pub struct HttpQueryParamName(
     String,
 );
 
+impl HttpQueryParamName {
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
 impl From<&str> for HttpQueryParamName {
     fn from(value: &str) -> Self {
         Self(value.to_string())

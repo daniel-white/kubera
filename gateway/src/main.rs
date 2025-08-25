@@ -6,23 +6,22 @@ mod proxy;
 mod util;
 
 use crate::cli::Cli;
-use crate::controllers::config::fs::{watch_configuration_file, WatchConfigurationFileParams};
-use crate::controllers::config::ipc::{
-    fetch_configuration, watch_ipc_endpoint, FetchConfigurationParams,
-};
-use crate::controllers::config::selector::{select_configuration, SelectorParams};
+use crate::controllers::config::fs::{file_source, FileSourceParams};
+use crate::controllers::config::ipc::{ipc_addr, ipc_source, FetchConfigurationParams};
+use crate::controllers::config::selector::{gateway, GatewayParams};
 use crate::controllers::ipc_events::{poll_gateway_events, PollGatewayEventsParams};
-use crate::controllers::router::synthesize_http_router;
 use crate::controllers::static_response_bodies_cache::static_response_bodies_cache;
-use crate::http::filters::access_control::access_control_filters_handlers;
-use crate::http::filters::client_addrs::client_addr_filter_handler;
+use crate::http::filters::access_control::http_access_control_filter_handlers;
+use crate::http::filters::client_addrs::client_addr_filter_handlers;
+use crate::http::filters::error_response::http_error_response_filter_handlers;
 use crate::proxy::filters::static_responses::static_responses;
-use crate::proxy::responses::error_responses::error_responses;
 use crate::proxy::Proxy;
 use clap::Parser;
 use pingora::prelude::http_proxy_service;
 use pingora::server::Server;
 
+use crate::http::listener::http_listener;
+use crate::http::router::http_router;
 use proxy::router::topology::TopologyLocation;
 use reqwest_middleware::ClientBuilder;
 use reqwest_tracing::TracingMiddleware;
@@ -72,7 +71,7 @@ async fn main() {
         poll_gateway_events(&task_builder, params)
     };
 
-    let ipc_configuration_source_rx = {
+    let ipc_source_rx = {
         let params = FetchConfigurationParams::builder()
             .client(client.clone())
             .ipc_endpoint_rx(ipc_endpoint_rx.clone())
@@ -82,36 +81,36 @@ async fn main() {
             .gateway_name(args.gateway_name())
             .build();
 
-        fetch_configuration(&task_builder, params)
+        ipc_source(&task_builder, params)
     };
 
-    let fs_configuration_source_rx = {
-        let params = WatchConfigurationFileParams::builder()
+    let fs_source_rx = {
+        let params = FileSourceParams::builder()
             .file_path(args.config_file_path())
             .build();
 
-        watch_configuration_file(&task_builder, params)
+        file_source(&task_builder, params)
     };
 
-    let gateway_configuration_rx = {
-        let params = SelectorParams::builder()
-            .ipc_configuration_source_rx(ipc_configuration_source_rx)
-            .fs_configuration_source_rx(fs_configuration_source_rx)
+    let gateway_rx = {
+        let params = GatewayParams::builder()
+            .ipc_source_rx(ipc_source_rx)
+            .fs_source_rx(fs_source_rx)
             .build();
 
-        select_configuration(&task_builder, params)
+        gateway(&task_builder, params)
     };
 
-    watch_ipc_endpoint(&task_builder, &gateway_configuration_rx, ipc_endpoint_tx);
+    ipc_addr(&task_builder, &gateway_rx, ipc_endpoint_tx);
 
-    let router_rx =
-        synthesize_http_router(&task_builder, &gateway_configuration_rx, current_location);
+    let http_listener_rx = http_listener(&task_builder, &gateway_rx);
+    let http_router_rx = http_router(&task_builder, &http_listener_rx, current_location);
     let client_addr_filter_handler_rx =
-        client_addr_filter_handler(&task_builder, &gateway_configuration_rx);
-    let access_control_filters_handlers_rx =
-        access_control_filters_handlers(&task_builder, &gateway_configuration_rx);
-    let error_responses_rx = error_responses(&task_builder, &gateway_configuration_rx);
-    let static_responses_rx = static_responses(&task_builder, &gateway_configuration_rx);
+        client_addr_filter_handlers(&task_builder, &http_listener_rx);
+    let http_access_control_filters_handlers_rx =
+        http_access_control_filter_handlers(&task_builder, &http_listener_rx);
+    let http_error_response_filter_handlers = http_error_response_filter_handlers(&task_builder, &http_listener_rx);
+    let static_responses_rx = static_responses(&task_builder, &gateway_rx);
     let static_response_bodies_cache = static_response_bodies_cache(
         &task_builder,
         client.clone(),
@@ -127,8 +126,8 @@ async fn main() {
         server.bootstrap();
         let proxy = Proxy::builder()
             .client_addr_filter_handler_rx(client_addr_filter_handler_rx)
-            .access_control_filters_handlers_rx(access_control_filters_handlers_rx)
-            .error_responses_rx(error_responses_rx)
+            .access_control_filters_handlers_rx(http_access_control_filters_handlers_rx)
+            .error_responses_rx(http_error_response_filter_handlers)
             .router_rx(router_rx)
             .static_responses_rx(static_responses_rx)
             .static_response_bodies_cache(static_response_bodies_cache)

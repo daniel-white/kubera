@@ -169,20 +169,6 @@ pub fn apply_header_modifications<H: HeaderOperations>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use vg_core::config::gateway::types::http::filters::HTTPHeader;
-
-    fn create_test_headers() -> Vec<HTTPHeader> {
-        vec![
-            HTTPHeader {
-                name: "X-Test-Header".to_string(),
-                value: "test-value".to_string(),
-            },
-            HTTPHeader {
-                name: "X-Another-Header".to_string(),
-                value: "another-value".to_string(),
-            },
-        ]
-    }
 
     #[test]
     fn test_header_map_operations() {

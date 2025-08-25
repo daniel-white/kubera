@@ -10,7 +10,7 @@ use typed_builder::TypedBuilder;
 use vg_api::v1alpha1::{StaticResponseFilter, StaticResponseFilterBodyFormat};
 use vg_core::sync::signal::Receiver;
 use vg_core::task::Builder as TaskBuilder;
-use vg_core::{await_ready, continue_on, ReadyState};
+use vg_core::{ReadyState, await_ready, continue_on};
 
 #[derive(Debug, Default)]
 struct StaticResponseCacheState {

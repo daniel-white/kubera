@@ -1,8 +1,8 @@
 use crate::instrumentation::{KeyValueCollector, KeyValues};
 use getset::Getters;
 use opentelemetry::{StringValue, Value};
-use schemars::JsonSchema;
 use schemars::_private::serde_json;
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_valid::Validate;
 use std::net::SocketAddr;
@@ -13,8 +13,7 @@ use typed_builder::TypedBuilder;
 #[serde(rename_all = "camelCase")]
 pub struct IpcConfiguration {
     #[getset(get = "pub")]
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    addr: Option<SocketAddr>,
+    addr: SocketAddr,
 }
 
 impl IpcConfiguration {
@@ -35,7 +34,9 @@ impl IpcConfigurationBuilder {
     }
 
     pub fn build(self) -> IpcConfiguration {
-        IpcConfiguration { addr: self.addr }
+        IpcConfiguration {
+            addr: self.addr.expect("Missing ipc addr"),
+        }
     }
 }
 

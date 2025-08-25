@@ -9,12 +9,11 @@ use tokio::sync::broadcast::Receiver as BroadcastReceiver;
 use tracing::{debug, info, warn};
 use typed_builder::TypedBuilder;
 use url::Url;
-use vg_core::config::gateway::serde::read_configuration;
-use vg_core::config::gateway::types::GatewayConfiguration;
-use vg_core::{await_ready, continue_on, ReadyState};
+use vg_core::gateways::Gateway;
 use vg_core::ipc::GatewayEvent;
-use vg_core::sync::signal::{Receiver, Sender, signal};
+use vg_core::sync::signal::{signal, Receiver, Sender};
 use vg_core::task::Builder as TaskBuilder;
+use vg_core::{await_ready, continue_on, ReadyState};
 
 #[derive(Debug, TypedBuilder)]
 pub struct FetchConfigurationParams {
@@ -29,12 +28,12 @@ pub struct FetchConfigurationParams {
     client: Arc<ClientWithMiddleware>,
 }
 
-pub fn fetch_configuration(
+pub fn ipc_source(
     task_builder: &TaskBuilder,
     params: FetchConfigurationParams,
-) -> Receiver<(Instant, GatewayConfiguration)> {
+) -> Receiver<(Instant, Gateway)> {
     let ipc_endpoint_rx = params.ipc_endpoint_rx.clone();
-    let (tx, rx) = signal("fetched_configuration");
+    let (tx, rx) = signal("ipc_source");
 
     task_builder
         .new_task(stringify!(fetch_configuration))
@@ -77,16 +76,9 @@ pub fn fetch_configuration(
                         Ok(response) if response.status() == StatusCode::OK => {
                             match response.bytes().await {
                                 Ok(bytes) => {
-                                    let buf = BufReader::new(bytes.as_ref());
-                                    match read_configuration(buf) {
-                                        Ok(configuration) => {
-                                            debug!("Configuration fetched successfully");
-                                            tx.set((serial, configuration)).await;
-                                        }
-                                        Err(err) => {
-                                            warn!("Error reading configuration: {}", err);
-                                        }
-                                    }
+                                    let gateway: Gateway = serde_yaml::from_slice(bytes.as_ref())
+                                        .expect("Failed to deserialize Gateway");
+                                    tx.set((serial, gateway)).await;
                                 }
                                 Err(err) => {
                                     warn!("Error reading response body: {}", err);
@@ -107,27 +99,23 @@ pub fn fetch_configuration(
     rx
 }
 
-pub fn watch_ipc_endpoint(
+pub fn ipc_addr(
     task_builder: &TaskBuilder,
-    gateway_configuration_rx: &Receiver<GatewayConfiguration>,
+    gateway_rx: &Receiver<Gateway>,
     tx: Sender<SocketAddr>,
 ) {
-    let gateway_configuration_rx = gateway_configuration_rx.clone();
+    let gateway_rx = gateway_rx.clone();
 
     task_builder
         .new_task(stringify!(watch_ipc_endpoint))
         .spawn(async move {
             loop {
-                if let ReadyState::Ready(gateway_configuration) = await_ready!(gateway_configuration_rx) {
-                    let primary_endpoint = gateway_configuration
-                        .ipc()
-                        .as_ref()
-                        .and_then(|c| *c.endpoint());
-
-                    tx.replace(primary_endpoint).await;
+                if let ReadyState::Ready(gateway) = await_ready!(gateway_rx) {
+                    let addr = gateway.ipc().addr();
+                    tx.replace(addr).await;
                 }
 
-                continue_on!(gateway_configuration_rx.changed());
+                continue_on!(gateway_rx.changed());
             }
         });
 }

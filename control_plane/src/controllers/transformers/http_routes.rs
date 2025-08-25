@@ -4,15 +4,15 @@ use gateway_api::apis::standard::gateways::Gateway;
 use gateway_api::apis::standard::httproutes::HTTPRoute;
 use getset::{CopyGetters, Getters};
 use k8s_openapi::api::core::v1::Service;
-use std::collections::hash_map::Entry;
 use std::collections::HashMap;
+use std::collections::hash_map::Entry;
 use std::sync::Arc;
 use tracing::{debug, info};
 use typed_builder::TypedBuilder;
 use vg_core::net::Port;
-use vg_core::sync::signal::{signal, Receiver};
+use vg_core::sync::signal::{Receiver, signal};
 use vg_core::task::Builder as TaskBuilder;
-use vg_core::{await_ready, continue_on, ReadyState};
+use vg_core::{ReadyState, await_ready, continue_on};
 
 #[derive(Debug, TypedBuilder, Getters, CopyGetters, Clone, Hash, PartialEq, Eq)]
 pub struct HttpRouteBackend {
@@ -52,13 +52,15 @@ pub fn collect_http_route_backends(
                                 #[allow(clippy::single_match_else)]
                                 // We'll likely add more kinds later
                                 if let Some("Service") = backend_ref.kind.as_deref() {
-                                    let service_ref =
-                                        ObjectRef::of_kind::<Service>()
-                                            .namespace(backend_ref.namespace.clone().or_else(
-                                                || http_route.metadata.namespace.clone(),
-                                            ))
-                                            .name(&backend_ref.name)
-                                            .build();
+                                    let service_ref = ObjectRef::of_kind::<Service>()
+                                        .namespace(
+                                            backend_ref
+                                                .namespace
+                                                .clone()
+                                                .or_else(|| http_route.metadata.namespace.clone()),
+                                        )
+                                        .name(&backend_ref.name)
+                                        .build();
                                     let backend = HttpRouteBackend::builder()
                                         .object_ref(service_ref.clone())
                                         .port(backend_ref.port.map(|p| Port::new(p as u16)))

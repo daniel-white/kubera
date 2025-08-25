@@ -75,13 +75,13 @@ impl HostHeaderMatchBuilder {
         }
     }
 
-    pub fn with_exact_host(&mut self, host: &Hostname) {
-        let host_header_value_match = HostHeaderValueMatch::Exact(host.clone());
+    pub fn with_exact_host<H: Into<Hostname>>(&mut self, host: H) {
+        let host_header_value_match = HostHeaderValueMatch::Exact(host.into());
         self.host_header_value_matches.push(host_header_value_match);
     }
 
-    pub fn with_host_suffix(&mut self, host: &Hostname) {
-        let host_header_value_match = HostHeaderValueMatch::Suffix(host.clone());
+    pub fn with_host_suffix<H: Into<Hostname>>(&mut self, host: H) {
+        let host_header_value_match = HostHeaderValueMatch::Suffix(host.into());
         self.host_header_value_matches.push(host_header_value_match);
     }
 }

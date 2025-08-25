@@ -3,8 +3,8 @@ use crate::controllers::transformers::{
     Backend, ExtensionFilterKind, ExtensionFilters, GatewayInstanceConfiguration,
 };
 use crate::ipc::IpcServices;
-use crate::kubernetes::objects::{ObjectRef, SyncObjectAction};
 use crate::kubernetes::KubeClientCell;
+use crate::kubernetes::objects::{ObjectRef, SyncObjectAction};
 use crate::options::Options;
 use crate::{sync_objects, watch_objects};
 use axum::http::HeaderName;
@@ -17,8 +17,8 @@ use gateway_api::httproutes::HTTPRouteRulesMatches;
 use getset::CloneGetters;
 use gtmpl_derive::Gtmpl;
 use k8s_openapi::api::core::v1::{ConfigMap, Service};
-use kube::runtime::watcher::Config;
 use kube::ResourceExt;
+use kube::runtime::watcher::Config;
 use std::collections::{HashMap, HashSet};
 use std::net::IpAddr;
 use std::str::FromStr;
@@ -28,30 +28,15 @@ use tokio::sync::mpsc::UnboundedSender;
 use tracing::{debug, error, info, warn};
 use typed_builder::TypedBuilder;
 use vg_api::v1alpha1::{
-    AccessControlFilter as ApiAccessControlFilter, AccessControlFilterEffect,
-    ClientAddressesSource, ErrorResponseKind, ProxyIpAddressHeaders, StaticResponseFilter,
+    AccessControlFilter, AccessControlFilterEffect, ClientAddressesSource, ErrorResponseKind,
+    ProxyIpAddressHeaders, StaticResponseFilter,
 };
-use vg_core::config::gateway::types::http::filters::{
-    ExtStaticResponseRef, HTTPHeader, HttpRouteFilter, HttpRouteFilterType, RequestHeaderModifier,
-    ResponseHeaderModifier,
-};
-use vg_core::config::gateway::types::http::router::{
-    HttpMethodMatch, HttpRouteBuilder, HttpRouteRuleBuilder, HttpRouteRuleMatchesBuilder,
-};
-use vg_core::config::gateway::types::net::{
-    ErrorResponseKind as ConfigErrorResponseKind, ErrorResponses as ConfigErrorResponses,
-    ProblemDetailErrorResponse, StaticResponse, StaticResponseBody,
-};
-use vg_core::config::gateway::types::{GatewayConfiguration, GatewayConfigurationBuilder};
-use vg_core::http::filters::access_control::{
-    AccessControlEffect, HttpAccessControlClients, HttpAccessControlFilter,
-    HttpAccessControlFilterRef,
-};
+
 use vg_core::http::filters::client_addrs::HttpProxyHeaders;
 use vg_core::net::{Hostname, Port};
-use vg_core::sync::signal::{signal, Receiver};
+use vg_core::sync::signal::{Receiver, signal};
 use vg_core::task::Builder as TaskBuilder;
-use vg_core::{await_ready, continue_after, continue_on, ReadyState};
+use vg_core::{ReadyState, await_ready, continue_after, continue_on};
 
 const TEMPLATE: &str = include_str!("./templates/gateway_configmap.kubernetes-helm-yaml");
 

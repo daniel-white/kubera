@@ -1,6 +1,6 @@
 use crate::CaseInsensitiveString;
 use getset::Getters;
-use schemars::{json_schema, JsonSchema, Schema, SchemaGenerator};
+use schemars::{JsonSchema, Schema, SchemaGenerator, json_schema};
 use serde::{Deserialize, Serialize};
 use serde_valid::Validate;
 use std::borrow::Cow;

@@ -1,7 +1,7 @@
 use crate::controllers::instances::InstanceRole;
 use crate::controllers::transformers::GatewayInstanceConfiguration;
-use crate::kubernetes::objects::{ObjectRef, SyncObjectAction};
 use crate::kubernetes::KubeClientCell;
+use crate::kubernetes::objects::{ObjectRef, SyncObjectAction};
 use crate::options::Options;
 use crate::{sync_objects, watch_objects};
 use gtmpl_derive::Gtmpl;
@@ -15,7 +15,7 @@ use typed_builder::TypedBuilder;
 use vg_core::continue_after;
 use vg_core::sync::signal::Receiver;
 use vg_core::task::Builder as TaskBuilder;
-use vg_core::{await_ready, ReadyState};
+use vg_core::{ReadyState, await_ready};
 
 const TEMPLATE: &str = include_str!("./templates/gateway_service.kubernetes-helm-yaml");
 

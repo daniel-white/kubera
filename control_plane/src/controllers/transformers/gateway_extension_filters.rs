@@ -7,9 +7,9 @@ use strum::{EnumString, IntoStaticStr};
 use tracing::{debug, info};
 use vg_api::v1alpha1::{AccessControlFilter, StaticResponseFilter};
 use vg_core::continue_on;
-use vg_core::sync::signal::{signal, Receiver};
+use vg_core::sync::signal::{Receiver, signal};
 use vg_core::task::Builder as TaskBuilder;
-use vg_core::{await_ready, ReadyState};
+use vg_core::{ReadyState, await_ready};
 
 #[derive(Debug, Clone, PartialEq, Eq, EnumString, IntoStaticStr)]
 pub enum ExtensionFilterKind {

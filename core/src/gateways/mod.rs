@@ -1,8 +1,8 @@
 use crate::http::listeners::{HttpListener, HttpListenerBuilder};
 use crate::ipc::IpcConfiguration;
+use ::serde::{Deserialize, Serialize};
 use getset::{CloneGetters, CopyGetters, Getters};
 use schemars::JsonSchema;
-use ::serde::{Deserialize, Serialize};
 use serde_valid::Validate;
 use strum::EnumString;
 
@@ -48,15 +48,15 @@ pub struct Gateway {
     ipc: IpcConfiguration,
 
     #[getset(get = "pub")]
-    #[validate(max_items = 64)]
-    http_listeners: Vec<HttpListener>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    http_listener: Option<HttpListener>,
 }
 
 impl Gateway {
     pub fn builder() -> GatewayBuilder {
         GatewayBuilder {
             ipc: None,
-            http_listener_builders: Vec::new(),
+            http_listener_builder: None,
         }
     }
 }
@@ -64,7 +64,7 @@ impl Gateway {
 #[derive(Debug)]
 pub struct GatewayBuilder {
     ipc: Option<IpcConfiguration>,
-    http_listener_builders: Vec<HttpListenerBuilder>,
+    http_listener_builder: Option<HttpListenerBuilder>,
 }
 
 impl GatewayBuilder {
@@ -72,11 +72,7 @@ impl GatewayBuilder {
         Gateway {
             version: GatewayVersion::V1Alpha1,
             ipc: self.ipc.expect("IPC configuration is required"),
-            http_listeners: self
-                .http_listener_builders
-                .into_iter()
-                .map(HttpListenerBuilder::build)
-                .collect(),
+            http_listener: self.http_listener_builder.map(|b| b.build()),
         }
     }
 
@@ -85,13 +81,13 @@ impl GatewayBuilder {
         self
     }
 
-    pub fn add_http_listener<F>(&mut self, factory: F) -> &mut Self
+    pub fn with_http_listener<F>(&mut self, factory: F) -> &mut Self
     where
         F: FnOnce(&mut HttpListenerBuilder),
     {
         let mut listener_builder = HttpListener::builder();
         factory(&mut listener_builder);
-        self.http_listener_builders.push(listener_builder);
+        self.http_listener_builder = Some(listener_builder);
         self
     }
 }

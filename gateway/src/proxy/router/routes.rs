@@ -221,7 +221,7 @@ pub struct HttpRouteBuilder {
 }
 
 impl HttpRouteBuilder {
-    pub fn new(current_location: &Arc<TopologyLocation>) -> Self {
+    pub fn new(current_location: Arc<TopologyLocation>) -> Self {
         HttpRouteBuilder {
             current_location: current_location.clone(),
             host_header_match_builder: HostHeaderMatch::builder(),
@@ -240,13 +240,13 @@ impl HttpRouteBuilder {
         }
     }
 
-    pub fn add_exact_host(&mut self, host: &Hostname) -> &mut Self {
+    pub fn add_exact_host<H: Into<Hostname>>(&mut self, host: H) -> &mut Self {
         self.host_header_match_builder.with_exact_host(host);
         self
     }
 
-    pub fn add_host_suffix(&mut self, host: &Hostname) -> &mut Self {
-        self.host_header_match_builder.with_host_suffix(host);
+    pub fn add_host_suffix<H: Into<Hostname>>(&mut self, suffix: H) -> &mut Self {
+        self.host_header_match_builder.with_host_suffix(suffix);
         self
     }
 
@@ -254,7 +254,7 @@ impl HttpRouteBuilder {
     where
         F: FnOnce(&mut HttpRouteRuleBuilder),
     {
-        let mut builder = HttpRouteRuleBuilder::new(unique_id, &self.current_location);
+        let mut builder = HttpRouteRuleBuilder::new(unique_id, self.current_location.clone());
         factory(&mut builder);
         self.rule_builders.push(builder);
         self
@@ -316,10 +316,10 @@ pub struct HttpRouteRuleBuilder {
 }
 
 impl HttpRouteRuleBuilder {
-    pub fn new(unique_id: HttpRouteRuleUniqueId, current_location: &Arc<TopologyLocation>) -> Self {
+    pub fn new(unique_id: HttpRouteRuleUniqueId, current_location: Arc<TopologyLocation>) -> Self {
         Self {
             unique_id,
-            current_location: current_location.clone(),
+            current_location,
             matches_builders: Vec::new(),
             backend_builders: Vec::new(),
             filters: Vec::new(),

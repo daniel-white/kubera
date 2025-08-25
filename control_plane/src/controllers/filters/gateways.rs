@@ -5,9 +5,9 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tracing::debug;
 use vg_api::v1alpha1::GatewayParameters;
-use vg_core::sync::signal::{signal, Receiver};
+use vg_core::sync::signal::{Receiver, signal};
 use vg_core::task::Builder as TaskBuilder;
-use vg_core::{await_ready, continue_on, ReadyState};
+use vg_core::{ReadyState, await_ready, continue_on};
 
 pub fn filter_gateways(
     task_builder: &TaskBuilder,

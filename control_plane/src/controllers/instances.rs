@@ -1,13 +1,13 @@
 use crate::instrumentation::METER;
-use crate::kubernetes::objects::ObjectRef;
 use crate::kubernetes::KubeClientCell;
+use crate::kubernetes::objects::ObjectRef;
 use crate::options::Options;
 use futures::StreamExt;
 use k8s_openapi::api::coordination::v1::Lease;
 use k8s_openapi::api::core::v1::Pod;
+use kube::runtime::Controller;
 use kube::runtime::controller::Action;
 use kube::runtime::watcher::Config;
-use kube::runtime::Controller;
 use kube::{Api, Client};
 use kube_leader_election::{LeaseLock, LeaseLockParams, LeaseLockResult};
 use opentelemetry::KeyValue;
@@ -20,9 +20,9 @@ use thiserror::Error;
 use tokio::select;
 use tracing::log::warn;
 use tracing::{debug, info, instrument};
-use vg_core::sync::signal::{signal, Receiver, Sender};
+use vg_core::sync::signal::{Receiver, Sender, signal};
 use vg_core::task::Builder as TaskBuilder;
-use vg_core::{await_ready, continue_after, continue_on, ReadyState};
+use vg_core::{ReadyState, await_ready, continue_after, continue_on};
 
 pub fn watch_leader_instance_ip_addr(
     options: Arc<Options>,

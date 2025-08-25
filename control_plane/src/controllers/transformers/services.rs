@@ -7,10 +7,10 @@ use std::collections::HashMap;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use tracing::debug;
 use typed_builder::TypedBuilder;
-use vg_core::net::Port;
-use vg_core::sync::signal::{signal, Receiver};
-use vg_core::task::Builder as TaskBuilder;
 use vg_core::ReadyState;
+use vg_core::net::Port;
+use vg_core::sync::signal::{Receiver, signal};
+use vg_core::task::Builder as TaskBuilder;
 use vg_core::{await_ready, continue_on};
 
 #[derive(Debug, TypedBuilder, Getters, Clone, Hash, PartialEq, Eq)]

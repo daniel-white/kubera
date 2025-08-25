@@ -168,7 +168,11 @@ impl HttpRouteRuleMatchesBuilder {
         self
     }
 
-    pub fn with_exact_header(&mut self, name: HeaderName, value: HeaderValue) -> &mut Self {
+    pub fn with_exact_header<H: Into<HeaderName>, V: Into<HeaderValue>>(
+        &mut self,
+        name: H,
+        value: V,
+    ) -> &mut Self {
         self.headers
             .get_or_insert_default()
             .header_matches
@@ -176,7 +180,11 @@ impl HttpRouteRuleMatchesBuilder {
         self
     }
 
-    pub fn with_header_matching(&mut self, name: HeaderName, pattern: &str) -> &mut Self {
+    pub fn with_header_matching<H: Into<HeaderName>>(
+        &mut self,
+        name: H,
+        pattern: &str,
+    ) -> &mut Self {
         self.headers
             .get_or_insert_default()
             .header_matches

@@ -1,20 +1,20 @@
 use crate::controllers::filters::GatewayClassParametersReferenceState;
 use crate::controllers::instances::InstanceRole;
-use crate::kubernetes::objects::ObjectRef;
 use crate::kubernetes::KubeClientCell;
+use crate::kubernetes::objects::ObjectRef;
 use gateway_api::constants::{GatewayClassConditionReason, GatewayClassConditionType};
 use gateway_api::gatewayclasses::{GatewayClass, GatewayClassStatus};
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::{Condition, Time};
 use k8s_openapi::chrono;
-use kube::api::PostParams;
 use kube::Api;
+use kube::api::PostParams;
 use std::ops::Deref;
 use std::sync::Arc;
 use std::time::Duration;
 use tracing::{debug, info, warn};
 use vg_core::sync::signal::Receiver;
 use vg_core::task::Builder as TaskBuilder;
-use vg_core::{await_ready, continue_after, ReadyState};
+use vg_core::{ReadyState, await_ready, continue_after};
 
 pub fn sync_gateway_class_status(
     task_builder: &TaskBuilder,

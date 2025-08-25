@@ -1,8 +1,8 @@
 use getset::Getters;
-use http::uri::Authority;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use typed_builder::TypedBuilder;
+use url::Url;
 
 #[derive(Deserialize, Serialize, Clone, Debug, JsonSchema, PartialEq, Hash, Eq)]
 #[serde(transparent)]
@@ -56,13 +56,9 @@ pub struct HttpErrorResponseFilter {
 )]
 #[serde(rename_all = "camelCase")]
 pub struct HttpProblemDetailErrorResponse {
-    #[serde(
-        with = "http_serde_ext::authority::option",
-        default,
-        skip_serializing_if = "Option::is_none"
-    )]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     #[getset(get = "pub")]
     #[builder(setter(into, strip_option), default)]
-    #[schemars(schema_with = "crate::schemars::authority")]
-    authority: Option<Authority>,
+    #[schemars(schema_with = "crate::schemars::url")]
+    authority: Option<Url>,
 }

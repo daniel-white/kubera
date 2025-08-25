@@ -2,51 +2,46 @@ use getset::Getters;
 use std::time::Instant;
 use tracing::debug;
 use typed_builder::TypedBuilder;
-use vg_core::config::gateway::types::GatewayConfiguration;
 use vg_core::continue_on;
+use vg_core::gateways::Gateway;
 use vg_core::sync::signal::{signal, Receiver};
 use vg_core::task::Builder as TaskBuilder;
 
 #[derive(Getters, Debug, Clone, TypedBuilder)]
-pub struct SelectorParams {
-    ipc_configuration_source_rx: Receiver<(Instant, GatewayConfiguration)>,
-    fs_configuration_source_rx: Receiver<(Instant, GatewayConfiguration)>,
+pub struct GatewayParams {
+    ipc_source_rx: Receiver<(Instant, Gateway)>,
+    fs_source_rx: Receiver<(Instant, Gateway)>,
 }
 
-pub fn select_configuration(
-    task_builder: &TaskBuilder,
-    params: SelectorParams,
-) -> Receiver<GatewayConfiguration> {
-    let (tx, rx) = signal("selected_configuration");
+pub fn gateway(task_builder: &TaskBuilder, params: GatewayParams) -> Receiver<Gateway> {
+    let (tx, rx) = signal("gateway");
 
-    let ipc_config_source_rx = params.ipc_configuration_source_rx.clone();
-    let fs_config_source_rx = params.fs_configuration_source_rx.clone();
+    let ipc_source_rx = params.ipc_source_rx.clone();
+    let fs_source_rx = params.fs_source_rx.clone();
 
     task_builder
         .new_task(stringify!(select_configuration))
         .spawn(async move {
             loop {
-                let config = match (
-                    ipc_config_source_rx.get().await.as_ref(),
-                    fs_config_source_rx.get().await.as_ref(),
+                let gateway = match (
+                    ipc_source_rx.get().await.as_ref(),
+                    fs_source_rx.get().await.as_ref(),
                 ) {
-                    (Some((_, ipc_config)), None) => {
+                    (Some((_, ipc)), None) => {
                         debug!("Using IPC configuration");
-                        Some(ipc_config.clone())
+                        Some(ipc.clone())
                     }
-                    (None, Some((_, fs_config))) => {
+                    (None, Some((_, fs))) => {
                         debug!("Using file-based configuration");
                         Some(fs_config.clone())
                     }
-                    (Some((ipc_serial, ipc_config)), Some((fs_serial, _)))
-                        if fs_serial < ipc_serial =>
-                    {
+                    (Some((ipc_serial, ipc)), Some((fs_serial, _))) if fs_serial < ipc_serial => {
                         debug!("Using IPC configuration, newer");
-                        Some(ipc_config.clone())
+                        Some(ipc.clone())
                     }
-                    (_, Some((_, fs_config))) => {
+                    (_, Some((_, fs))) => {
                         debug!("Using file-based configuration, newer");
-                        Some(fs_config.clone())
+                        Some(fs.clone())
                     }
                     _ => {
                         debug!("No configuration available from either source");
@@ -54,11 +49,11 @@ pub fn select_configuration(
                     }
                 };
 
-                tx.replace(config).await;
+                tx.replace(gateway).await;
 
                 continue_on!(
-                    params.ipc_configuration_source_rx.changed(),
-                    params.fs_configuration_source_rx.changed()
+                    params.ipc_source_rx.changed(),
+                    params.fs_source_rx.changed()
                 );
             }
         });

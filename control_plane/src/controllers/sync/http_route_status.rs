@@ -1,16 +1,16 @@
 use crate::controllers::instances::InstanceRole;
-use crate::kubernetes::objects::{ObjectRef, Objects};
 use crate::kubernetes::KubeClientCell;
+use crate::kubernetes::objects::{ObjectRef, Objects};
 use gateway_api::apis::standard::httproutes::{HTTPRoute, HTTPRouteStatus};
 use k8s_openapi::chrono;
-use kube::api::PostParams;
 use kube::Api;
+use kube::api::PostParams;
 use std::collections::HashMap;
 use std::ops::Deref;
 use tracing::{debug, info, warn};
 use vg_core::sync::signal::Receiver;
 use vg_core::task::Builder as TaskBuilder;
-use vg_core::{await_ready, continue_after, ReadyState};
+use vg_core::{ReadyState, await_ready, continue_after};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum RouteAttachmentState {

@@ -1,8 +1,8 @@
-use std::str::FromStr;
 use http::Method;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_valid::Validate;
+use std::str::FromStr;
 use strum::EnumString;
 
 #[derive(
@@ -31,8 +31,8 @@ pub enum HttpMethodMatch {
     Extension(String),
 }
 
-impl From<HttpMethodMatch> for Method {
-    fn from(method_match: HttpMethodMatch) -> Method {
+impl From<&HttpMethodMatch> for Method {
+    fn from(method_match: &HttpMethodMatch) -> Method {
         match method_match {
             HttpMethodMatch::Get => Method::GET,
             HttpMethodMatch::Post => Method::POST,
@@ -43,9 +43,7 @@ impl From<HttpMethodMatch> for Method {
             HttpMethodMatch::Options => Method::OPTIONS,
             HttpMethodMatch::Trace => Method::TRACE,
             HttpMethodMatch::Connect => Method::CONNECT,
-            HttpMethodMatch::Extension(ext) => {
-                Method::from_str(&ext).expect("Invalid HTTP method")
-            }
+            HttpMethodMatch::Extension(ext) => Method::from_str(&ext).expect("Invalid HTTP method"),
         }
     }
 }

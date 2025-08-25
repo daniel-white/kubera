@@ -1,7 +1,7 @@
 use bytes::Bytes;
 use dashmap::DashMap;
 use dashmap::Entry::*;
-use http::StatusCode;
+use http::{HeaderValue, StatusCode};
 use reqwest_middleware::ClientWithMiddleware;
 use reqwest_tracing::{OtelName, OtelPathNames};
 use std::collections::HashMap;
@@ -10,15 +10,17 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 use tracing::{debug, info, warn};
 use url::Url;
-use vg_core::config::gateway::types::net::StaticResponse;
+use vg_core::http::filters::static_response::{
+    HttpStaticResponseBodyKey, HttpStaticResponseFilter, HttpStaticResponseFilterKey,
+};
 use vg_core::sync::signal::Receiver;
 use vg_core::task::Builder as TaskBuilder;
 use vg_core::{await_ready, continue_on, ReadyState};
 
 #[derive(Debug)]
 struct StaticResponseBodiesCacheState {
-    cache: DashMap<String, (String, Arc<Bytes>)>,
-    responses: HashMap<String, StaticResponse>,
+    cache: DashMap<HttpStaticResponseBodyKey, (HeaderValue, Arc<Bytes>)>,
+    responses: HashMap<HttpStaticResponseFilterKey, HttpStaticResponseFilter>,
     client: Arc<ClientWithMiddleware>,
     ipc_endpoint: SocketAddr,
     pod_name: String,
@@ -32,7 +34,10 @@ pub struct StaticResponseBodiesCache {
 }
 
 impl StaticResponseBodiesCache {
-    pub async fn get(&self, key: &str) -> Option<(String, Arc<Bytes>)> {
+    pub async fn get(
+        &self,
+        key: &HttpStaticResponseFilterKey,
+    ) -> Option<(HeaderValue, Arc<Bytes>)> {
         let state = self.state.read().await;
         let state = state.as_ref()?;
         let response = state.responses.get(key)?;
@@ -42,58 +47,9 @@ impl StaticResponseBodiesCache {
             Some(body) => body,
         };
 
-        match state.cache.entry(body.identifier().clone()) {
+        match state.cache.entry(body.key().clone()) {
             Occupied(entry) => Some(entry.get().clone()),
-            Vacant(entry) => {
-                let url = {
-                    let mut url = Url::parse(&format!("http://{}", state.ipc_endpoint))
-                        .expect("Failed to parse URL");
-                    url.set_path(&format!(
-                        "/ipc/namespaces/{}/gateways/{}/static_responses/{}",
-                        state.gateway_namespace,
-                        state.gateway_name,
-                        body.identifier()
-                    ));
-                    url.set_query(Some(&format!("pod_name={}", state.pod_name)));
-                    url
-                };
-                debug!("Fetching static response from URL: {}", url);
-
-                let response = state.client.get(url)
-                    .with_extension(OtelName("fetch_static_response".into()))
-                    .with_extension(
-                        OtelPathNames::known_paths([
-                            "/ipc/namespaces/{namespace}/gateways/{gateway_name}/static_responses/{static_response_id}",
-                        ])
-                            .expect("Failed to set known paths"),
-                    )
-                    .send()
-                    .await;
-
-                match response {
-                    Ok(response) if response.status() == StatusCode::OK => {
-                        match response.bytes().await {
-                            Ok(bytes) => {
-                                let value = (body.content_type().clone(), Arc::from(bytes));
-                                entry.insert(value.clone());
-                                Some(value)
-                            }
-                            Err(err) => {
-                                warn!("Error reading response body: {}", err);
-                                None
-                            }
-                        }
-                    }
-                    Ok(response) => {
-                        info!("Unexpected response fetching configuration: {:?}", response);
-                        None
-                    }
-                    Err(err) => {
-                        warn!("Error fetching configuration: {}", err);
-                        None
-                    }
-                }
-            }
+            Vacant(entry) => {}
         }
     }
 }
@@ -101,7 +57,9 @@ impl StaticResponseBodiesCache {
 pub fn static_response_bodies_cache(
     task_builder: &TaskBuilder,
     client: Arc<ClientWithMiddleware>,
-    static_responses_rx: &Receiver<Arc<HashMap<String, StaticResponse>>>,
+    static_responses_rx: &Receiver<
+        Arc<HashMap<HttpStaticResponseFilterKey, HttpStaticResponseFilter>>,
+    >,
     ipc_endpoint_rx: &Receiver<SocketAddr>,
     pod_name: String,
     gateway_namespace: String,

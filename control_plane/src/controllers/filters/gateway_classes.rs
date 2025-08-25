@@ -6,9 +6,9 @@ use strum::{EnumString, IntoStaticStr};
 use tracing::{debug, info, warn};
 use vg_api::constants::GATEWAY_CLASS_CONTROLLER_NAME;
 use vg_api::v1alpha1::GatewayClassParameters;
-use vg_core::sync::signal::{signal, Receiver};
+use vg_core::sync::signal::{Receiver, signal};
 use vg_core::task::Builder as TaskBuilder;
-use vg_core::{await_ready, continue_on, ReadyState};
+use vg_core::{ReadyState, await_ready, continue_on};
 
 pub fn filter_gateway_classes(
     task_builder: &TaskBuilder,

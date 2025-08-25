@@ -1,10 +1,11 @@
+use getset::Getters;
 use http::{StatusCode, Uri};
 use std::str::FromStr;
 use std::sync::Arc;
 use tracing::{debug, error, warn};
 use url::Url;
-use vg_core::config::gateway::types::http::filters::RequestRedirect;
-use vg_core::sync::signal::{Receiver, signal};
+use vg_core::http::filters::redirect::HttpRedirectFilter;
+use vg_core::sync::signal::{signal, Receiver};
 use vg_core::task::Builder as TaskBuilder;
 
 /// Filter for handling HTTP request redirects based on RequestRedirect configuration.
@@ -62,7 +63,7 @@ use vg_core::task::Builder as TaskBuilder;
 /// ```
 #[derive(Debug, Clone, PartialEq)]
 pub struct RequestRedirectFilter {
-    redirect: Arc<RequestRedirect>,
+    redirect: Arc<HttpRedirectFilter>,
 }
 
 /// Context information about the matched route, used for prefix replacement.
@@ -87,13 +88,14 @@ pub struct RequestRedirectFilter {
 /// // With replacePrefixMatch configured as "/v2"
 /// // The result would be "/v2/users"
 /// ```
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Getters)]
 pub struct RouteMatchContext {
     /// The prefix that was matched from the route configuration.
     ///
     /// - Some("/prefix") for prefix matches where the request path starts with "/prefix"
     /// - None for exact matches, regex matches, or when no context is available
-    pub matched_prefix: Option<String>,
+    #[getset(get = "pub")]
+    matched_prefix: Option<String>,
 }
 
 impl RequestRedirectFilter {
@@ -102,7 +104,7 @@ impl RequestRedirectFilter {
     /// # Arguments
     ///
     /// * `redirect` - The redirect configuration specifying how to redirect requests
-    pub fn new(redirect: RequestRedirect) -> Self {
+    pub fn new(f: HttpRedirectFilter) -> Self {
         Self {
             redirect: Arc::new(redirect),
         }

@@ -1,5 +1,5 @@
-use crate::kubernetes::objects::Objects;
 use crate::kubernetes::KubeClientCell;
+use crate::kubernetes::objects::Objects;
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::{Condition, Time};
 use k8s_openapi::chrono::Utc;
 use kube::api::{Patch, PatchParams};
@@ -9,7 +9,7 @@ use vg_api::v1alpha1::{AccessControlFilter, AccessControlFilterStatus};
 use vg_core::continue_on;
 use vg_core::sync::signal::Receiver;
 use vg_core::task::Builder as TaskBuilder;
-use vg_core::{await_ready, ReadyState};
+use vg_core::{ReadyState, await_ready};
 
 async fn patch_access_control_filter_status(
     client: Client,
@@ -66,9 +66,9 @@ pub fn sync_access_control_filter_status(
                                 &status,
                             )
                             .await
-                            {
-                                warn!("Failed to patch status for {}: {}", ref_, e);
-                            }
+                        {
+                            warn!("Failed to patch status for {}: {}", ref_, e);
+                        }
                     }
                 }
                 continue_on!(

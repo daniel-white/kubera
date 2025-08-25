@@ -1,9 +1,8 @@
 use gateway_api::apis::standard::httproutes::{
-    HTTPRouteRulesFilters, HTTPRouteRulesFiltersRequestHeaderModifier,
-    HTTPRouteRulesFiltersRequestRedirect, HTTPRouteRulesFiltersRequestRedirectPath,
+    HTTPRouteRulesFiltersRequestHeaderModifier, HTTPRouteRulesFiltersRequestRedirect,
+    HTTPRouteRulesFiltersRequestRedirectPath,
 };
 use thiserror::Error;
-use tracing::debug;
 use vg_core::config::gateway::types::http::filters::{
     PathRewrite, PathRewriteType, RequestHeaderModifier, RequestHeaderModifierBuilder,
     RequestRedirect,
@@ -18,87 +17,7 @@ pub enum FilterConversionError {
     InvalidHeaderValue(String),
 }
 
-/// Convert Gateway API `HTTPRouteRulesFilters` to Vale Gateway `RequestHeaderModifier`
-#[allow(dead_code)] // Public API for future Gateway API integration
-pub fn convert_gateway_api_filter(
-    filter: &HTTPRouteRulesFilters,
-) -> Result<Option<RequestHeaderModifier>, FilterConversionError> {
-    // Check if this is a RequestHeaderModifier filter
-    if let Some(request_header_modifier) = &filter.request_header_modifier {
-        debug!(
-            "Converting RequestHeaderModifier filter: {:?}",
-            request_header_modifier
-        );
-        return convert_request_header_modifier(request_header_modifier);
-    }
-
-    // Check for other filter types
-    if filter.request_mirror.is_some() {
-        debug!("RequestMirror filter found but not supported yet");
-        return Ok(None);
-    }
-
-    if filter.request_redirect.is_some() {
-        debug!("RequestRedirect filter found but not supported yet");
-        return Ok(None);
-    }
-
-    if filter.extension_ref.is_some() {
-        debug!("ExtensionRef filter found but not supported yet");
-        return Ok(None);
-    }
-
-    // Empty filter or unsupported type
-    debug!("Empty or unsupported filter: {:?}", filter);
-    Ok(None)
-}
-
-/// Convert Gateway API `RequestHeaderModifier` to Vale Gateway `RequestHeaderModifier`
-#[allow(dead_code)]
-fn convert_request_header_modifier(
-    gw_modifier: &HTTPRouteRulesFiltersRequestHeaderModifier,
-) -> Result<Option<RequestHeaderModifier>, FilterConversionError> {
-    let mut builder = RequestHeaderModifierBuilder::new();
-
-    // Convert 'set' headers
-    if let Some(set_headers) = &gw_modifier.set {
-        for header in set_headers {
-            builder
-                .set_header(&header.name, &header.value)
-                .map_err(|_| FilterConversionError::InvalidHeaderName(header.name.clone()))?;
-        }
-    }
-
-    // Convert 'add' headers
-    if let Some(add_headers) = &gw_modifier.add {
-        for header in add_headers {
-            builder
-                .add_header(&header.name, &header.value)
-                .map_err(|_| FilterConversionError::InvalidHeaderName(header.name.clone()))?;
-        }
-    }
-
-    // Convert 'remove' headers
-    if let Some(remove_headers) = &gw_modifier.remove {
-        for name in remove_headers {
-            builder
-                .remove_header(name)
-                .map_err(|_| FilterConversionError::InvalidHeaderName(name.clone()))?;
-        }
-    }
-
-    let modifier = builder.build();
-
-    // Only return Some if there are actual modifications
-    if modifier.is_empty() {
-        Ok(None)
-    } else {
-        Ok(Some(modifier))
-    }
-}
-
 /// Convert Gateway API `RequestRedirect` to Vale Gateway `RequestRedirect`
-#[allow(dead_code)]
 pub fn convert_request_redirect(
     gw_redirect: &HTTPRouteRulesFiltersRequestRedirect,
 ) -> RequestRedirect {

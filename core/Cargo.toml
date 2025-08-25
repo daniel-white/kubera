@@ -41,6 +41,7 @@ tracing-opentelemetry = "0.31"
 unicase = { workspace = true }
 typed-builder = { workspace = true }
 serde_with = { version = "3", features = ["schemars_0_9"] }
+url = { workspace = true }
 
 [dev-dependencies]
 tokio-test = { workspace = true }

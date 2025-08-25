@@ -9,7 +9,7 @@ pub struct HeaderNameMatch(HeaderName);
 
 impl HeaderNameMatch {
     fn matches(&self, name: &HeaderName) -> bool {
-        self.0 == *name
+        self.0 == name
     }
 }
 
@@ -41,16 +41,16 @@ pub struct HeaderMatch {
 }
 
 impl HeaderMatch {
-    pub fn new_exact(name: HeaderName, value: HeaderValue) -> Self {
+    pub fn new_exact<H: Into<HeaderName>, V: Into<HeaderValue>>(name: H, value: V) -> Self {
         Self {
-            name_match: HeaderNameMatch(name),
-            value_match: HeaderValueMatch::Exact(value),
+            name_match: HeaderNameMatch(name.into()),
+            value_match: HeaderValueMatch::Exact(value.into()),
         }
     }
 
-    pub fn new_matching(name: HeaderName, pattern: &str) -> Self {
+    pub fn new_matching<H: Into<HeaderName>>(name: H, pattern: &str) -> Self {
         Self {
-            name_match: HeaderNameMatch(name),
+            name_match: HeaderNameMatch(name.into()),
             value_match: HeaderValueMatch::RegularExpression(pattern.to_string()),
         }
     }

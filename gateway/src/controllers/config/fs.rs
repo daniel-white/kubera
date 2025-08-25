@@ -5,24 +5,23 @@ use std::time::{Duration, Instant};
 use tokio::fs::read;
 use tracing::{debug, info};
 use typed_builder::TypedBuilder;
-use vg_core::config::gateway::serde::read_configuration;
-use vg_core::config::gateway::types::GatewayConfiguration;
 use vg_core::continue_after;
+use vg_core::gateways::Gateway;
 use vg_core::io::file_watcher::spawn_file_watcher;
-use vg_core::sync::signal::{Receiver, signal};
+use vg_core::sync::signal::{signal, Receiver};
 use vg_core::task::Builder as TaskBuilder;
 
 #[derive(Debug, Getters, TypedBuilder)]
-pub struct WatchConfigurationFileParams {
+pub struct FileSourceParams {
     #[builder(setter(into))]
     file_path: PathBuf,
 }
 
-pub fn watch_configuration_file(
+pub fn file_source(
     task_builder: &TaskBuilder,
-    params: WatchConfigurationFileParams,
-) -> Receiver<(Instant, GatewayConfiguration)> {
-    let (tx, rx) = signal("watched_configuration_file");
+    params: FileSourceParams,
+) -> Receiver<(Instant, Gateway)> {
+    let (tx, rx) = signal(stringify!(watch_configuration_file));
 
     task_builder
         .new_task(stringify!(watch_configuration_file))
@@ -38,11 +37,11 @@ pub fn watch_configuration_file(
             loop {
                 let serial = Instant::now();
 
-                if let Ok(config_reader) = read(&params.file_path).await.map(Cursor::new)
-                    && let Ok(config) = read_configuration(config_reader)
+                if let Ok(reader) = read(&params.file_path).await.map(Cursor::new)
+                    && let Ok(gateway) = serde_yaml::from_reader(reader)
                 {
                     debug!("Configuration file read");
-                    tx.set((serial, config)).await;
+                    tx.set((serial, gateway)).await;
                 }
 
                 continue_after!(
